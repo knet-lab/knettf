@@ -1,0 +1,68 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.DS_Store
+dist
+dist-ssr
+coverage
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+*.tsbuildinfo
+
+.eslintcache
+
+# Cypress
+/cypress/videos/
+/cypress/screenshots/
+
+# Vitest
+__screenshots__/
+
+# Vite
+*.timestamp-*-*.mjs
+
+
+
+
+# backend
+.venv*/
+venv/
+ENV/
+
+__pycache__/
+*.py[cod]
+# 忽略数据库 (初期用 sqlite，不要传到 git)
+db.sqlite3
+# 忽略收集的静态文件和用户上传
+backend/staticfiles/
+backend/media/
+
+
+# normal
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+
+
+.vscode/
+.venv*/
