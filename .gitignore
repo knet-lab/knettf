@@ -48,11 +48,10 @@ ENV/
 
 __pycache__/
 *.py[cod]
-# 忽略数据库 (初期用 sqlite，不要传到 git)
 db.sqlite3
-# 忽略收集的静态文件和用户上传
 backend/staticfiles/
 backend/media/
+__init__.py
 
 
 # normal
