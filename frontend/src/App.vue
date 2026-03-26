@@ -1,5 +1,8 @@
 <template>
-  <div></div>
+  <NavComponent />
+  <RouterView />
 </template>
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import NavComponent from '@/components/NavComponent.vue'
+</script>
 <style scoped></style>
