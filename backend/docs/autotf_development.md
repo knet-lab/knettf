@@ -35,15 +35,15 @@
 
 ### 配置管理
 
-| Method | Endpoint | 说明 |
-|--------|----------|------|
-| `GET` | `/api/autotf/users/<user_pk>/tf-configs/` | 当前用户配置列表（含报告摘要） |
-| `POST` | `/api/autotf/users/<user_pk>/tf-configs/` | 上传 `.tf` 文件（multipart）；创建后自动全量扫描 |
-| `POST` | `/api/autotf/users/<user_pk>/tf-configs/text/` | 在线编写配置（JSON body）；创建后自动全量扫描 |
-| `GET` | `/api/autotf/tf-configs/<config_pk>/` | 配置详情 |
-| `PUT` | `/api/autotf/tf-configs/<config_pk>/` | 更新配置（文件或文本）；更新后自动全量扫描 |
-| `DELETE` | `/api/autotf/tf-configs/<config_pk>/` | 删除配置（级联删除报告） |
-| `GET` | `/api/autotf/tf-configs/<config_pk>/content/` | 查看配置文件原始内容 |
+| Method   | Endpoint                                       | 说明                                             |
+| -------- | ---------------------------------------------- | ------------------------------------------------ |
+| `GET`    | `/api/autotf/users/<user_pk>/tf-configs/`      | 当前用户配置列表（含报告摘要）                   |
+| `POST`   | `/api/autotf/users/<user_pk>/tf-configs/`      | 上传 `.tf` 文件（multipart）；创建后自动全量扫描 |
+| `POST`   | `/api/autotf/users/<user_pk>/tf-configs/text/` | 在线编写配置（JSON body）；创建后自动全量扫描    |
+| `GET`    | `/api/autotf/tf-configs/<config_pk>/`          | 配置详情                                         |
+| `PUT`    | `/api/autotf/tf-configs/<config_pk>/`          | 更新配置（文件或文本）；更新后自动全量扫描       |
+| `DELETE` | `/api/autotf/tf-configs/<config_pk>/`          | 删除配置（级联删除报告）                         |
+| `GET`    | `/api/autotf/tf-configs/<config_pk>/content/`  | 查看配置文件原始内容                             |
 
 #### POST `/users/<user_pk>/tf-configs/` — 上传文件
 
@@ -80,18 +80,16 @@ file: .tf 文件
 
 ### 扫描工具
 
-| Method | Endpoint | 说明 |
-|--------|----------|------|
-| `GET` | `/api/autotf/tf-tools/` | 所有已启用工具列表 |
+| Method | Endpoint                | 说明               |
+| ------ | ----------------------- | ------------------ |
+| `GET`  | `/api/autotf/tf-tools/` | 所有已启用工具列表 |
 
 响应示例：
 
 ```json
 {
   "status": "success",
-  "data": [
-    { "id": 1, "name": "terraform_validate", "version": "1.14.7" }
-  ]
+  "data": [{ "id": 1, "name": "terraform_validate", "version": "1.14.7" }]
 }
 ```
 
@@ -99,10 +97,10 @@ file: .tf 文件
 
 ### 扫描
 
-| Method | Endpoint | 说明 |
-|--------|----------|------|
-| `POST` | `/api/autotf/tf-configs/<config_pk>/scan/` | 全量扫描（使用所有已启用工具） |
-| `POST` | `/api/autotf/tf-configs/<config_pk>/scan/manual/` | 手动扫描（指定工具子集） |
+| Method | Endpoint                                          | 说明                           |
+| ------ | ------------------------------------------------- | ------------------------------ |
+| `POST` | `/api/autotf/tf-configs/<config_pk>/scan/`        | 全量扫描（使用所有已启用工具） |
+| `POST` | `/api/autotf/tf-configs/<config_pk>/scan/manual/` | 手动扫描（指定工具子集）       |
 
 #### POST `/scan/manual/` body
 
@@ -134,19 +132,19 @@ file: .tf 文件
 
 ### 检测报告
 
-| Method | Endpoint | 鉴权 | 说明 |
-|--------|----------|------|------|
-| `GET` | `/api/autotf/tf-configs/<config_pk>/report/` | Bearer | 报告 JSON（含完整 findings） |
-| `DELETE` | `/api/autotf/tf-configs/<config_pk>/report/` | Bearer | 删除报告；自动重置 `is_scanned=False` |
-| `GET` | `/api/autotf/tf-configs/<config_pk>/report/html/` | `?token=` | 网页版报告（新标签页打开） |
-| `GET` | `/api/autotf/tf-configs/<config_pk>/report/pdf/` | `?token=` | PDF 下载（实时生成，不落盘） |
+| Method   | Endpoint                                          | 鉴权      | 说明                                  |
+| -------- | ------------------------------------------------- | --------- | ------------------------------------- |
+| `GET`    | `/api/autotf/tf-configs/<config_pk>/report/`      | Bearer    | 报告 JSON（含完整 findings）          |
+| `DELETE` | `/api/autotf/tf-configs/<config_pk>/report/`      | Bearer    | 删除报告；自动重置 `is_scanned=False` |
+| `GET`    | `/api/autotf/tf-configs/<config_pk>/report/html/` | `?token=` | 网页版报告（新标签页打开）            |
+| `GET`    | `/api/autotf/tf-configs/<config_pk>/report/pdf/`  | `?token=` | PDF 下载（实时生成，不落盘）          |
 
 ---
 
 ### Apply（预留）
 
-| Method | Endpoint | 说明 |
-|--------|----------|------|
+| Method | Endpoint                                    | 说明                                     |
+| ------ | ------------------------------------------- | ---------------------------------------- |
 | `POST` | `/api/autotf/tf-configs/<config_pk>/apply/` | **未实现** — 待与 K8s Cluster 联动后开发 |
 
 `is_scanned=False` 时返回 `403`。
@@ -159,14 +157,14 @@ file: .tf 文件
 
 文件：`frontend/src/views/AutoTFView.vue`
 
-| 节 | 操作 | 对应后端接口 |
-|----|------|-------------|
-| 1. Login | 获取 JWT token | `POST /api/auth/token/` |
-| 2. Tools | 查看可用工具及 ID | `GET /api/autotf/tf-tools/` |
-| 3. Configs | 列表 / 上传文件 / 在线编写 | `GET` `POST` `/users/:id/tf-configs/` |
-| 4. Config Detail | 详情 / 查看内容 / 更新 / 删除 | `GET` `PUT` `DELETE` `/tf-configs/:id/` |
-| 5. Scan | 全量扫描 / 手动扫描（填 tool ids） | `POST /tf-configs/:id/scan/` `.../scan/manual/` |
-| 6. Report | JSON 报告 / 删除 / HTML 新标签页 / PDF 下载 | `GET` `DELETE` `/report/` `.../report/html/` `.../report/pdf/` |
+| 节               | 操作                                        | 对应后端接口                                                   |
+| ---------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| 1. Login         | 获取 JWT token                              | `POST /api/auth/token/`                                        |
+| 2. Tools         | 查看可用工具及 ID                           | `GET /api/autotf/tf-tools/`                                    |
+| 3. Configs       | 列表 / 上传文件 / 在线编写                  | `GET` `POST` `/users/:id/tf-configs/`                          |
+| 4. Config Detail | 详情 / 查看内容 / 更新 / 删除               | `GET` `PUT` `DELETE` `/tf-configs/:id/`                        |
+| 5. Scan          | 全量扫描 / 手动扫描（填 tool ids）          | `POST /tf-configs/:id/scan/` `.../scan/manual/`                |
+| 6. Report        | JSON 报告 / 删除 / HTML 新标签页 / PDF 下载 | `GET` `DELETE` `/report/` `.../report/html/` `.../report/pdf/` |
 
 > HTML 报告链接和 PDF 下载链接由 `computed` 自动拼接当前 `configId` 和 `token`，无需手动填写。
 
@@ -258,7 +256,7 @@ npm run dev
 
 ## 待开发
 
-| 功能 | 说明 |
-|------|------|
-| Apply 实现 | 需与 K8s Cluster 配置联动，接口预留于 `POST /tf-configs/<pk>/apply/` |
-| `TF_BIN` 环境变量化 | 当前写死在 `settings.py`，生产环境改为从 env 读取 |
+| 功能                | 说明                                                                 |
+| ------------------- | -------------------------------------------------------------------- |
+| Apply 实现          | 需与 K8s Cluster 配置联动，接口预留于 `POST /tf-configs/<pk>/apply/` |
+| `TF_BIN` 环境变量化 | 当前写死在 `settings.py`，生产环境改为从 env 读取                    |
