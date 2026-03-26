@@ -1,0 +1,24 @@
+k8s-platform/
+├── frontend/ # Vue 3
+│ ├── src/
+│ │ ├── views/
+│ │ │ ├── k8s/ # K8s 管理页面
+│ │ │ ├── terraform/ # Terraform 管理页面
+│ │ │ └── traffic/ # 流量监控页面
+│ │ ├── stores/ # Pinia 状态
+│ │ └── api/ # Axios 封装
+│ └── vite.config.js
+│
+├── backend/ # Django 5
+│ ├── apps/
+│ │ ├── k8s_manager/ # K8s 管理模块
+│ │ ├── terraform_manager/ # Terraform 模块
+│ │ └── traffic_monitor/ # 流量检测模块
+│ ├── core/ # 公共配置、Auth、WebSocket
+│ └── manage.py
+│
+├── infra/ # 本地基础设施
+│ ├── docker-compose.yml # Redis + Kafka + Zookeeper
+│ └── kubeconfig/ # 集群配置文件（gitignore）
+│
+└── docs/ # 开发文档
