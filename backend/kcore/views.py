@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAdminUser
 from common.response import ResponseMixin
 from common.permissions import check_owner
 import common
@@ -11,10 +11,17 @@ from .serializers import (
 from .services import UserService, KubeClusterService, KubeResourceService
 
 
+class UserMe(APIView, ResponseMixin):
+    def get(self, request: common.Request):
+        return self.success_response(UserResponseSerializer(request.user).data)
+
+
 class UserList(APIView, ResponseMixin):
     def get_permissions(self):
         if self.request.method == 'POST':
             return [AllowAny()]
+        if self.request.method == 'GET':
+            return [IsAdminUser()]
         return super().get_permissions()
 
     def get(self, request: common.Request):

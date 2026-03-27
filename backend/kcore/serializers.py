@@ -6,7 +6,7 @@ from .models import User, KubeCluster
 class UserResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email']
+        fields = ['id', 'username', 'email', 'is_staff']
 
 
 class KubeClusterResponseSerializer(serializers.ModelSerializer):

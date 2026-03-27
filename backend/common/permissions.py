@@ -3,5 +3,8 @@ from . import Request
 
 
 def check_owner(request: Request, owner_pk: int):
+    if request.user.is_staff:
+        return 
     if request.user.pk != owner_pk:
         raise PermissionDenied()
+    

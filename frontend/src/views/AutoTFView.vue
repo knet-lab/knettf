@@ -1,276 +1,873 @@
 <template>
-  <div style="padding: 24px; font-family: monospace">
-    <h2>autotf API Test</h2>
-
-    <!-- Auth -->
-    <section>
-      <h3>1. Login</h3>
-      <input v-model="login.username" placeholder="username" />
-      <input v-model="login.password" placeholder="password" type="password" />
-      <button @click="getToken">Login</button>
-      <div v-if="token">
-        <span style="color: green">✓ Token acquired</span>
-        <br />
-        <small>{{ token.slice(0, 40) }}...</small>
+  <div class="autotf-layout">
+    <!-- ── 左侧 Sidebar ── -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">My Configs</span>
+        <el-button size="small" type="primary" @click="openAddDialog">
+          <el-icon><Plus /></el-icon>
+          New
+        </el-button>
       </div>
-    </section>
 
-    <!-- Tools -->
-    <section>
-      <h3>2. Tools</h3>
-      <button @click="getTools">GET /autotf/tf-tools/</button>
-    </section>
+      <div v-if="loadingConfigs" class="sidebar-loading">
+        <el-icon class="is-loading"><Loading /></el-icon>
+      </div>
+      <div v-else-if="configs.length === 0" class="sidebar-empty">
+        No configs yet
+      </div>
+      <div v-else class="config-list">
+        <div
+          v-for="cfg in configs"
+          :key="cfg.id"
+          class="config-card"
+          :class="{ active: selectedConfig?.id === cfg.id }"
+          @click="selectConfig(cfg)"
+        >
+          <div class="config-card-name">{{ cfg.name }}</div>
+          <el-tag
+            :type="cfg.is_scanned ? 'success' : 'info'"
+            size="small"
+            effect="dark"
+          >
+            {{ cfg.is_scanned ? 'Scanned' : 'Not scanned' }}
+          </el-tag>
+        </div>
+      </div>
+    </aside>
 
-    <!-- Config List + Create -->
-    <section>
-      <h3>3. Configs</h3>
-      user id: <input v-model="userId" placeholder="user id" style="width: 60px" />
-      <button @click="getConfigs">GET /users/{{ userId }}/tf-configs/</button>
-      <br /><br />
+    <!-- ── 右侧内容区 ── -->
+    <main class="content">
+      <div v-if="!selectedConfig" class="content-empty">
+        <el-icon size="48" color="#4a5568"><Document /></el-icon>
+        <p>Select a config from the left</p>
+      </div>
 
-      <b>Upload file</b><br />
-      <input v-model="configName" placeholder="config name" />
-      <input type="file" @change="onFileChange" accept=".tf" />
-      <button @click="uploadConfig">POST /users/{{ userId }}/tf-configs/</button>
-      <br /><br />
+      <div v-else class="content-body">
+        <!-- 标题栏 -->
+        <div class="content-header">
+          <span class="content-title">{{ selectedConfig.name }}</span>
+          <div class="header-actions">
+            <el-button size="small" plain type="danger" @click="confirmDelete">
+              <el-icon><Delete /></el-icon>
+              Delete Config
+            </el-button>
+          </div>
+        </div>
 
-      <b>Write text</b><br />
-      <input v-model="textName" placeholder="config name" />
-      <br />
-      <textarea v-model="textContent" placeholder="terraform config content" rows="6" cols="60" />
-      <br />
-      <button @click="writeConfig">POST /users/{{ userId }}/tf-configs/text/</button>
-    </section>
+        <!-- 配置内容 -->
+        <el-card class="section-card" shadow="never">
+          <template #header>
+            <div class="card-header">
+              <span>Config Content</span>
+              <div class="card-header-actions">
+                <el-button
+                  v-if="!editingContent"
+                  size="small"
+                  @click="startEditContent"
+                  :loading="loadingContent"
+                >
+                  <el-icon><Edit /></el-icon>
+                  Edit
+                </el-button>
+                <template v-else>
+                  <el-button size="small" type="primary" :loading="savingContent" @click="saveContent">
+                    Save
+                  </el-button>
+                  <el-button size="small" @click="cancelEdit">Cancel</el-button>
+                </template>
+              </div>
+            </div>
+          </template>
+          <div v-if="loadingContent && !editingContent" class="loading-placeholder">
+            <el-icon class="is-loading"><Loading /></el-icon> Loading...
+          </div>
+          <el-input
+            v-else
+            v-model="configContent"
+            type="textarea"
+            :rows="12"
+            :readonly="!editingContent"
+            resize="none"
+            style="font-family: 'Courier New', monospace; font-size: 13px"
+            :class="{ 'code-readonly': !editingContent }"
+          />
+        </el-card>
 
-    <!-- Config Detail / Content / Update / Delete -->
-    <section>
-      <h3>4. Config Detail / Content / Update / Delete</h3>
-      config id: <input v-model="configId" placeholder="config id" style="width: 60px" />
-      <button @click="getConfigDetail">GET /tf-configs/{{ configId }}/</button>
-      <button @click="getConfigContent">GET /tf-configs/{{ configId }}/content/</button>
-      <button @click="deleteConfig">DELETE /tf-configs/{{ configId }}/</button>
-      <br /><br />
+        <!-- 扫描 -->
+        <el-card class="section-card" shadow="never">
+          <template #header>
+            <div class="card-header">
+              <span>Security Scan</span>
+            </div>
+          </template>
+          <div class="scan-actions">
+            <el-button type="primary" :loading="scanning" @click="runFullScan">
+              <el-icon><VideoPlay /></el-icon>
+              Full Scan
+            </el-button>
+            <el-button :loading="scanning" @click="openManualScan">
+              <el-icon><Setting /></el-icon>
+              Manual Scan
+            </el-button>
+          </div>
+          <div v-if="scanning" class="scan-progress">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            Scanning, please wait...
+          </div>
+        </el-card>
 
-      <b>Update — upload new file</b><br />
-      <input type="file" @change="onUpdateFileChange" accept=".tf" />
-      <button @click="updateConfigFile">PUT /tf-configs/{{ configId }}/ (file)</button>
-      <br /><br />
+        <!-- 扫描报告 -->
+        <el-card class="section-card" shadow="never">
+          <template #header>
+            <div class="card-header">
+              <span>Scan Report</span>
+              <div class="card-header-actions" v-if="report">
+                <el-button size="small" type="primary" plain @click="viewHtmlReport">
+                  <el-icon><View /></el-icon>
+                  View Report
+                </el-button>
+                <el-button size="small" @click="downloadPdf">
+                  <el-icon><Download /></el-icon>
+                  Download PDF
+                </el-button>
+                <el-button size="small" type="danger" plain @click="deleteReport">
+                  <el-icon><Delete /></el-icon>
+                  Delete Report
+                </el-button>
+              </div>
+            </div>
+          </template>
 
-      <b>Update — edit text</b><br />
-      <textarea v-model="updateContent" placeholder="new terraform content" rows="6" cols="60" />
-      <br />
-      <button @click="updateConfigText">PUT /tf-configs/{{ configId }}/ (text)</button>
-    </section>
+          <div v-if="loadingReport" class="loading-placeholder">
+            <el-icon class="is-loading"><Loading /></el-icon> Loading...
+          </div>
+          <div v-else-if="!report" class="report-empty">
+            No report yet. Run a scan first.
+          </div>
+          <template v-else>
+            <!-- 报告摘要 -->
+            <div class="report-meta">
+              <el-descriptions :column="4" size="small" border>
+                <el-descriptions-item label="Status">
+                  <el-tag :type="reportStatusType(report.status)" size="small">
+                    {{ reportStatusLabel(report.status) }}
+                  </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="Tools">
+                  {{ report.tools?.map((t: any) => t.name).join(', ') || '—' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="Scanned At">
+                  {{ formatTime(report.scanned_at) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="Risk Summary">
+                  <el-tag type="danger" size="small" style="margin-right:4px">
+                    HIGH {{ report.result?.summary?.high ?? 0 }}
+                  </el-tag>
+                  <el-tag type="warning" size="small" style="margin-right:4px">
+                    MED {{ report.result?.summary?.medium ?? 0 }}
+                  </el-tag>
+                  <el-tag type="info" size="small">
+                    LOW {{ report.result?.summary?.low ?? 0 }}
+                  </el-tag>
+                </el-descriptions-item>
+              </el-descriptions>
+            </div>
 
-    <!-- Scan -->
-    <section>
-      <h3>5. Scan</h3>
-      config id: <input v-model="configId" placeholder="config id" style="width: 60px" />
-      <br /><br />
-      <button @click="runFullScan">POST /tf-configs/{{ configId }}/scan/ (full)</button>
-      <br /><br />
-      <b>Manual scan</b> — tool ids (comma-separated):
-      <input v-model="toolIds" placeholder="e.g. 1" style="width: 120px" />
-      <button @click="runManualScan">POST /tf-configs/{{ configId }}/scan/manual/</button>
-    </section>
+            <!-- 发现问题列表（按工具分组） -->
+            <div v-if="hasFindings" class="findings">
+              <div
+                v-for="(toolResult, toolName) in report.result?.tools"
+                :key="toolName"
+                class="tool-findings"
+              >
+                <div class="tool-name">{{ toolName }}</div>
+                <div v-if="!toolResult.items || toolResult.items.length === 0" class="report-empty" style="padding: 8px 0">
+                  No findings
+                </div>
+                <el-table v-else :data="toolResult.items" size="small" stripe style="margin-top: 6px">
+                  <el-table-column label="Rule ID" prop="rule_id" min-width="140" />
+                  <el-table-column label="Severity" width="100">
+                    <template #default="{ row }">
+                      <el-tag :type="severityType(row.severity)" size="small">
+                        {{ row.severity }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="Description" prop="description" min-width="240" show-overflow-tooltip />
+                  <el-table-column label="Location" prop="location" min-width="180" show-overflow-tooltip />
+                </el-table>
+              </div>
+            </div>
+            <div v-else class="report-empty">
+              No security issues found
+            </div>
+          </template>
+        </el-card>
+      </div>
+    </main>
 
-    <!-- Report -->
-    <section>
-      <h3>6. Report</h3>
-      config id: <input v-model="configId" placeholder="config id" style="width: 60px" />
-      <button @click="getReport">GET /tf-configs/{{ configId }}/report/</button>
-      <button @click="deleteReport">DELETE /tf-configs/{{ configId }}/report/</button>
-      <br /><br />
-      <a :href="reportHtmlUrl" target="_blank" rel="noopener"> ↗ View report (HTML) </a>
-      &nbsp;
-      <a :href="reportPdfUrl" target="_blank" rel="noopener"> ↓ Download PDF </a>
-    </section>
+    <!-- ── 新建配置 Dialog ── -->
+    <el-dialog
+      v-model="showAddDialog"
+      title="New Terraform Config"
+      width="580px"
+      :close-on-click-modal="false"
+    >
+      <el-tabs v-model="addMode">
+        <el-tab-pane label="Upload File" name="file">
+          <el-form label-width="90px" style="margin-top: 12px">
+            <el-form-item label="Name">
+              <el-input v-model="newFile.name" placeholder="Enter config name" />
+            </el-form-item>
+            <el-form-item label="File">
+              <el-upload
+                ref="uploadRef"
+                :auto-upload="false"
+                :limit="1"
+                accept=".tf"
+                :on-change="onFileChange"
+              >
+                <el-button size="small">
+                  <el-icon><Upload /></el-icon>
+                  Choose .tf file
+                </el-button>
+              </el-upload>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="Write Online" name="text">
+          <el-form label-width="90px" style="margin-top: 12px">
+            <el-form-item label="Name">
+              <el-input v-model="newText.name" placeholder="Enter config name" />
+            </el-form-item>
+            <el-form-item label="Content">
+              <el-input
+                v-model="newText.content"
+                type="textarea"
+                :rows="12"
+                placeholder="Paste or write Terraform config content"
+                style="font-family: 'Courier New', monospace; font-size: 13px"
+              />
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+      <template #footer>
+        <el-button @click="showAddDialog = false">Cancel</el-button>
+        <el-button type="primary" :loading="adding" @click="submitAdd">Create</el-button>
+      </template>
+    </el-dialog>
 
-    <!-- Response -->
-    <section>
-      <h3>Response</h3>
-      <pre style="background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 6px">{{
-        result
-      }}</pre>
-    </section>
+    <!-- ── 手动扫描 Dialog ── -->
+    <el-dialog
+      v-model="showManualScan"
+      title="Manual Scan — Select Tools"
+      width="420px"
+    >
+      <div v-if="loadingTools" class="loading-placeholder">
+        <el-icon class="is-loading"><Loading /></el-icon> Loading tools...
+      </div>
+      <el-checkbox-group v-else v-model="selectedToolIds">
+        <div v-for="tool in tools" :key="tool.id" style="margin-bottom: 8px">
+          <el-checkbox :value="tool.id">
+            {{ tool.name }} <el-tag size="small" style="margin-left: 6px">v{{ tool.version }}</el-tag>
+          </el-checkbox>
+        </div>
+      </el-checkbox-group>
+      <template #footer>
+        <el-button @click="showManualScan = false">Cancel</el-button>
+        <el-button
+          type="primary"
+          :loading="scanning"
+          :disabled="selectedToolIds.length === 0"
+          @click="runManualScan"
+        >
+          Start Scan
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import {
+  Plus, Loading, Document, Delete, Edit, VideoPlay,
+  Setting, Download, Upload, View,
+} from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 
 const BASE = 'http://127.0.0.1:8000/api'
+const auth = useAuthStore()
 
-const token = ref('')
-const userId = ref('1')
-const configId = ref('')
-const result = ref('— no request yet —')
-
-const reportHtmlUrl = computed(
-  () => `${BASE}/autotf/tf-configs/${configId.value}/report/html/?token=${token.value}`,
-)
-const reportPdfUrl = computed(
-  () => `${BASE}/autotf/tf-configs/${configId.value}/report/pdf/?token=${token.value}`,
-)
-
-const login = ref({ username: '', password: '' })
-const configName = ref('')
-const textName = ref('')
-const textContent = ref('')
-const updateContent = ref('')
-const toolIds = ref('1')
-
-let selectedFile: File | null = null
-let updateFile: File | null = null
-
-function onFileChange(e: Event) {
-  selectedFile = (e.target as HTMLInputElement).files?.[0] ?? null
+// ─── Config list ─────────────────────────────────────────────
+interface Config {
+  id: number
+  name: string
+  is_scanned: boolean
 }
 
-function onUpdateFileChange(e: Event) {
-  updateFile = (e.target as HTMLInputElement).files?.[0] ?? null
-}
+const configs = ref<Config[]>([])
+const loadingConfigs = ref(false)
+const selectedConfig = ref<Config | null>(null)
 
-function authHeaders() {
-  return { Authorization: `Bearer ${token.value}` }
-}
-
-function jsonHeaders() {
-  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token.value}` }
-}
-
-async function req(url: string, options: RequestInit = {}) {
+async function fetchConfigs() {
+  if (!auth.user) return
+  loadingConfigs.value = true
   try {
-    const res = await fetch(url, options)
-    const data = await res.json()
-    result.value = JSON.stringify(data, null, 2)
-  } catch (e) {
-    result.value = String(e)
+    const res = await fetch(`${BASE}/autotf/users/${auth.user.id}/tf-configs/`, {
+      headers: auth.authHeaders(),
+    })
+    const json = await res.json()
+    configs.value = json.data ?? []
+  } catch {
+    ElMessage.error('Failed to fetch configs')
+  } finally {
+    loadingConfigs.value = false
   }
 }
 
-async function getToken() {
-  const res = await fetch(`${BASE}/auth/token/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(login.value),
-  })
-  const data = await res.json()
-  result.value = JSON.stringify(data, null, 2)
-  if (data.access) token.value = data.access
+async function selectConfig(cfg: Config) {
+  selectedConfig.value = cfg
+  configContent.value = ''
+  report.value = null
+  editingContent.value = false
+  await Promise.all([loadContent(), loadReport()])
 }
 
-async function getTools() {
-  await req(`${BASE}/autotf/tf-tools/`, { headers: authHeaders() })
+// ─── Config content ───────────────────────────────────────────
+const configContent = ref('')
+const loadingContent = ref(false)
+const editingContent = ref(false)
+const savingContent = ref(false)
+let originalContent = ''
+
+async function loadContent() {
+  if (!selectedConfig.value) return
+  loadingContent.value = true
+  try {
+    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/content/`, {
+      headers: auth.authHeaders(),
+    })
+    const json = await res.json()
+    configContent.value = json.data?.content ?? ''
+    originalContent = configContent.value
+  } catch {
+    ElMessage.error('Failed to fetch config content')
+  } finally {
+    loadingContent.value = false
+  }
 }
 
-async function getConfigs() {
-  await req(`${BASE}/autotf/users/${userId.value}/tf-configs/`, { headers: authHeaders() })
+function startEditContent() {
+  originalContent = configContent.value
+  editingContent.value = true
 }
 
-async function uploadConfig() {
-  if (!selectedFile) {
-    result.value = 'No file selected'
+function cancelEdit() {
+  configContent.value = originalContent
+  editingContent.value = false
+}
+
+async function saveContent() {
+  if (!selectedConfig.value) return
+  savingContent.value = true
+  try {
+    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/`, {
+      method: 'PUT',
+      headers: auth.authHeaders(),
+      body: JSON.stringify({ content: configContent.value }),
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      ElMessage.error(err.message ?? 'Failed to save')
+      return
+    }
+    ElMessage.success('Saved')
+    editingContent.value = false
+    originalContent = configContent.value
+  } catch {
+    ElMessage.error('Network error')
+  } finally {
+    savingContent.value = false
+  }
+}
+
+// ─── Delete config ────────────────────────────────────────────
+async function confirmDelete() {
+  if (!selectedConfig.value) return
+  try {
+    await ElMessageBox.confirm(
+      `Delete config "${selectedConfig.value.name}"? This cannot be undone.`,
+      'Confirm Delete',
+      { type: 'warning', confirmButtonText: 'Delete', cancelButtonText: 'Cancel' },
+    )
+  } catch {
     return
   }
-  const form = new FormData()
-  form.append('name', configName.value)
-  form.append('file', selectedFile)
-  await req(`${BASE}/autotf/users/${userId.value}/tf-configs/`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: form,
-  })
-}
-
-async function writeConfig() {
-  await req(`${BASE}/autotf/users/${userId.value}/tf-configs/text/`, {
-    method: 'POST',
-    headers: jsonHeaders(),
-    body: JSON.stringify({ name: textName.value, content: textContent.value }),
-  })
-}
-
-async function getConfigDetail() {
-  await req(`${BASE}/autotf/tf-configs/${configId.value}/`, { headers: authHeaders() })
-}
-
-async function getConfigContent() {
-  await req(`${BASE}/autotf/tf-configs/${configId.value}/content/`, { headers: authHeaders() })
-}
-
-async function deleteConfig() {
-  await req(`${BASE}/autotf/tf-configs/${configId.value}/`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  })
-}
-
-async function updateConfigFile() {
-  if (!updateFile) {
-    result.value = 'No file selected'
-    return
+  try {
+    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/`, {
+      method: 'DELETE',
+      headers: auth.authHeaders(),
+    })
+    if (res.ok) {
+      ElMessage.success('Deleted')
+      selectedConfig.value = null
+      await fetchConfigs()
+    }
+  } catch {
+    ElMessage.error('Failed to delete')
   }
-  const form = new FormData()
-  form.append('file', updateFile)
-  await req(`${BASE}/autotf/tf-configs/${configId.value}/`, {
-    method: 'PUT',
-    headers: authHeaders(),
-    body: form,
-  })
 }
 
-async function updateConfigText() {
-  await req(`${BASE}/autotf/tf-configs/${configId.value}/`, {
-    method: 'PUT',
-    headers: jsonHeaders(),
-    body: JSON.stringify({ content: updateContent.value }),
-  })
+// ─── Add config ───────────────────────────────────────────────
+const showAddDialog = ref(false)
+const addMode = ref<'file' | 'text'>('file')
+const adding = ref(false)
+const newFile = ref({ name: '' })
+const newText = ref({ name: '', content: '' })
+let selectedFile: File | null = null
+
+function openAddDialog() {
+  addMode.value = 'file'
+  newFile.value = { name: '' }
+  newText.value = { name: '', content: '' }
+  selectedFile = null
+  showAddDialog.value = true
 }
+
+function onFileChange(file: any) {
+  selectedFile = file.raw
+}
+
+async function submitAdd() {
+  if (!auth.user) return
+  if (addMode.value === 'file') {
+    if (!newFile.value.name.trim() || !selectedFile) {
+      ElMessage.warning('Please enter a name and select a file')
+      return
+    }
+    adding.value = true
+    try {
+      const form = new FormData()
+      form.append('name', newFile.value.name)
+      form.append('file', selectedFile)
+      const res = await fetch(`${BASE}/autotf/users/${auth.user.id}/tf-configs/`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: form,
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        ElMessage.error(err.message ?? 'Failed to create')
+        return
+      }
+      ElMessage.success('Config created')
+      showAddDialog.value = false
+      await fetchConfigs()
+    } catch {
+      ElMessage.error('Network error')
+    } finally {
+      adding.value = false
+    }
+  } else {
+    if (!newText.value.name.trim() || !newText.value.content.trim()) {
+      ElMessage.warning('Please enter a name and config content')
+      return
+    }
+    adding.value = true
+    try {
+      const res = await fetch(`${BASE}/autotf/users/${auth.user.id}/tf-configs/text/`, {
+        method: 'POST',
+        headers: auth.authHeaders(),
+        body: JSON.stringify(newText.value),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        ElMessage.error(err.message ?? 'Failed to create')
+        return
+      }
+      ElMessage.success('Config created')
+      showAddDialog.value = false
+      await fetchConfigs()
+    } catch {
+      ElMessage.error('Network error')
+    } finally {
+      adding.value = false
+    }
+  }
+}
+
+// ─── Scan ─────────────────────────────────────────────────────
+const scanning = ref(false)
 
 async function runFullScan() {
-  await req(`${BASE}/autotf/tf-configs/${configId.value}/scan/`, {
-    method: 'POST',
-    headers: authHeaders(),
-  })
+  if (!selectedConfig.value) return
+  scanning.value = true
+  try {
+    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/scan/`, {
+      method: 'POST',
+      headers: auth.authHeaders(),
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      ElMessage.error(err.message ?? 'Scan failed')
+      return
+    }
+    ElMessage.success('Scan complete')
+    await Promise.all([fetchConfigs(), loadReport()])
+    // refresh selected config scanned status
+    const updated = configs.value.find((c) => c.id === selectedConfig.value!.id)
+    if (updated) selectedConfig.value = updated
+  } catch {
+    ElMessage.error('Scan error')
+  } finally {
+    scanning.value = false
+  }
+}
+
+// ─── Manual scan ──────────────────────────────────────────────
+const showManualScan = ref(false)
+const tools = ref<any[]>([])
+const loadingTools = ref(false)
+const selectedToolIds = ref<number[]>([])
+
+async function openManualScan() {
+  selectedToolIds.value = []
+  showManualScan.value = true
+  loadingTools.value = true
+  try {
+    const res = await fetch(`${BASE}/autotf/tf-tools/`, { headers: auth.authHeaders() })
+    const json = await res.json()
+    tools.value = json.data ?? []
+  } catch {
+    ElMessage.error('Failed to fetch tools')
+  } finally {
+    loadingTools.value = false
+  }
 }
 
 async function runManualScan() {
-  const ids = toolIds.value
-    .split(',')
-    .map((s) => parseInt(s.trim()))
-    .filter(Boolean)
-  await req(`${BASE}/autotf/tf-configs/${configId.value}/scan/manual/`, {
-    method: 'POST',
-    headers: jsonHeaders(),
-    body: JSON.stringify({ tool_ids: ids }),
-  })
+  if (!selectedConfig.value || selectedToolIds.value.length === 0) return
+  scanning.value = true
+  showManualScan.value = false
+  try {
+    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/scan/manual/`, {
+      method: 'POST',
+      headers: auth.authHeaders(),
+      body: JSON.stringify({ tool_ids: selectedToolIds.value }),
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      ElMessage.error(err.message ?? 'Scan failed')
+      return
+    }
+    ElMessage.success('Scan complete')
+    await Promise.all([fetchConfigs(), loadReport()])
+    const updated = configs.value.find((c) => c.id === selectedConfig.value!.id)
+    if (updated) selectedConfig.value = updated
+  } catch {
+    ElMessage.error('Scan error')
+  } finally {
+    scanning.value = false
+  }
 }
 
-async function getReport() {
-  await req(`${BASE}/autotf/tf-configs/${configId.value}/report/`, { headers: authHeaders() })
+// ─── Report ───────────────────────────────────────────────────
+const report = ref<any>(null)
+const loadingReport = ref(false)
+
+async function loadReport() {
+  if (!selectedConfig.value) return
+  loadingReport.value = true
+  try {
+    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/report/`, {
+      headers: auth.authHeaders(),
+    })
+    if (res.status === 404) {
+      report.value = null
+      return
+    }
+    const json = await res.json()
+    report.value = json.data ?? null
+  } catch {
+    report.value = null
+  } finally {
+    loadingReport.value = false
+  }
 }
 
 async function deleteReport() {
-  await req(`${BASE}/autotf/tf-configs/${configId.value}/report/`, {
+  if (!selectedConfig.value) return
+  try {
+    await ElMessageBox.confirm('Delete this scan report?', 'Confirm Delete', {
+      type: 'warning',
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
+    })
+  } catch {
+    return
+  }
+  await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/report/`, {
     method: 'DELETE',
-    headers: authHeaders(),
+    headers: auth.authHeaders(),
   })
+  report.value = null
+  ElMessage.success('Report deleted')
+  await fetchConfigs()
 }
+
+function downloadPdf() {
+  if (!selectedConfig.value) return
+  const url = `${BASE}/autotf/tf-configs/${selectedConfig.value.id}/report/pdf/?token=${auth.token}`
+  window.open(url, '_blank')
+}
+
+function viewHtmlReport() {
+  if (!selectedConfig.value) return
+  const url = `${BASE}/autotf/tf-configs/${selectedConfig.value.id}/report/html/?token=${auth.token}`
+  window.open(url, '_blank')
+}
+
+const hasFindings = computed(() => {
+  const tools = report.value?.result?.tools
+  if (!tools) return false
+  return Object.values(tools).some((t: any) => t.items?.length > 0)
+})
+
+// ─── Helpers ─────────────────────────────────────────────────
+function formatTime(ts: string | null | undefined) {
+  if (!ts) return '—'
+  return new Date(ts).toLocaleString('zh-CN', { hour12: false })
+}
+
+function reportStatusType(s: string) {
+  if (s === 'done') return 'success'
+  if (s === 'running') return 'warning'
+  if (s === 'failed') return 'danger'
+  return 'info'
+}
+
+function reportStatusLabel(s: string) {
+  const map: Record<string, string> = { pending: 'Pending', running: 'Running', done: 'Done', failed: 'Failed' }
+  return map[s] ?? s
+}
+
+function severityType(s: string) {
+  if (s === 'HIGH' || s === 'CRITICAL') return 'danger'
+  if (s === 'MEDIUM') return 'warning'
+  return 'info'
+}
+
+onMounted(fetchConfigs)
 </script>
 
 <style scoped>
-section {
-  margin-bottom: 28px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #333;
+.autotf-layout {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
 }
-input,
-textarea {
-  margin: 4px;
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: #1a2233;
+  border-right: 1px solid #2d3748;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-button {
-  margin: 4px;
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 14px;
+  border-bottom: 1px solid #2d3748;
+}
+
+.sidebar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #a0aec0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-loading,
+.sidebar-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #4a5568;
+  font-size: 13px;
+}
+
+.config-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.config-card {
+  padding: 10px 12px;
+  border-radius: 6px;
   cursor: pointer;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.15s;
+  border: 1px solid transparent;
+}
+
+.config-card:hover {
+  background: #2d3748;
+}
+
+.config-card.active {
+  background: #1e3a5f;
+  border-color: #2563eb;
+}
+
+.config-card-name {
+  font-size: 13px;
+  color: #e2e8f0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+
+/* ── Content ── */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f7f9fc;
+}
+
+.content-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #718096;
+  gap: 12px;
+}
+
+.content-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.content-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.content-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a202c;
+}
+
+/* ── Cards ── */
+.section-card {
+  border: 1px solid #e2e8f0;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.card-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.loading-placeholder {
+  color: #718096;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+}
+
+.code-readonly :deep(.el-textarea__inner) {
+  background: #f8fafc;
+  color: #2d3748;
+}
+
+/* ── Scan ── */
+.scan-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.scan-progress {
+  margin-top: 12px;
+  color: #718096;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Report ── */
+.report-empty {
+  color: #718096;
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+.report-meta {
+  margin-bottom: 16px;
+}
+
+.tool-findings {
+  margin-bottom: 20px;
+}
+
+.tool-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.severity-group {
+  margin-bottom: 12px;
+}
+
+.severity-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.finding-count {
+  font-size: 12px;
+  color: #718096;
 }
 </style>

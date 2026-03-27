@@ -305,6 +305,17 @@ def _render_report_pdf(config, report) -> bytes:
     story.append(t)
     story.append(Spacer(1, 6*mm))
 
+    cell_style = ParagraphStyle('cell', fontSize=8, leading=10)
+    hdr_style  = ParagraphStyle('hdr',  fontSize=8, leading=10, fontName='Helvetica-Bold')
+
+    def sev_color(sev: str):
+        s = sev.upper()
+        if s in ('HIGH', 'CRITICAL'):
+            return colors.red
+        if s == 'MEDIUM':
+            return colors.orange
+        return colors.green
+
     story.append(Paragraph('Findings', styles['Heading2']))
     for tool_name, tool_result in tools_data.items():
         story.append(Paragraph(tool_name, styles['Heading3']))
@@ -312,18 +323,31 @@ def _render_report_pdf(config, report) -> bytes:
         if not items:
             story.append(Paragraph('No findings.', styles['Normal']))
         else:
-            rows = [['Rule ID', 'Severity', 'Description', 'Location']]
+            rows = [[
+                Paragraph('Rule ID', hdr_style),
+                Paragraph('Severity', hdr_style),
+                Paragraph('Description', hdr_style),
+                Paragraph('Location', hdr_style),
+            ]]
             for item in items:
-                rows.append([item.get('rule_id', ''), item.get('severity', ''),
-                              Paragraph(item.get('description', ''), ParagraphStyle('small', fontSize=8)),
-                              item.get('location', '')])
-            ft = Table(rows, colWidths=[30*mm, 20*mm, 90*mm, 30*mm])
+                sev = item.get('severity', '')
+                sev_style = ParagraphStyle('sev', fontSize=8, leading=10, textColor=sev_color(sev))
+                rows.append([
+                    Paragraph(item.get('rule_id', ''), cell_style),
+                    Paragraph(sev, sev_style),
+                    Paragraph(item.get('description', ''), cell_style),
+                    Paragraph(item.get('location', ''), cell_style),
+                ])
+            # A4 content width = 210 - 40 = 170mm
+            ft = Table(rows, colWidths=[50*mm, 20*mm, 70*mm, 30*mm])
             ft.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 8),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
             ]))
             story.append(ft)
         story.append(Spacer(1, 4*mm))
