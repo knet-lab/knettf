@@ -64,3 +64,8 @@ backend/media/
 
 .vscode/
 .venv*/
+
+
+# for local development
+*.tf
+terraform/
