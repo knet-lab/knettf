@@ -10,12 +10,15 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import environ
 from datetime import timedelta
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+env = environ.Env()
+env.read_env(Path(__file__).resolve().parent / '.env')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -129,9 +132,6 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Terraform binary path (dev only — replace with env var in production)
-# if product use env file please
-TF_BIN = '/Users/soar009/Projects/terraform/terraform_1.14.7_darwin_arm64/terraform'
 
 AUTH_USER_MODEL = 'kcore.User'
 
@@ -168,3 +168,9 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
+
+
+if env('ENVIRONMENT') == 'linux_development':
+    TF_BIN = '/usr/bin/terraform'
+elif env('ENVIRONMENT') == 'mac_os':
+    TF_BIN = '/Users/soar009/Projects/terraform/terraform_1.14.7_darwin_arm64/terraform'

@@ -63,7 +63,8 @@
           overflow-y: auto;
         "
         ref="logBox"
-      >{{ logs || '— waiting for logs —' }}</pre>
+        >{{ logs || '— waiting for logs —' }}</pre
+      >
     </section>
 
     <!-- Response -->

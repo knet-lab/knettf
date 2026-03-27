@@ -81,13 +81,9 @@
       <button @click="getReport">GET /tf-configs/{{ configId }}/report/</button>
       <button @click="deleteReport">DELETE /tf-configs/{{ configId }}/report/</button>
       <br /><br />
-      <a :href="reportHtmlUrl" target="_blank" rel="noopener">
-        ↗ View report (HTML)
-      </a>
+      <a :href="reportHtmlUrl" target="_blank" rel="noopener"> ↗ View report (HTML) </a>
       &nbsp;
-      <a :href="reportPdfUrl" target="_blank" rel="noopener">
-        ↓ Download PDF
-      </a>
+      <a :href="reportPdfUrl" target="_blank" rel="noopener"> ↓ Download PDF </a>
     </section>
 
     <!-- Response -->
@@ -173,7 +169,10 @@ async function getConfigs() {
 }
 
 async function uploadConfig() {
-  if (!selectedFile) { result.value = 'No file selected'; return }
+  if (!selectedFile) {
+    result.value = 'No file selected'
+    return
+  }
   const form = new FormData()
   form.append('name', configName.value)
   form.append('file', selectedFile)
@@ -208,7 +207,10 @@ async function deleteConfig() {
 }
 
 async function updateConfigFile() {
-  if (!updateFile) { result.value = 'No file selected'; return }
+  if (!updateFile) {
+    result.value = 'No file selected'
+    return
+  }
   const form = new FormData()
   form.append('file', updateFile)
   await req(`${BASE}/autotf/tf-configs/${configId.value}/`, {
@@ -234,7 +236,10 @@ async function runFullScan() {
 }
 
 async function runManualScan() {
-  const ids = toolIds.value.split(',').map((s) => parseInt(s.trim())).filter(Boolean)
+  const ids = toolIds.value
+    .split(',')
+    .map((s) => parseInt(s.trim()))
+    .filter(Boolean)
   await req(`${BASE}/autotf/tf-configs/${configId.value}/scan/manual/`, {
     method: 'POST',
     headers: jsonHeaders(),
