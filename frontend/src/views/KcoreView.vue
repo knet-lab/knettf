@@ -441,7 +441,6 @@ async function selectCluster(cluster: Cluster) {
   activeTab.value = 'namespaces'
   resources.value = []
   selectedNamespace.value = 'default'
-  await kcore.fetchNamespaces(cluster.id)
   await onTabChange()
 }
 
@@ -524,19 +523,14 @@ async function onTabChange() {
   const clusterId = selectedCluster.value.id
   const tab = activeTab.value
 
-  // 如果 namespace 列表还没有，先拉取（保证 dropdown 有数据）
-  if (namespaceList.value.length === 0) {
-    await kcore.fetchNamespaces(clusterId)
-  }
+  // 保证 namespace 列表始终可用
+  await kcore.fetchNamespaces(clusterId)
+
+  // 期间 cluster 已切换，丢弃
+  if (selectedCluster.value?.id !== clusterId) return
 
   if (tab !== 'namespaces') selectedNamespace.value = 'default'
   await loadResources()
-
-  // namespaces tab 加载完后同步到 store，保持 dropdown 最新
-  if (tab === 'namespaces' && selectedCluster.value?.id === clusterId) {
-    const names = resources.value.map(r => r.metadata?.name as string).filter(Boolean)
-    if (names.length) kcore.setNamespaces(clusterId, names)
-  }
 }
 
 // ─── YAML View / Edit ────────────────────────────────────────
