@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-const BASE = 'http://127.0.0.1:8000/api'
+const BASE = import.meta.env.VITE_API_BASE
 
 export interface UserInfo {
   id: number
@@ -60,7 +60,7 @@ export const useAuthStore = defineStore('auth', () => {
     const isFormData = init.body instanceof FormData
     const makeHeaders = () => ({
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-      ...((init.headers as Record<string, string>) ?? {}),
+      ...(init.headers as Record<string, string>),
       Authorization: `Bearer ${token.value}`,
     })
 

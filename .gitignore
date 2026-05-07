@@ -74,3 +74,4 @@ backend/media/
 # for local development
 *.tf
 terraform/
+.cloudflared/

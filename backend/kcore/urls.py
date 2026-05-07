@@ -18,4 +18,10 @@ urlpatterns = [
     # K8s Resources
     path('clusters/<int:cluster_id>/resources/<str:resource_type>/',
          views.KubeResourceList.as_view(), name='kube-resource-list'),
+    path('clusters/<int:cluster_id>/resources/<str:resource_type>/<str:name>/',
+         views.KubeResourceDetail.as_view(), name='kube-resource-detail'),
+
+    # Apply YAML
+    path('clusters/<int:cluster_id>/apply/',
+         views.KubeApply.as_view(), name='kube-apply'),
 ]

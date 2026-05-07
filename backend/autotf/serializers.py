@@ -7,7 +7,25 @@ from .models import TerraformConfig, TerraformTool, ScanReport
 class TerraformToolSerializer(serializers.ModelSerializer):
     class Meta:
         model = TerraformTool
-        fields = ['id', 'name', 'version']
+        fields = [
+            'id', 'name', 'version', 'is_enabled',
+            'cmd', 'init_cmd', 'output_format',
+            'items_path', 'severity_field', 'severity_map',
+            'rule_id_field', 'description_field',
+            'location_file_field', 'location_line_field',
+        ]
+
+
+class TerraformToolWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TerraformTool
+        fields = [
+            'name', 'version', 'is_enabled',
+            'cmd', 'init_cmd', 'output_format',
+            'items_path', 'severity_field', 'severity_map',
+            'rule_id_field', 'description_field',
+            'location_file_field', 'location_line_field',
+        ]
 
 
 # ── ScanReport ─────────────────────────────────────────────────────────────────
@@ -38,7 +56,10 @@ class TerraformConfigListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TerraformConfig
-        fields = ['id', 'name', 'is_scanned', 'created_at', 'updated_at', 'report']
+        fields = [
+            'id', 'name', 'is_scanned', 'created_at', 'updated_at', 'report',
+            'last_apply_at', 'last_apply_status', 'last_apply_output',
+        ]
 
     def get_report(self, obj):
         try:
@@ -53,7 +74,10 @@ class TerraformConfigDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TerraformConfig
-        fields = ['id', 'name', 'file', 'is_scanned', 'created_at', 'updated_at', 'report']
+        fields = [
+            'id', 'name', 'file', 'is_scanned', 'created_at', 'updated_at', 'report',
+            'last_apply_at', 'last_apply_status', 'last_apply_output',
+        ]
 
     def get_report(self, obj):
         try:

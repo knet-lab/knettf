@@ -26,6 +26,10 @@
           <el-icon><Document /></el-icon>
           <span>TF Configs</span>
         </el-menu-item>
+        <el-menu-item index="/admin/tf-tools">
+          <el-icon><Tools /></el-icon>
+          <span>TF Tools</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -48,7 +52,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataBoard, User, Connection, Document } from '@element-plus/icons-vue'
+import { DataBoard, User, Connection, Document, Tools } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -62,6 +66,7 @@ const titleMap: Record<string, string> = {
   '/admin/users': 'Users',
   '/admin/clusters': 'Clusters',
   '/admin/tf-configs': 'TF Configs',
+  '/admin/tf-tools': 'TF Tools',
 }
 const pageTitle = computed(() => titleMap[route.path] ?? 'Admin')
 

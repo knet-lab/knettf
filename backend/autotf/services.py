@@ -3,9 +3,10 @@ import os
 import subprocess
 import tempfile
 
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.utils import timezone
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
 
 from .models import ScanReport, TerraformConfig, TerraformTool
 
@@ -77,12 +78,40 @@ class TerraformConfigService:
 
 class TerraformToolService:
     @staticmethod
+    def get_all_tools():
+        return TerraformTool.objects.all()
+
+    @staticmethod
     def get_enabled_tools():
         return TerraformTool.objects.filter(is_enabled=True)
 
     @staticmethod
     def get_tools_by_ids(tool_ids: list):
         return TerraformTool.objects.filter(id__in=tool_ids, is_enabled=True)
+
+    @staticmethod
+    def get_tool_by_id(tool_id: int) -> TerraformTool:
+        try:
+            return TerraformTool.objects.get(id=tool_id)
+        except TerraformTool.DoesNotExist:
+            raise NotFound('Tool not found')
+
+    @staticmethod
+    def create_tool(**kwargs) -> TerraformTool:
+        tool = TerraformTool(**kwargs)
+        tool.save()
+        return tool
+
+    @staticmethod
+    def update_tool(tool: TerraformTool, **kwargs) -> TerraformTool:
+        for key, value in kwargs.items():
+            setattr(tool, key, value)
+        tool.save()
+        return tool
+
+    @staticmethod
+    def delete_tool(tool: TerraformTool):
+        tool.delete()
 
 
 class ScanReportService:
@@ -102,6 +131,70 @@ class ScanReportService:
         ScanReportService._get_report(config).delete()
         config.is_scanned = False
         config.save(update_fields=['is_scanned'])
+
+
+class ApplyService:
+    @staticmethod
+    def apply(config: TerraformConfig):
+        # ── Prerequisite checks ──────────────────────────────────────────
+        try:
+            report = config.scan_report
+        except ScanReport.DoesNotExist:
+            raise ValidationError('No scan report found. Run a scan first.')
+
+        if report.status != ScanReport.DONE:
+            raise ValidationError('Scan is not complete.')
+
+        if report.result.get('summary', {}).get('high', 0) > 0:
+            raise ValidationError('Cannot apply: HIGH severity issues found in scan report.')
+
+        # ── Run terraform init + apply in a temp dir ─────────────────────
+        tf_bin = settings.TF_BIN
+        apply_status = TerraformConfig.APPLY_FAILED
+        output = ''
+
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tf_path = os.path.join(tmpdir, 'main.tf')
+                config.file.open('rb')
+                with open(tf_path, 'wb') as f:
+                    f.write(config.file.read())
+                config.file.close()
+
+                # terraform init
+                init_proc = subprocess.run(
+                    [tf_bin, 'init', '-input=false'],
+                    capture_output=True, text=True, cwd=tmpdir, timeout=120,
+                )
+                output += init_proc.stdout + init_proc.stderr
+
+                if init_proc.returncode != 0:
+                    apply_status = TerraformConfig.APPLY_FAILED
+                else:
+                    # terraform apply
+                    apply_proc = subprocess.run(
+                        [tf_bin, 'apply', '-auto-approve', '-input=false'],
+                        capture_output=True, text=True, cwd=tmpdir, timeout=300,
+                    )
+                    output += apply_proc.stdout + apply_proc.stderr
+                    apply_status = (
+                        TerraformConfig.APPLY_SUCCESS
+                        if apply_proc.returncode == 0
+                        else TerraformConfig.APPLY_FAILED
+                    )
+        except subprocess.TimeoutExpired:
+            output += '\n[Timeout: terraform apply exceeded time limit]'
+            apply_status = TerraformConfig.APPLY_FAILED
+        except Exception as e:
+            output += f'\n[Internal error: {e}]'
+            apply_status = TerraformConfig.APPLY_FAILED
+
+        config.last_apply_status = apply_status
+        config.last_apply_output = output
+        config.last_apply_at = timezone.now()
+        config.save(update_fields=['last_apply_status', 'last_apply_output', 'last_apply_at'])
+
+        return config
 
 
 class ScanService:
@@ -142,7 +235,7 @@ class ScanService:
                 config.file.close()
 
                 for tool in tools:
-                    tool_result = ScanService._run_tool(tool.name, tmpdir)
+                    tool_result = ScanService._run_tool(tool, tmpdir, tf_path)
                     result['tools'][tool.name] = tool_result
                     for item in tool_result['items']:
                         sev = item['severity'].lower()
@@ -157,101 +250,128 @@ class ScanService:
             config.is_scanned = True
             config.save(update_fields=['is_scanned'])
 
-        except Exception as e:
+        except Exception:
             import traceback; traceback.print_exc()
             report.status = ScanReport.FAILED
             report.save(update_fields=['status'])
 
     @staticmethod
-    def _run_tool(tool_name: str, target_dir: str) -> dict:
-        runners = {
-            'tfsec': ScanService._run_tfsec,
-            'checkov': ScanService._run_checkov,
-            'terraform_validate': ScanService._run_terraform_validate,
-        }
-        runner = runners.get(tool_name)
-        if runner is None:
-            return {'items': []}
-        return runner(target_dir)
-
-    @staticmethod
-    def _run_tfsec(target_dir: str) -> dict:
-        proc = subprocess.Popen(
-            ['tfsec', target_dir, '--format', 'json', '--no-color'],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-        )
-        stdout, _ = proc.communicate()
-        try:
-            data = json.loads(stdout)
-            items = []
-            for r in data.get('results', []):
-                loc = r.get('location', {})
-                items.append({
-                    'rule_id': r.get('rule_id', ''),
-                    'severity': r.get('severity', 'LOW').upper(),
-                    'description': r.get('description', ''),
-                    'location': f"{loc.get('filename', '')}:{loc.get('start_line', '')}",
-                })
-            return {'items': items}
-        except (json.JSONDecodeError, KeyError):
+    def _run_tool(tool: TerraformTool, target_dir: str, target_file: str) -> dict:
+        """Execute tool using its stored cmd/init_cmd, then dispatch to the right parser."""
+        if not tool.cmd:
             return {'items': []}
 
-    @staticmethod
-    def _run_terraform_validate(target_dir: str) -> dict:
-        from django.conf import settings
-        tf_bin = settings.TF_BIN
-        init = subprocess.Popen(
-            [tf_bin, 'init', '-backend=false', '-input=false'],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=target_dir,
-        )
-        init.communicate()
+        cmd_str = tool.cmd.format(target_dir=target_dir, target_file=target_file)
+        cmd = cmd_str.split()
+
+        # Run optional init command first (e.g. terraform init)
+        if tool.init_cmd:
+            init_str = tool.init_cmd.format(target_dir=target_dir, target_file=target_file)
+            init_proc = subprocess.Popen(
+                init_str.split(),
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, cwd=target_dir,
+            )
+            init_proc.communicate()
+
         proc = subprocess.Popen(
-            [tf_bin, 'validate', '-json'],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=target_dir,
+            cmd,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, cwd=target_dir,
         )
         stdout, _ = proc.communicate()
+
+        fmt = tool.output_format
+        if fmt == TerraformTool.OUTPUT_SARIF:
+            return ScanService._parse_sarif(stdout)
+        return ScanService._parse_json(stdout, tool)
+
+    # ── Parsers ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _get_nested(obj: dict, path: str):
+        """Traverse dot-separated path, e.g. 'results.failed_checks' or 'range.start.line'."""
+        for key in path.split('.'):
+            if isinstance(obj, list):
+                try:
+                    obj = obj[int(key)]
+                except (ValueError, IndexError):
+                    return None
+            elif isinstance(obj, dict):
+                obj = obj.get(key)
+            else:
+                return None
+            if obj is None:
+                return None
+        return obj
+
+    @staticmethod
+    def _parse_json(stdout: str, tool: TerraformTool) -> dict:
         try:
             data = json.loads(stdout)
-            items = []
-            for d in data.get('diagnostics', []):
-                severity = d.get('severity', 'error').upper()
-                if severity == 'ERROR':
-                    severity = 'HIGH'
-                elif severity == 'WARNING':
-                    severity = 'MEDIUM'
+        except json.JSONDecodeError:
+            return {'items': []}
+
+        raw_items = ScanService._get_nested(data, tool.items_path) if tool.items_path else []
+        if not isinstance(raw_items, list):
+            return {'items': []}
+
+        sev_map: dict = tool.severity_map or {}
+        items = []
+        for r in raw_items:
+            raw_sev = (ScanService._get_nested(r, tool.severity_field) or 'LOW') if tool.severity_field else 'LOW'
+            severity = sev_map.get(str(raw_sev).lower(), sev_map.get(str(raw_sev).upper(), str(raw_sev).upper()))
+
+            rule_id     = str(ScanService._get_nested(r, tool.rule_id_field) or '')       if tool.rule_id_field       else ''
+            description = str(ScanService._get_nested(r, tool.description_field) or '')   if tool.description_field   else ''
+            loc_file    = str(ScanService._get_nested(r, tool.location_file_field) or '')  if tool.location_file_field else ''
+            loc_line    = str(ScanService._get_nested(r, tool.location_line_field) or '')  if tool.location_line_field else ''
+            location    = f'{loc_file}:{loc_line}' if loc_file or loc_line else ''
+
+            items.append({
+                'rule_id': rule_id,
+                'severity': severity,
+                'description': description,
+                'location': location,
+            })
+        return {'items': items}
+
+    @staticmethod
+    def _parse_sarif(stdout: str) -> dict:
+        try:
+            data = json.loads(stdout)
+        except json.JSONDecodeError:
+            return {'items': []}
+
+        SEV_MAP = {'error': 'HIGH', 'warning': 'MEDIUM', 'note': 'LOW', 'none': 'LOW'}
+        items = []
+        for run in data.get('runs', []):
+            rules = {r['id']: r for r in run.get('tool', {}).get('driver', {}).get('rules', [])}
+            for result in run.get('results', []):
+                rule_id = result.get('ruleId', '')
+                level   = result.get('level', 'warning')
+                severity = SEV_MAP.get(level, 'MEDIUM')
+
+                # description: prefer rule's shortDescription, fallback to result message
+                rule_meta = rules.get(rule_id, {})
+                description = (
+                    rule_meta.get('shortDescription', {}).get('text')
+                    or result.get('message', {}).get('text', '')
+                )
+
                 location = ''
-                r = d.get('range')
-                if r:
-                    location = f"{r.get('filename', '')}:{r.get('start', {}).get('line', '')}"
+                locs = result.get('locations', [])
+                if locs:
+                    pl = locs[0].get('physicalLocation', {})
+                    uri  = pl.get('artifactLocation', {}).get('uri', '')
+                    line = pl.get('region', {}).get('startLine', '')
+                    location = f'{uri}:{line}' if uri or line else ''
+
                 items.append({
-                    'rule_id': d.get('address', 'TF_VALIDATE'),
+                    'rule_id': rule_id,
                     'severity': severity,
-                    'description': d.get('summary', '') + (f' — {d["detail"]}' if d.get('detail') else ''),
+                    'description': description,
                     'location': location,
                 })
-            return {'items': items}
-        except (json.JSONDecodeError, KeyError):
-            return {'items': []}
+        return {'items': items}
 
-    @staticmethod
-    def _run_checkov(target_dir: str) -> dict:
-        proc = subprocess.Popen(
-            ['checkov', '-d', target_dir, '-o', 'json', '--quiet'],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-        )
-        stdout, _ = proc.communicate()
-        try:
-            data = json.loads(stdout)
-            failed = data.get('results', {}).get('failed_checks', [])
-            items = []
-            for c in failed:
-                line_range = c.get('file_line_range') or ['']
-                items.append({
-                    'rule_id': c.get('check_id', ''),
-                    'severity': (c.get('severity') or 'MEDIUM').upper(),
-                    'description': c.get('check', {}).get('name', ''),
-                    'location': f"{c.get('repo_file_path', '')}:{line_range[0]}",
-                })
-            return {'items': items}
-        except (json.JSONDecodeError, KeyError):
-            return {'items': []}

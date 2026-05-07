@@ -17,12 +17,16 @@ urlpatterns = [
          views.TerraformConfigFullScan.as_view(), name='tf-config-scan-full'),
     path('tf-configs/<int:config_pk>/scan/manual/',
          views.TerraformConfigManualScan.as_view(), name='tf-config-scan-manual'),
+    path('tf-configs/<int:config_pk>/apply/',
+         views.TerraformConfigApply.as_view(), name='tf-config-apply'),
     path('tf-configs/<int:config_pk>/report/',
          views.ScanReportDetail.as_view(), name='tf-config-report'),
 
-    # Tools (global)
+    # Tools (global, admin-managed)
     path('tf-tools/',
          views.TerraformToolList.as_view(), name='tf-tool-list'),
+    path('tf-tools/<int:tool_id>/',
+         views.TerraformToolDetail.as_view(), name='tf-tool-detail'),
 
     # Report HTML / PDF (token via query param)
     path('tf-configs/<int:config_pk>/report/html/',

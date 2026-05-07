@@ -129,6 +129,22 @@ class KubeResourceService:
     def delete_configmap(self, namespace: str, name: str):
         return self._client.delete_configmap(namespace, name)
     
+    # Apply / YAML
+    def apply_yaml(self, yaml_str: str) -> list:
+        return self._client.apply_yaml(yaml_str)
+
+    def get_resource_yaml(self, resource_type: str, namespace: str | None, name: str) -> str:
+        return self._client.get_resource_yaml(resource_type, namespace, name)
+
+    # Restart
+    def restart_resource(self, resource_type: str, namespace: str, name: str, force: bool = False) -> None:
+        if resource_type == 'deployments':
+            self._client.restart_deployment(namespace, name, force)
+        elif resource_type == 'daemonsets':
+            self._client.restart_daemonset(namespace, name, force)
+        else:
+            raise ValueError(f'Restart not supported for resource type: {resource_type}')
+
     # DaemonSet
     def get_daemonsets(self, namespace: str):
         return self._client.get_daemonsets(namespace)

@@ -216,3 +216,88 @@ class KubeResourceList(APIView, ResponseMixin):
             return self.error_response('Invalid resource type', status=status.HTTP_400_BAD_REQUEST)
 
         return self.success_response({'resource': resource.to_dict()})
+
+
+class KubeApply(APIView, ResponseMixin):
+    """POST /clusters/{cluster_id}/apply/  — apply raw YAML (one or more docs)."""
+
+    def post(self, request: common.Request, cluster_id: int):
+        cluster = KubeClusterService.get_cluster_by_id(cluster_id)
+        check_owner(request, cluster.owner.pk)
+        yaml_str = request.data.get('yaml', '')
+        if not yaml_str or not yaml_str.strip():
+            return self.error_response('yaml field is required', status=status.HTTP_400_BAD_REQUEST)
+        bk_service = KubeResourceService(cluster)
+        try:
+            results = bk_service.apply_yaml(yaml_str)
+        except Exception as e:
+            return self.error_response(str(e), status=status.HTTP_400_BAD_REQUEST)
+        has_error = any(r['status'] == 'error' for r in results)
+        if has_error:
+            return self.error_response('One or more documents failed to apply', status=status.HTTP_400_BAD_REQUEST,
+                                       data={'results': results})
+        return self.success_response({'results': results})
+
+
+class KubeResourceDetail(APIView, ResponseMixin):
+    """
+    GET  /clusters/{id}/resources/{type}/{name}/?namespace=xxx  → YAML string
+    POST /clusters/{id}/resources/{type}/{name}/                → restart
+         body: {namespace, force (bool, optional)}
+    DELETE /clusters/{id}/resources/{type}/{name}/              → delete
+         body: {namespace} (omit for cluster-scoped resources like namespaces)
+    """
+
+    def get(self, request: common.Request, cluster_id: int, resource_type: str, name: str):
+        cluster = KubeClusterService.get_cluster_by_id(cluster_id)
+        check_owner(request, cluster.owner.pk)
+        namespace = request.query_params.get('namespace') or None
+        bk_service = KubeResourceService(cluster)
+        try:
+            yaml_str = bk_service.get_resource_yaml(resource_type, namespace, name)
+        except ValueError as e:
+            return self.error_response(str(e), status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return self.error_response(str(e), status=status.HTTP_502_BAD_GATEWAY)
+        return self.success_response({'yaml': yaml_str})
+
+    def post(self, request: common.Request, cluster_id: int, resource_type: str, name: str):
+        cluster = KubeClusterService.get_cluster_by_id(cluster_id)
+        check_owner(request, cluster.owner.pk)
+        namespace = request.data.get('namespace')
+        if not namespace:
+            return self.error_response('namespace is required', status=status.HTTP_400_BAD_REQUEST)
+        force = bool(request.data.get('force', False))
+        bk_service = KubeResourceService(cluster)
+        try:
+            bk_service.restart_resource(resource_type, namespace, name, force)
+        except ValueError as e:
+            return self.error_response(str(e), status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return self.error_response(str(e), status=status.HTTP_502_BAD_GATEWAY)
+        mode = 'force' if force else 'normal'
+        return self.success_response({'message': f'{name} restarted ({mode})'})
+
+    def delete(self, request: common.Request, cluster_id: int, resource_type: str, name: str):
+        cluster = KubeClusterService.get_cluster_by_id(cluster_id)
+        check_owner(request, cluster.owner.pk)
+        bk_service = KubeResourceService(cluster)
+        namespace = request.data.get('namespace') or None
+        try:
+            if resource_type == 'namespaces':
+                bk_service.delete_namespace(name)
+            elif resource_type == 'pods':
+                bk_service.delete_pod(namespace, name)
+            elif resource_type == 'deployments':
+                bk_service.delete_deployment(namespace, name)
+            elif resource_type == 'services':
+                bk_service.delete_service(namespace, name)
+            elif resource_type == 'configmaps':
+                bk_service.delete_configmap(namespace, name)
+            elif resource_type == 'daemonsets':
+                bk_service.delete_daemonset(namespace, name)
+            else:
+                return self.error_response('Invalid resource type', status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return self.error_response(str(e), status=status.HTTP_502_BAD_GATEWAY)
+        return self.success_response({'message': f'{resource_type[:-1].capitalize()} "{name}" deleted'})

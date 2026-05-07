@@ -19,6 +19,7 @@ from .serializers import (
     TerraformConfigTextCreateSerializer,
     TerraformConfigUpdateSerializer,
     TerraformToolSerializer,
+    TerraformToolWriteSerializer,
     ScanReportDetailSerializer,
     ScanTriggerSerializer,
 )
@@ -27,6 +28,7 @@ from .services import (
     TerraformToolService,
     ScanReportService,
     ScanService,
+    ApplyService,
 )
 
 
@@ -118,6 +120,14 @@ class TerraformConfigManualScan(APIView, ResponseMixin):
         return self.success_response(ScanReportDetailSerializer(report).data)
 
 
+class TerraformConfigApply(APIView, ResponseMixin):
+    def post(self, request: common.Request, config_pk: int):
+        config = TerraformConfigService.get_config_by_id(config_pk)
+        check_owner(request, config.owner.pk)
+        config = ApplyService.apply(config)
+        return self.success_response(TerraformConfigDetailSerializer(config).data)
+
+
 class ScanReportDetail(APIView, ResponseMixin):
     def get(self, request: common.Request, config_pk: int):
         config = TerraformConfigService.get_config_by_id(config_pk)
@@ -132,12 +142,46 @@ class ScanReportDetail(APIView, ResponseMixin):
         return self.success_response({'message': 'Report deleted'})
 
 
-# ── TerraformTool (global) ─────────────────────────────────────────────────────
+# ── TerraformTool (global, admin-managed) ─────────────────────────────────────
 
 class TerraformToolList(APIView, ResponseMixin):
     def get(self, request: common.Request):
-        tools = TerraformToolService.get_enabled_tools()
+        # Regular users only see enabled tools; admins see all
+        if request.user.is_staff:
+            tools = TerraformToolService.get_all_tools()
+        else:
+            tools = TerraformToolService.get_enabled_tools()
         return self.success_response(TerraformToolSerializer(tools, many=True).data)
+
+    def post(self, request: common.Request):
+        if not request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied()
+        serializer = TerraformToolWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        tool = TerraformToolService.create_tool(**serializer.validated_data)
+        return self.success_response(
+            TerraformToolSerializer(tool).data, status=status.HTTP_201_CREATED)
+
+
+class TerraformToolDetail(APIView, ResponseMixin):
+    def _get_tool_admin(self, request: common.Request, tool_id: int):
+        if not request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied()
+        return TerraformToolService.get_tool_by_id(tool_id)
+
+    def patch(self, request: common.Request, tool_id: int):
+        tool = self._get_tool_admin(request, tool_id)
+        serializer = TerraformToolWriteSerializer(instance=tool, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        tool = TerraformToolService.update_tool(tool, **serializer.validated_data)
+        return self.success_response(TerraformToolSerializer(tool).data)
+
+    def delete(self, request: common.Request, tool_id: int):
+        tool = self._get_tool_admin(request, tool_id)
+        TerraformToolService.delete_tool(tool)
+        return self.success_response({'message': 'Tool deleted'})
 
 
 # ── Report HTML / PDF (token via query param for browser navigation) ────────────

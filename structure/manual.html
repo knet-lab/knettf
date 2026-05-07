@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NetSentinel 使用手册</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #f0f4f8;
+      color: #2d3748;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: #1d2535;
+      color: #a0aec0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-logo {
+      padding: 24px 20px 16px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      border-bottom: 1px solid #2d3748;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-logo span {
+      font-size: 11px;
+      font-weight: 400;
+      color: #718096;
+      display: block;
+      margin-top: 2px;
+    }
+
+    .sidebar nav { padding: 12px 0; flex: 1; }
+
+    .nav-section {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #4a5568;
+      padding: 16px 20px 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 20px;
+      font-size: 13.5px;
+      color: #a0aec0;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+      border-left: 3px solid transparent;
+      cursor: pointer;
+    }
+
+    .nav-item:hover { background: #2d3748; color: #e2e8f0; }
+    .nav-item.active { background: #1e3a5f; color: #fff; border-left-color: #3b82f6; }
+
+    .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+
+    /* ── Main ── */
+    .main {
+      flex: 1;
+      padding: 40px 48px;
+      max-width: 900px;
+    }
+
+    /* Section */
+    .section { margin-bottom: 60px; }
+
+    .section-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #ebf4ff;
+      color: #2563eb;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 10px;
+      letter-spacing: 0.3px;
+    }
+
+    .section-badge.green  { background: #f0fff4; color: #16a34a; }
+    .section-badge.purple { background: #faf5ff; color: #7c3aed; }
+    .section-badge.orange { background: #fff7ed; color: #ea580c; }
+    .section-badge.gray   { background: #f7fafc; color: #718096; }
+
+    h1 { font-size: 32px; font-weight: 700; color: #1a202c; margin-bottom: 6px; }
+    h2 { font-size: 22px; font-weight: 700; color: #1a202c; margin-bottom: 16px; }
+    h3 { font-size: 16px; font-weight: 600; color: #2d3748; margin: 24px 0 10px; }
+    h4 { font-size: 14px; font-weight: 600; color: #4a5568; margin: 16px 0 6px; }
+
+    .hero-desc {
+      font-size: 15px;
+      color: #718096;
+      margin-bottom: 32px;
+      line-height: 1.7;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #e2e8f0;
+      margin: 40px 0;
+    }
+
+    p { font-size: 14px; color: #4a5568; line-height: 1.8; margin-bottom: 10px; }
+
+    /* Cards */
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a202c;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Steps */
+    .steps { counter-reset: step; }
+    .step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      counter-increment: step;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #2563eb;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .step-num::before { content: counter(step); }
+
+    .step-body { flex: 1; }
+    .step-title { font-size: 14px; font-weight: 600; color: #1a202c; margin-bottom: 4px; }
+    .step-desc { font-size: 13px; color: #718096; line-height: 1.7; }
+
+    /* Tags */
+    .tag {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11.5px;
+      font-weight: 600;
+      margin: 2px 3px 2px 0;
+    }
+
+    .tag-blue   { background: #ebf4ff; color: #2563eb; }
+    .tag-green  { background: #f0fff4; color: #16a34a; }
+    .tag-red    { background: #fff5f5; color: #e53e3e; }
+    .tag-yellow { background: #fffbeb; color: #d97706; }
+    .tag-gray   { background: #f7fafc; color: #718096; }
+    .tag-purple { background: #faf5ff; color: #7c3aed; }
+
+    /* Table */
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .info-table th {
+      background: #f7fafc;
+      color: #4a5568;
+      font-weight: 600;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .info-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f0f4f8;
+      color: #4a5568;
+      vertical-align: top;
+    }
+
+    .info-table tr:last-child td { border-bottom: none; }
+
+    /* Alert */
+    .alert {
+      display: flex;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 13.5px;
+      line-height: 1.6;
+      align-items: flex-start;
+    }
+
+    .alert-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .alert-blue   { background: #ebf8ff; border: 1px solid #bee3f8; color: #2b6cb0; }
+    .alert-yellow { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+    .alert-red    { background: #fff5f5; border: 1px solid #feb2b2; color: #c53030; }
+    .alert-green  { background: #f0fff4; border: 1px solid #9ae6b4; color: #276749; }
+
+    /* Code */
+    code {
+      background: #f0f4f8;
+      color: #d63369;
+      font-family: 'Courier New', monospace;
+      font-size: 12.5px;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    /* Grid */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    /* Feature list */
+    .feature-list { list-style: none; }
+    .feature-list li {
+      padding: 6px 0;
+      font-size: 13.5px;
+      color: #4a5568;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.6;
+    }
+
+    .feature-list li::before {
+      content: '✓';
+      color: #16a34a;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* Cover */
+    .cover {
+      background: linear-gradient(135deg, #1d2535 0%, #1e3a5f 100%);
+      border-radius: 12px;
+      padding: 40px;
+      margin-bottom: 48px;
+      color: #fff;
+    }
+
+    .cover h1 { color: #fff; font-size: 36px; margin-bottom: 8px; }
+    .cover p { color: #94a3b8; font-size: 15px; margin-bottom: 0; }
+
+    .cover-meta {
+      display: flex;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .cover-meta-item {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .cover-meta-item strong { color: #cbd5e1; display: block; font-size: 14px; }
+
+    /* Section anchor offset */
+    [id] { scroll-margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    NetSentinel
+    <span>使用手册 v1.0</span>
+  </div>
+  <nav>
+    <div class="nav-section">概览</div>
+    <a class="nav-item active" href="#overview">
+      <span class="nav-icon">📋</span> 平台简介
+    </a>
+    <a class="nav-item" href="#login">
+      <span class="nav-icon">🔐</span> 登录与认证
+    </a>
+
+    <div class="nav-section">功能模块</div>
+    <a class="nav-item" href="#kubernetes">
+      <span class="nav-icon">☸️</span> Kubernetes 监控
+    </a>
+    <a class="nav-item" href="#terraform">
+      <span class="nav-icon">🔍</span> Terraform 安全扫描
+    </a>
+    <a class="nav-item" href="#terraform-scan">
+      <span class="nav-icon">▶</span> &nbsp;安全扫描
+    </a>
+    <a class="nav-item" href="#terraform-deploy">
+      <span class="nav-icon">🚀</span> &nbsp;部署 Apply
+    </a>
+    <a class="nav-item" href="#terraform-report">
+      <span class="nav-icon">📄</span> &nbsp;扫描报告
+    </a>
+    <a class="nav-item" href="#vigil">
+      <span class="nav-icon">🤖</span> AI Vigil
+    </a>
+
+    <div class="nav-section">管理员</div>
+    <a class="nav-item" href="#admin">
+      <span class="nav-icon">⚙️</span> 管理后台总览
+    </a>
+    <a class="nav-item" href="#admin-users">
+      <span class="nav-icon">👥</span> 用户管理
+    </a>
+    <a class="nav-item" href="#admin-clusters">
+      <span class="nav-icon">🔗</span> 集群管理
+    </a>
+    <a class="nav-item" href="#admin-tftools">
+      <span class="nav-icon">🛠</span> 扫描工具管理
+    </a>
+
+    <div class="nav-section">附录</div>
+    <a class="nav-item" href="#severity">
+      <span class="nav-icon">⚠️</span> 风险等级说明
+    </a>
+    <a class="nav-item" href="#tools-ref">
+      <span class="nav-icon">📦</span> 工具参考
+    </a>
+  </nav>
+</div>
+
+<!-- ── Main ── -->
+<div class="main">
+
+  <!-- Cover -->
+  <div class="cover">
+    <h1>NetSentinel</h1>
+    <p>Kubernetes 集群监控 &amp; Terraform 安全扫描平台 — 使用手册</p>
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <strong>版本</strong>v1.0
+      </div>
+      <div class="cover-meta-item">
+        <strong>适用角色</strong>普通用户 / 管理员
+      </div>
+      <div class="cover-meta-item">
+        <strong>更新日期</strong>2026-03
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 平台简介 ── -->
+  <div class="section" id="overview">
+    <div class="section-badge">📋 概览</div>
+    <h2>平台简介</h2>
+    <p>NetSentinel 是一个面向 DevOps 和安全团队的一体化平台，提供 Kubernetes 集群实时监控、Terraform 配置安全扫描以及一键部署能力。</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">☸️ Kubernetes 监控</div>
+        <ul class="feature-list">
+          <li>连接并管理多个 K8s 集群</li>
+          <li>查看 Namespaces、Pods、Deployments</li>
+          <li>查看 Services、ConfigMaps</li>
+          <li>实时查看 Pod 运行日志</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">🔍 Terraform 安全扫描</div>
+        <ul class="feature-list">
+          <li>上传或在线编辑 .tf 配置文件</li>
+          <li>多工具联合安全扫描</li>
+          <li>HIGH / MEDIUM / LOW 风险分级</li>
+          <li>扫描通过后一键 Terraform Apply</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🏗️ 系统架构</div>
+      <table class="info-table">
+        <thead>
+          <tr><th>层级</th><th>技术栈</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>前端</td><td>Vue 3 + Element Plus</td><td>单页应用，访问地址 <code>localhost:5173</code></td></tr>
+          <tr><td>后端</td><td>Django REST Framework</td><td>API 服务，地址 <code>localhost:8000</code></td></tr>
+          <tr><td>认证</td><td>JWT (SimpleJWT)</td><td>Access Token 2小时，自动刷新</td></tr>
+          <tr><td>扫描引擎</td><td>tfsec / checkov / trivy / tflint / terraform validate</td><td>服务器本地执行</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── 登录 ── -->
+  <div class="section" id="login">
+    <div class="section-badge">🔐 认证</div>
+    <h2>登录与认证</h2>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">打开登录页面</div>
+          <div class="step-desc">访问 <code>http://localhost:5173/login</code>，输入用户名和密码。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">Token 自动管理</div>
+          <div class="step-desc">登录成功后系统自动获取 Access Token（有效期 2 小时）。Token 过期时平台会<strong>自动无感刷新</strong>，无需手动重新登录，直到 Refresh Token（7天）失效为止。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">退出登录</div>
+          <div class="step-desc">点击右上角用户名旁的 <strong>Sign Out</strong> 按钮即可安全退出。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-blue">
+      <span class="alert-icon">ℹ️</span>
+      <div>管理员账户可访问 <code>/admin</code> 路径进入后台管理界面，普通用户无法访问该路径。</div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── Kubernetes ── -->
+  <div class="section" id="kubernetes">
+    <div class="section-badge green">☸️ Kubernetes</div>
+    <h2>Kubernetes 集群监控</h2>
+    <p>通过左侧侧边栏管理多个 Kubernetes 集群连接，点击集群后在右侧标签页查看各类资源。</p>
+
+    <h3>添加集群</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">点击 Add 按钮</div>
+          <div class="step-desc">左侧侧边栏顶部点击蓝色 <strong>Add</strong> 按钮，弹出添加集群对话框。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">填写集群信息</div>
+          <div class="step-desc">输入集群名称、API Server 地址、CA 证书、用户 Token 等连接信息。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">选择集群查看资源</div>
+          <div class="step-desc">点击左侧集群列表中的任一集群，右侧自动加载该集群的资源信息。</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>资源标签页</h3>
+    <table class="info-table">
+      <thead>
+        <tr><th>标签页</th><th>内容</th><th>特殊功能</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tag tag-blue">Namespaces</span></td>
+          <td>命名空间列表，显示名称、状态、创建时间</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">Pods</span></td>
+          <td>Pod 列表，显示状态、IP、所在节点</td>
+          <td>点击 <strong>Logs</strong> 按钮查看实时日志</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">Deployments</span></td>
+          <td>Deployment 列表，显示期望副本数 / Ready 数</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">Services</span></td>
+          <td>服务列表，显示类型、ClusterIP、端口</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">ConfigMaps</span></td>
+          <td>配置字典列表</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-yellow">
+      <span class="alert-icon">⚠️</span>
+      <div>Pods、Deployments、Services、ConfigMaps 标签页需要先选择 <strong>Namespace</strong> 才能加载对应资源。切换 Namespace 后点击 Refresh 按钮刷新。</div>
+    </div>
+
+    <h3>查看 Pod 日志</h3>
+    <p>在 Pods 标签页，找到目标 Pod，点击右侧 <strong>Logs</strong> 按钮，弹窗中会实时显示该 Pod 的最新日志输出。</p>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── Terraform ── -->
+  <div class="section" id="terraform">
+    <div class="section-badge purple">🔍 Terraform Scan</div>
+    <h2>Terraform 安全扫描</h2>
+    <p>管理你的 Terraform 配置文件，对其进行多工具安全扫描，确认无高风险问题后执行部署。</p>
+
+    <h3>新建配置</h3>
+    <p>点击左侧侧边栏顶部的 <strong>+ New</strong> 按钮，弹出对话框，支持两种方式：</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">📁 上传文件</div>
+        <p style="font-size:13px;color:#718096;margin:0">输入配置名称，选择本地 <code>.tf</code> 文件上传。</p>
+      </div>
+      <div class="card">
+        <div class="card-title">✏️ 在线编写</div>
+        <p style="font-size:13px;color:#718096;margin:0">输入配置名称，在文本框中直接粘贴或编写 HCL 内容。</p>
+      </div>
+    </div>
+
+    <h3>编辑配置内容</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">点击 Edit 按钮</div>
+          <div class="step-desc">Config Content 卡片右上角点击 <strong>Edit</strong>，文本框进入可编辑模式。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">修改内容后点击 Save</div>
+          <div class="step-desc">修改完成后点击 <strong>Save</strong> 保存。保存后 <code>is_scanned</code> 状态会重置，需要重新扫描。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 安全扫描 ── -->
+  <div class="section" id="terraform-scan">
+    <div class="section-badge purple">▶ 安全扫描</div>
+    <h2>Security Scan</h2>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">⚡ Full Scan</div>
+        <p style="font-size:13px;color:#718096;margin:0">使用所有已启用的扫描工具对当前配置执行完整扫描。推荐日常使用。</p>
+      </div>
+      <div class="card">
+        <div class="card-title">🎯 Manual Scan</div>
+        <p style="font-size:13px;color:#718096;margin:0">弹窗中勾选指定工具，只对选中的工具执行扫描。适合针对性排查。</p>
+      </div>
+    </div>
+
+    <h3>当前内置扫描工具</h3>
+    <table class="info-table">
+      <thead>
+        <tr><th>工具</th><th>检测方向</th><th>输出格式</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>terraform_validate</strong></td>
+          <td>语法与资源引用合法性验证</td>
+          <td><span class="tag tag-blue">JSON</span></td>
+        </tr>
+        <tr>
+          <td><strong>tflint</strong></td>
+          <td>最佳实践、废弃用法、变量类型检查</td>
+          <td><span class="tag tag-blue">JSON</span></td>
+        </tr>
+        <tr>
+          <td><strong>tfsec</strong></td>
+          <td>安全配置漏洞（权限过大、明文密钥等）</td>
+          <td><span class="tag tag-green">SARIF</span></td>
+        </tr>
+        <tr>
+          <td><strong>checkov</strong></td>
+          <td>合规策略扫描（CIS Benchmark、K8s 安全策略）</td>
+          <td><span class="tag tag-green">SARIF</span></td>
+        </tr>
+        <tr>
+          <td><strong>trivy</strong></td>
+          <td>配置错误与 CVE 漏洞扫描</td>
+          <td><span class="tag tag-green">SARIF</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-blue">
+      <span class="alert-icon">ℹ️</span>
+      <div>扫描过程在服务器端同步执行，期间页面显示 <strong>Scanning, please wait...</strong>，请勿关闭页面或重复点击。</div>
+    </div>
+  </div>
+
+  <!-- ── Deploy ── -->
+  <div class="section" id="terraform-deploy">
+    <div class="section-badge orange">🚀 Terraform Apply</div>
+    <h2>Deploy — Terraform Apply</h2>
+    <p>满足条件后，可直接在平台上执行 <code>terraform apply</code>，将配置部署到目标集群。</p>
+
+    <h3>Apply 启用前提（缺一不可）</h3>
+    <div class="alert alert-red">
+      <span class="alert-icon">🚫</span>
+      <div>
+        以下两个条件必须同时满足，Apply 按钮才会变为可点击状态：<br />
+        <strong>① 已完成扫描</strong>（状态为 Scanned）<br />
+        <strong>② 扫描报告中 HIGH 风险数量为 0</strong>
+      </div>
+    </div>
+
+    <h3>执行步骤</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">确认扫描通过</div>
+          <div class="step-desc">查看 Scan Report 中 Risk Summary，确认 <span class="tag tag-red">HIGH 0</span>。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">点击绿色 Apply 按钮</div>
+          <div class="step-desc">Deploy 卡片中绿色 <strong>Apply</strong> 按钮变为可点击后，点击执行。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">等待执行完成</div>
+          <div class="step-desc">平台依次执行 <code>terraform init</code> 和 <code>terraform apply -auto-approve</code>，完成后显示执行结果。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <div class="step-title">查看输出结果</div>
+          <div class="step-desc">Apply 完成后，卡片下方显示完整的终端输出，并标注 <span class="tag tag-green">success</span> 或 <span class="tag tag-red">failed</span> 状态及执行时间。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-yellow">
+      <span class="alert-icon">⚠️</span>
+      <div><code>.tf</code> 文件中必须包含有效的集群连接信息（API endpoint、credentials），否则 <code>terraform init</code> 阶段会失败。</div>
+    </div>
+  </div>
+
+  <!-- ── 扫描报告 ── -->
+  <div class="section" id="terraform-report">
+    <div class="section-badge purple">📄 扫描报告</div>
+    <h2>Scan Report</h2>
+
+    <h3>报告概览字段</h3>
+    <table class="info-table">
+      <thead>
+        <tr><th>字段</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Status</td><td><span class="tag tag-green">Done</span> / <span class="tag tag-yellow">Running</span> / <span class="tag tag-red">Failed</span> / <span class="tag tag-gray">Pending</span></td></tr>
+        <tr><td>Tools</td><td>本次扫描使用的工具列表</td></tr>
+        <tr><td>Scanned At</td><td>扫描完成的时间</td></tr>
+        <tr><td>Risk Summary</td><td>HIGH / MEDIUM / LOW 各等级问题数量汇总</td></tr>
+      </tbody>
+    </table>
+
+    <h3>报告操作</h3>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">👁 View Report</div>
+        <p style="font-size:13px;color:#718096;margin:0">在新标签页打开完整 HTML 格式扫描报告，包含所有工具的详细发现项。</p>
+      </div>
+      <div class="card">
+        <div class="card-title">⬇️ Download PDF</div>
+        <p style="font-size:13px;color:#718096;margin:0">下载 PDF 格式的扫描报告，可用于留存或分享给团队成员。</p>
+      </div>
+    </div>
+
+    <h3>发现项（Findings）字段</h3>
+    <table class="info-table">
+      <thead>
+        <tr><th>列</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Rule ID</td><td>触发的规则编号，如 <code>CKV_K8S_28</code>、<code>kubernetes_service.app</code></td></tr>
+        <tr><td>Severity</td><td>风险等级：<span class="tag tag-red">HIGH</span> <span class="tag tag-yellow">MEDIUM</span> <span class="tag tag-gray">LOW</span></td></tr>
+        <tr><td>Description</td><td>规则描述，说明检测到的问题</td></tr>
+        <tr><td>Location</td><td>问题所在文件及行号，如 <code>main.tf:82</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── AI Vigil ── -->
+  <div class="section" id="vigil">
+    <div class="section-badge gray">🤖 AI Vigil</div>
+    <h2>AI Vigil</h2>
+    <div class="alert alert-blue">
+      <span class="alert-icon">🔧</span>
+      <div>AI Vigil 模块正在开发中，敬请期待。功能上线后将提供基于 AI 的智能安全分析与异常检测能力。</div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── Admin ── -->
+  <div class="section" id="admin">
+    <div class="section-badge orange">⚙️ 管理员</div>
+    <h2>管理后台</h2>
+    <p>管理员账户登录后，访问 <code>/admin</code> 路径进入后台管理界面，左侧菜单包含以下模块。</p>
+
+    <div class="alert alert-red">
+      <span class="alert-icon">🔒</span>
+      <div>管理后台仅限 <strong>is_staff = true</strong> 的管理员账户访问。普通用户访问将返回 403。</div>
+    </div>
+
+    <h3>Dashboard</h3>
+    <p>概览页面，显示平台整体统计数据：用户总数、集群数量、配置文件数、扫描报告数等。</p>
+  </div>
+
+  <!-- ── Admin Users ── -->
+  <div class="section" id="admin-users">
+    <div class="section-badge orange">👥 用户管理</div>
+    <h2>Users — 用户管理</h2>
+
+    <table class="info-table">
+      <thead>
+        <tr><th>操作</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>查看用户列表</td><td>显示所有注册用户的用户名、邮箱、管理员状态、注册时间</td></tr>
+        <tr><td>新建用户</td><td>点击 New User，填写用户名、密码、邮箱，可勾选 is_staff 设为管理员</td></tr>
+        <tr><td>编辑用户</td><td>点击 Edit 按钮修改用户信息</td></tr>
+        <tr><td>删除用户</td><td>点击 Delete 按钮，确认后永久删除（关联数据同步删除）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Admin Clusters ── -->
+  <div class="section" id="admin-clusters">
+    <div class="section-badge orange">🔗 集群管理</div>
+    <h2>Clusters — 集群管理</h2>
+    <p>管理员可在此查看所有用户添加的 Kubernetes 集群连接信息，并进行启用/禁用或删除操作。</p>
+
+    <table class="info-table">
+      <thead>
+        <tr><th>字段</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Name</td><td>集群显示名称</td></tr>
+        <tr><td>Owner</td><td>创建该集群连接的用户</td></tr>
+        <tr><td>Is Active</td><td>集群是否处于活跃可连接状态</td></tr>
+        <tr><td>Created At</td><td>添加时间</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Admin TF Tools ── -->
+  <div class="section" id="admin-tftools">
+    <div class="section-badge orange">🛠 工具管理</div>
+    <h2>TF Tools — 扫描工具管理</h2>
+    <p>管理员可以新增、编辑、删除扫描工具，无需修改代码即可扩展扫描能力。</p>
+
+    <h3>工具配置字段</h3>
+    <table class="info-table">
+      <thead>
+        <tr><th>字段</th><th>说明</th><th>示例</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Name</td>
+          <td>工具唯一标识名称</td>
+          <td><code>tfsec</code></td>
+        </tr>
+        <tr>
+          <td>Command (cmd)</td>
+          <td>执行命令，支持 <code>{target_dir}</code> 和 <code>{target_file}</code> 两个占位符</td>
+          <td><code>tfsec {target_dir} --format sarif</code></td>
+        </tr>
+        <tr>
+          <td>Init Command</td>
+          <td>执行主命令前运行的初始化命令（可选）</td>
+          <td><code>terraform init -backend=false</code></td>
+        </tr>
+        <tr>
+          <td>Output Format</td>
+          <td>工具输出格式</td>
+          <td><span class="tag tag-green">SARIF</span> 或 <span class="tag tag-blue">JSON</span></td>
+        </tr>
+        <tr>
+          <td>Is Enabled</td>
+          <td>是否在 Full Scan 中启用</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>JSON 格式工具的字段映射</h3>
+    <p>当 Output Format 选择 <strong>JSON</strong> 时，需要额外配置以下字段映射，告知平台如何从 JSON 输出中提取发现项：</p>
+
+    <table class="info-table">
+      <thead>
+        <tr><th>配置项</th><th>说明</th><th>示例（tflint）</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Items Path</td><td>发现项列表在 JSON 中的点路径</td><td><code>issues</code></td></tr>
+        <tr><td>Severity Field</td><td>每条发现项中风险等级字段路径</td><td><code>rule.severity</code></td></tr>
+        <tr><td>Severity Map</td><td>工具原始等级 → 平台等级映射（JSON）</td><td><code>{"error":"HIGH","warning":"MEDIUM"}</code></td></tr>
+        <tr><td>Rule ID Field</td><td>规则 ID 字段路径</td><td><code>rule.name</code></td></tr>
+        <tr><td>Description Field</td><td>描述字段路径</td><td><code>message</code></td></tr>
+        <tr><td>Location File Field</td><td>文件路径字段</td><td><code>range.filename</code></td></tr>
+        <tr><td>Location Line Field</td><td>行号字段</td><td><code>range.start.line</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-green">
+      <span class="alert-icon">💡</span>
+      <div>添加新工具后，普通用户在 <strong>Manual Scan</strong> 中即可选择该工具，在 <strong>Full Scan</strong> 中也会自动包含（前提是 Is Enabled = true）。</div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── 风险等级说明 ── -->
+  <div class="section" id="severity">
+    <div class="section-badge">⚠️ 附录</div>
+    <h2>风险等级说明</h2>
+
+    <table class="info-table">
+      <thead>
+        <tr><th>等级</th><th>含义</th><th>对 Apply 的影响</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tag tag-red">HIGH</span></td>
+          <td>高危安全问题，存在明显安全漏洞或配置错误</td>
+          <td><strong>阻断 Apply</strong>，必须修复后重新扫描</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-yellow">MEDIUM</span></td>
+          <td>中等风险，建议修复但不强制</td>
+          <td>不阻断 Apply，仍可部署</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-gray">LOW</span></td>
+          <td>低风险提示，最佳实践建议</td>
+          <td>不阻断 Apply</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── 工具参考 ── -->
+  <div class="section" id="tools-ref">
+    <h2>扫描工具参考</h2>
+
+    <div class="card">
+      <div class="card-title">📦 terraform validate</div>
+      <p style="font-size:13px;color:#4a5568;margin:0">Terraform 官方验证命令，检查 HCL 语法正确性和资源引用合法性。输出 JSON，标识 error/warning 级别。</p>
+    </div>
+    <div class="card">
+      <div class="card-title">📦 tflint</div>
+      <p style="font-size:13px;color:#4a5568;margin:0">Terraform Linter，检查废弃资源、变量类型错误、Provider 最佳实践等。输出 JSON。</p>
+    </div>
+    <div class="card">
+      <div class="card-title">📦 tfsec</div>
+      <p style="font-size:13px;color:#4a5568;margin:0">专注于安全配置扫描，检测如权限过大、公开暴露端口、明文密钥等安全问题。输出 SARIF。</p>
+    </div>
+    <div class="card">
+      <div class="card-title">📦 checkov</div>
+      <p style="font-size:13px;color:#4a5568;margin:0">覆盖 500+ 内置规则的合规扫描工具，支持 Terraform 中 Kubernetes Provider 资源的安全策略检测（CKV_K8S_* 规则族）。输出 SARIF。</p>
+    </div>
+    <div class="card">
+      <div class="card-title">📦 trivy</div>
+      <p style="font-size:13px;color:#4a5568;margin:0">Aqua Security 出品的综合扫描工具，覆盖 IaC 配置错误与已知 CVE 漏洞。输出 SARIF。</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Active nav highlight on scroll
+  const items = document.querySelectorAll('.nav-item')
+  const sections = document.querySelectorAll('[id]')
+
+  function setActive(id) {
+    items.forEach(i => {
+      i.classList.toggle('active', i.getAttribute('href') === '#' + id)
+    })
+  }
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) setActive(e.target.id) })
+  }, { rootMargin: '-20% 0px -70% 0px' })
+
+  sections.forEach(s => observer.observe(s))
+</script>
+</body>
+</html>

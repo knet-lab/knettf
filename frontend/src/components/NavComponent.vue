@@ -22,6 +22,12 @@
         </el-icon>
         AI Vigil
       </RouterLink>
+      <RouterLink to="/help" class="nav-link">
+        <el-icon>
+          <QuestionFilled />
+        </el-icon>
+        Help
+      </RouterLink>
     </div>
     <div class="nav-user">
       <span class="username">{{ user?.username }}</span>
@@ -31,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { Monitor, DataAnalysis } from '@element-plus/icons-vue'
+import { Monitor, DataAnalysis, QuestionFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
