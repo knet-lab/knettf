@@ -5,29 +5,30 @@
       <div class="sidebar-header">
         <span class="sidebar-title">My Clusters</span>
         <el-button size="small" type="primary" @click="openAddCluster">
-          <el-icon><Plus /></el-icon>
+          <el-icon>
+            <Plus />
+          </el-icon>
           Add
         </el-button>
       </div>
 
       <div v-if="loadingClusters" class="sidebar-loading">
-        <el-icon class="is-loading"><Loading /></el-icon>
+        <el-icon class="is-loading">
+          <Loading />
+        </el-icon>
       </div>
       <div v-else-if="clusters.length === 0" class="sidebar-empty">
         No clusters yet
       </div>
       <div v-else class="cluster-list">
-        <div
-          v-for="cluster in clusters"
-          :key="cluster.id"
-          class="cluster-card"
-          :class="{ active: selectedCluster?.id === cluster.id }"
-          @click="selectCluster(cluster)"
-        >
+        <div v-for="cluster in clusters" :key="cluster.id" class="cluster-card"
+          :class="{ active: selectedCluster?.id === cluster.id }" @click="selectCluster(cluster)">
           <div class="cluster-card-name">{{ cluster.name }}</div>
           <el-tag :type="cluster.is_active ? 'success' : 'danger'" size="small" effect="dark">
             {{ cluster.is_active ? 'Active' : 'Inactive' }}
           </el-tag>
+          <el-tag style="margin-left: 0.2rem" size="small" type="danger" effect="dark"
+            @click.stop="deleteCluster(cluster.id)">Delete</el-tag>
         </div>
       </div>
     </aside>
@@ -35,7 +36,9 @@
     <!-- Right Content -->
     <main class="content">
       <div v-if="!selectedCluster" class="content-empty">
-        <el-icon size="48" color="#4a5568"><Folder /></el-icon>
+        <el-icon size="48" color="#4a5568">
+          <Folder />
+        </el-icon>
         <p>Select a cluster from the left</p>
       </div>
 
@@ -52,7 +55,9 @@
           <el-tab-pane label="Namespaces" name="namespaces">
             <div class="tab-toolbar">
               <el-button size="small" :loading="loadingResources" @click="loadResources">
-                <el-icon><Refresh /></el-icon>
+                <el-icon>
+                  <Refresh />
+                </el-icon>
                 Refresh
               </el-button>
             </div>
@@ -62,10 +67,7 @@
               </el-table-column>
               <el-table-column label="Status" width="120">
                 <template #default="{ row }">
-                  <el-tag
-                    :type="row.status?.phase === 'Active' ? 'success' : 'warning'"
-                    size="small"
-                  >
+                  <el-tag :type="row.status?.phase === 'Active' ? 'success' : 'warning'" size="small">
                     {{ row.status?.phase ?? '—' }}
                   </el-tag>
                 </template>
@@ -81,22 +83,14 @@
           <!-- Pods -->
           <el-tab-pane label="Pods" name="pods">
             <div class="tab-toolbar">
-              <el-select
-                v-model="selectedNamespace"
-                placeholder="Select Namespace"
-                size="small"
-                style="width: 200px"
-                @change="loadResources"
-              >
-                <el-option
-                  v-for="ns in namespaceList"
-                  :key="ns"
-                  :label="ns"
-                  :value="ns"
-                />
+              <el-select v-model="selectedNamespace" placeholder="Select Namespace" size="small" style="width: 200px"
+                @change="loadResources">
+                <el-option v-for="ns in namespaceList" :key="ns" :label="ns" :value="ns" />
               </el-select>
               <el-button size="small" :loading="loadingResources" @click="loadResources">
-                <el-icon><Refresh /></el-icon>
+                <el-icon>
+                  <Refresh />
+                </el-icon>
                 Refresh
               </el-button>
             </div>
@@ -124,12 +118,7 @@
               </el-table-column>
               <el-table-column label="Actions" width="90" fixed="right">
                 <template #default="{ row }">
-                  <el-button
-                    size="small"
-                    text
-                    type="primary"
-                    @click="openLogs(row)"
-                  >
+                  <el-button size="small" text type="primary" @click="openLogs(row)">
                     Logs
                   </el-button>
                 </template>
@@ -140,17 +129,14 @@
           <!-- Deployments -->
           <el-tab-pane label="Deployments" name="deployments">
             <div class="tab-toolbar">
-              <el-select
-                v-model="selectedNamespace"
-                placeholder="Select Namespace"
-                size="small"
-                style="width: 200px"
-                @change="loadResources"
-              >
+              <el-select v-model="selectedNamespace" placeholder="Select Namespace" size="small" style="width: 200px"
+                @change="loadResources">
                 <el-option v-for="ns in namespaceList" :key="ns" :label="ns" :value="ns" />
               </el-select>
               <el-button size="small" :loading="loadingResources" @click="loadResources">
-                <el-icon><Refresh /></el-icon>
+                <el-icon>
+                  <Refresh />
+                </el-icon>
                 Refresh
               </el-button>
             </div>
@@ -178,17 +164,14 @@
           <!-- Services -->
           <el-tab-pane label="Services" name="services">
             <div class="tab-toolbar">
-              <el-select
-                v-model="selectedNamespace"
-                placeholder="Select Namespace"
-                size="small"
-                style="width: 200px"
-                @change="loadResources"
-              >
+              <el-select v-model="selectedNamespace" placeholder="Select Namespace" size="small" style="width: 200px"
+                @change="loadResources">
                 <el-option v-for="ns in namespaceList" :key="ns" :label="ns" :value="ns" />
               </el-select>
               <el-button size="small" :loading="loadingResources" @click="loadResources">
-                <el-icon><Refresh /></el-icon>
+                <el-icon>
+                  <Refresh />
+                </el-icon>
                 Refresh
               </el-button>
             </div>
@@ -218,17 +201,14 @@
           <!-- ConfigMaps -->
           <el-tab-pane label="ConfigMaps" name="configmaps">
             <div class="tab-toolbar">
-              <el-select
-                v-model="selectedNamespace"
-                placeholder="Select Namespace"
-                size="small"
-                style="width: 200px"
-                @change="loadResources"
-              >
+              <el-select v-model="selectedNamespace" placeholder="Select Namespace" size="small" style="width: 200px"
+                @change="loadResources">
                 <el-option v-for="ns in namespaceList" :key="ns" :label="ns" :value="ns" />
               </el-select>
               <el-button size="small" :loading="loadingResources" @click="loadResources">
-                <el-icon><Refresh /></el-icon>
+                <el-icon>
+                  <Refresh />
+                </el-icon>
                 Refresh
               </el-button>
             </div>
@@ -252,17 +232,14 @@
           <!-- DaemonSets -->
           <el-tab-pane label="DaemonSets" name="daemonsets">
             <div class="tab-toolbar">
-              <el-select
-                v-model="selectedNamespace"
-                placeholder="Select Namespace"
-                size="small"
-                style="width: 200px"
-                @change="loadResources"
-              >
+              <el-select v-model="selectedNamespace" placeholder="Select Namespace" size="small" style="width: 200px"
+                @change="loadResources">
                 <el-option v-for="ns in namespaceList" :key="ns" :label="ns" :value="ns" />
               </el-select>
               <el-button size="small" :loading="loadingResources" @click="loadResources">
-                <el-icon><Refresh /></el-icon>
+                <el-icon>
+                  <Refresh />
+                </el-icon>
                 Refresh
               </el-button>
             </div>
@@ -296,13 +273,8 @@
           <el-input v-model="newCluster.name" placeholder="Enter cluster name" />
         </el-form-item>
         <el-form-item label="KubeConfig">
-          <el-input
-            v-model="newCluster.kubeconfig"
-            type="textarea"
-            :rows="12"
-            placeholder="Paste kubeconfig content (YAML)"
-            style="font-family: monospace; font-size: 12px"
-          />
+          <el-input v-model="newCluster.kubeconfig" type="textarea" :rows="12"
+            placeholder="Paste kubeconfig content (YAML)" style="font-family: monospace; font-size: 12px" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -312,13 +284,8 @@
     </el-dialog>
 
     <!-- Pod Logs Drawer -->
-    <el-drawer
-      v-model="showLogs"
-      :title="`Logs — ${logPod?.metadata?.name ?? ''}`"
-      direction="rtl"
-      size="55%"
-      :before-close="closeLogs"
-    >
+    <el-drawer v-model="showLogs" :title="`Logs — ${logPod?.metadata?.name ?? ''}`" direction="rtl" size="55%"
+      :before-close="closeLogs">
       <div class="log-controls">
         <el-tag v-if="wsConnected" type="success" size="small" effect="dark">● Connected</el-tag>
         <el-tag v-else type="info" size="small">○ Disconnected</el-tag>
@@ -356,9 +323,7 @@ async function fetchClusters() {
   if (!auth.user) return
   loadingClusters.value = true
   try {
-    const res = await fetch(`${BASE}/kcore/users/${auth.user.id}/clusters/`, {
-      headers: auth.authHeaders(),
-    })
+    const res = await auth.apiFetch(`${BASE}/kcore/users/${auth.user.id}/clusters/`)
     const json = await res.json()
     clusters.value = json.data ?? []
   } catch {
@@ -395,9 +360,8 @@ async function addCluster() {
   if (!auth.user) return
   addingCluster.value = true
   try {
-    const res = await fetch(`${BASE}/kcore/users/${auth.user.id}/clusters/`, {
+    const res = await auth.apiFetch(`${BASE}/kcore/users/${auth.user.id}/clusters/`, {
       method: 'POST',
-      headers: auth.authHeaders(),
       body: JSON.stringify(newCluster.value),
     })
     if (!res.ok) {
@@ -415,9 +379,27 @@ async function addCluster() {
   }
 }
 
+async function deleteCluster(clusterId: number) {
+  if (!auth.user) return
+  try {
+    const res = await auth.apiFetch(`${BASE}/kcore/clusters/${clusterId}/`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      ElMessage.error(err.message ?? 'Failed to delete')
+      return
+    }
+    ElMessage.success('Cluster deleted')
+    await fetchClusters()
+  } catch {
+    ElMessage.error('Network error')
+  }
+}
+
 // ─── Resources ───────────────────────────────────────────────
 const activeTab = ref('namespaces')
-const resources = ref<any[]>([])
+const resources = ref<unknown[]>([])
 const loadingResources = ref(false)
 const namespaceList = ref<string[]>([])
 const selectedNamespace = ref('')
@@ -448,7 +430,10 @@ async function onTabChange() {
   if (activeTab.value === 'namespaces') {
     await loadResources()
     // populate namespace list from loaded namespaces
-    namespaceList.value = resources.value.map((r) => r.metadata?.name).filter((n): n is string => !!n)
+    namespaceList.value = resources.value.map((r) => {
+      const resource = r as { metadata?: { name?: string } }
+      return resource.metadata?.name
+    }).filter((n): n is string => !!n)
     if (namespaceList.value.length > 0 && !selectedNamespace.value) {
       selectedNamespace.value = namespaceList.value[0] ?? ''
     }
@@ -460,7 +445,10 @@ async function onTabChange() {
         { headers: auth.authHeaders() },
       )
       const json = await res.json()
-      namespaceList.value = (json.data?.resources ?? []).map((r: any) => r.metadata?.name).filter((n: unknown): n is string => !!n)
+      namespaceList.value = (json.data?.resources ?? []).map((r: unknown) => {
+        const resource = r as { metadata?: { name?: string } }
+        return resource.metadata?.name
+      }).filter((n: unknown): n is string => !!n)
       if (namespaceList.value.length > 0 && !selectedNamespace.value) {
         selectedNamespace.value = namespaceList.value[0] ?? ''
       }
@@ -470,24 +458,29 @@ async function onTabChange() {
 }
 
 // ─── Pod Logs ────────────────────────────────────────────────
+interface Pod {
+  metadata?: { namespace?: string; name?: string }
+}
+
 const showLogs = ref(false)
-const logPod = ref<any>(null)
+const logPod = ref<Pod | null>(null)
 const logContent = ref('')
 const wsConnected = ref(false)
 const logBox = ref<HTMLPreElement | null>(null)
 let socket: WebSocket | null = null
 
-function openLogs(pod: any) {
-  logPod.value = pod
+function openLogs(pod: unknown) {
+  logPod.value = pod as Pod
   logContent.value = ''
   showLogs.value = true
   connectWs(pod)
 }
 
-function connectWs(pod: any) {
+function connectWs(pod: unknown) {
   disconnectWs()
-  const ns = pod.metadata?.namespace ?? selectedNamespace.value
-  const name = pod.metadata?.name
+  const podObj = pod as { metadata?: { namespace?: string; name?: string } }
+  const ns = podObj.metadata?.namespace ?? selectedNamespace.value
+  const name = podObj.metadata?.name
   if (!selectedCluster.value || !name) return
   const url = `${WS_BASE}/ws/clusters/${selectedCluster.value.id}/pods/${ns}/${name}/logs/`
   socket = new WebSocket(url)
@@ -526,9 +519,12 @@ function formatTime(ts: string | null | undefined) {
   return new Date(ts).toLocaleString('zh-CN', { hour12: false })
 }
 
-function formatPorts(ports: any[] | null | undefined) {
+function formatPorts(ports: unknown[] | null | undefined) {
   if (!ports || ports.length === 0) return '—'
-  return ports.map((p) => `${p.port}/${p.protocol ?? 'TCP'}`).join(', ')
+  return ports.map((p) => {
+    const port = p as { port: number; protocol?: string }
+    return `${port.port}/${port.protocol ?? 'TCP'}`
+  }).join(', ')
 }
 
 function podStatusType(phase: string | undefined) {

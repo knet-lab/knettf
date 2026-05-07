@@ -5,12 +5,22 @@
     </div>
     <div class="nav-links">
       <RouterLink to="/kcore" class="nav-link">
-        <el-icon><Monitor /></el-icon>
+        <el-icon>
+          <Monitor />
+        </el-icon>
         Kubernetes
       </RouterLink>
       <RouterLink to="/autotf" class="nav-link">
-        <el-icon><DataAnalysis /></el-icon>
+        <el-icon>
+          <DataAnalysis />
+        </el-icon>
         Terraform Scan
+      </RouterLink>
+      <RouterLink to="/vigil" class="nav-link">
+        <el-icon>
+          <DataAnalysis />
+        </el-icon>
+        AI Vigil
       </RouterLink>
     </div>
     <div class="nav-user">

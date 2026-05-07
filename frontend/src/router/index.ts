@@ -28,6 +28,12 @@ const router = createRouter({
       component: () => import('../views/AutoTFView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/vigil',
+      name: 'vigil',
+      component: () => import('../views/VigilView.vue'),
+      meta: { requiresAuth: true },
+    },
 
     // ── 管理员区 ─────────────────────────────────────
     {

@@ -60,10 +60,17 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
+interface User {
+  id: number
+  username: string
+  email: string
+  is_staff: boolean
+}
+
 const BASE = 'http://127.0.0.1:8000/api'
 const auth = useAuthStore()
 
-const users = ref<any[]>([])
+const users = ref<User[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const submitting = ref(false)
@@ -71,7 +78,7 @@ const form = ref({ username: '', email: '', password: '', is_staff: false })
 
 async function fetchUsers() {
   loading.value = true
-  const res = await fetch(`${BASE}/kcore/users/`, { headers: auth.authHeaders() })
+  const res = await auth.apiFetch(`${BASE}/kcore/users/`)
   if (res.ok) {
     const data = await res.json()
     users.value = data.data ?? []
@@ -86,9 +93,8 @@ function openCreate() {
 
 async function createUser() {
   submitting.value = true
-  const res = await fetch(`${BASE}/kcore/users/`, {
+  const res = await auth.apiFetch(`${BASE}/kcore/users/`, {
     method: 'POST',
-    headers: auth.authHeaders(),
     body: JSON.stringify(form.value),
   })
   submitting.value = false
@@ -102,9 +108,8 @@ async function createUser() {
 }
 
 async function deleteUser(id: number) {
-  const res = await fetch(`${BASE}/kcore/users/${id}/`, {
+  const res = await auth.apiFetch(`${BASE}/kcore/users/${id}/`, {
     method: 'DELETE',
-    headers: auth.authHeaders(),
   })
   if (res.ok) {
     ElMessage.success('Deleted')

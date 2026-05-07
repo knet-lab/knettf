@@ -27,25 +27,27 @@
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
+interface UserStat {
+  cluster_count?: number
+}
+
 const BASE = 'http://127.0.0.1:8000/api'
 const auth = useAuthStore()
 
 const stats = ref({ users: 0, clusters: 0, tfConfigs: 0 })
 
 onMounted(async () => {
-  const headers = auth.authHeaders()
-
   const [usersRes, tfRes] = await Promise.all([
-    fetch(`${BASE}/kcore/users/`, { headers }),
-    fetch(`${BASE}/autotf/tf-configs/all/`, { headers }),
+    auth.apiFetch(`${BASE}/kcore/users/`),
+    auth.apiFetch(`${BASE}/autotf/tf-configs/all/`),
   ])
 
   if (usersRes.ok) {
     const data = await usersRes.json()
     const users = data.data ?? []
     stats.value.users = users.length
-    stats.value.clusters = users.reduce(
-      (acc: number, u: any) => acc + (u.cluster_count ?? 0),
+    stats.value.clusters = (users as UserStat[]).reduce(
+      (acc, u) => acc + (u.cluster_count ?? 0),
       0,
     )
   }

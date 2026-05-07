@@ -44,23 +44,36 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
+interface User {
+  id: number
+  username: string
+}
+
+interface Cluster {
+  id: number
+  name: string
+  is_active: boolean
+  created_at: string
+  owner?: { username: string }
+}
+
 const BASE = 'http://127.0.0.1:8000/api'
 const auth = useAuthStore()
 
-const clusters = ref<any[]>([])
+const clusters = ref<Cluster[]>([])
 const loading = ref(false)
 
 async function fetchClusters() {
   loading.value = true
-  const usersRes = await fetch(`${BASE}/kcore/users/`, { headers: auth.authHeaders() })
+  const usersRes = await auth.apiFetch(`${BASE}/kcore/users/`)
   if (!usersRes.ok) { loading.value = false; return }
 
   const usersData = await usersRes.json()
-  const users: any[] = usersData.data ?? []
+  const users: User[] = usersData.data ?? []
 
   const results = await Promise.all(
     users.map((u) =>
-      fetch(`${BASE}/kcore/users/${u.id}/clusters/`, { headers: auth.authHeaders() })
+      auth.apiFetch(`${BASE}/kcore/users/${u.id}/clusters/`)
         .then((r) => (r.ok ? r.json() : { data: [] }))
         .then((d) => d.data ?? []),
     ),
@@ -71,9 +84,8 @@ async function fetchClusters() {
 }
 
 async function deleteCluster(id: number) {
-  const res = await fetch(`${BASE}/kcore/clusters/${id}/`, {
+  const res = await auth.apiFetch(`${BASE}/kcore/clusters/${id}/`, {
     method: 'DELETE',
-    headers: auth.authHeaders(),
   })
   if (res.ok) {
     ElMessage.success('Deleted')

@@ -37,25 +37,37 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
+interface User {
+  id: number
+  username: string
+}
+
+interface TFConfig {
+  id: number
+  name: string
+  created_at: string
+  owner: User
+}
+
 const BASE = 'http://127.0.0.1:8000/api'
 const auth = useAuthStore()
 
-const configs = ref<any[]>([])
+const configs = ref<TFConfig[]>([])
 const loading = ref(false)
 
 async function fetchConfigs() {
   loading.value = true
-  const usersRes = await fetch(`${BASE}/kcore/users/`, { headers: auth.authHeaders() })
+  const usersRes = await auth.apiFetch(`${BASE}/kcore/users/`)
   if (!usersRes.ok) { loading.value = false; return }
 
   const usersData = await usersRes.json()
-  const users: any[] = usersData.data ?? []
+  const users: User[] = usersData.data ?? []
 
   const results = await Promise.all(
     users.map((u) =>
-      fetch(`${BASE}/autotf/users/${u.id}/tf-configs/`, { headers: auth.authHeaders() })
+      auth.apiFetch(`${BASE}/autotf/users/${u.id}/tf-configs/`)
         .then((r) => (r.ok ? r.json() : { data: [] }))
-        .then((d) => (d.data ?? []).map((c: any) => ({ ...c, owner: u }))),
+        .then((d) => (d.data ?? []).map((c: TFConfig) => ({ ...c, owner: u }))),
     ),
   )
 
@@ -64,9 +76,8 @@ async function fetchConfigs() {
 }
 
 async function deleteConfig(id: number) {
-  const res = await fetch(`${BASE}/autotf/tf-configs/${id}/`, {
+  const res = await auth.apiFetch(`${BASE}/autotf/tf-configs/${id}/`, {
     method: 'DELETE',
-    headers: auth.authHeaders(),
   })
   if (res.ok) {
     ElMessage.success('Deleted')

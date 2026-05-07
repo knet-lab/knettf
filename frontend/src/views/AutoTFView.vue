@@ -155,7 +155,7 @@
                   </el-tag>
                 </el-descriptions-item>
                 <el-descriptions-item label="Tools">
-                  {{ report.tools?.map((t: any) => t.name).join(', ') || '—' }}
+                  {{ report.tools?.map((t) => t.name).join(', ') || '—' }}
                 </el-descriptions-item>
                 <el-descriptions-item label="Scanned At">
                   {{ formatTime(report.scanned_at) }}
@@ -297,7 +297,35 @@ import {
   Setting, Download, Upload, View,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { UploadFile } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+
+interface Tool {
+  id: number
+  name: string
+  version: string
+}
+
+interface FindingItem {
+  rule_id: string
+  severity: string
+  description: string
+  location: string
+}
+
+interface ToolResult {
+  items: FindingItem[]
+}
+
+interface Report {
+  status: string
+  tools: Tool[]
+  scanned_at: string | null
+  result: {
+    summary: { high: number; medium: number; low: number }
+    tools: Record<string, ToolResult>
+  } | null
+}
 
 const BASE = 'http://127.0.0.1:8000/api'
 const auth = useAuthStore()
@@ -317,9 +345,7 @@ async function fetchConfigs() {
   if (!auth.user) return
   loadingConfigs.value = true
   try {
-    const res = await fetch(`${BASE}/autotf/users/${auth.user.id}/tf-configs/`, {
-      headers: auth.authHeaders(),
-    })
+    const res = await auth.apiFetch(`${BASE}/autotf/users/${auth.user.id}/tf-configs/`)
     const json = await res.json()
     configs.value = json.data ?? []
   } catch {
@@ -348,9 +374,7 @@ async function loadContent() {
   if (!selectedConfig.value) return
   loadingContent.value = true
   try {
-    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/content/`, {
-      headers: auth.authHeaders(),
-    })
+    const res = await auth.apiFetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/content/`)
     const json = await res.json()
     configContent.value = json.data?.content ?? ''
     originalContent = configContent.value
@@ -375,9 +399,8 @@ async function saveContent() {
   if (!selectedConfig.value) return
   savingContent.value = true
   try {
-    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/`, {
+    const res = await auth.apiFetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/`, {
       method: 'PUT',
-      headers: auth.authHeaders(),
       body: JSON.stringify({ content: configContent.value }),
     })
     if (!res.ok) {
@@ -408,9 +431,8 @@ async function confirmDelete() {
     return
   }
   try {
-    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/`, {
+    const res = await auth.apiFetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/`, {
       method: 'DELETE',
-      headers: auth.authHeaders(),
     })
     if (res.ok) {
       ElMessage.success('Deleted')
@@ -438,8 +460,8 @@ function openAddDialog() {
   showAddDialog.value = true
 }
 
-function onFileChange(file: any) {
-  selectedFile = file.raw
+function onFileChange(file: UploadFile) {
+  selectedFile = file.raw ?? null
 }
 
 async function submitAdd() {
@@ -454,9 +476,8 @@ async function submitAdd() {
       const form = new FormData()
       form.append('name', newFile.value.name)
       form.append('file', selectedFile)
-      const res = await fetch(`${BASE}/autotf/users/${auth.user.id}/tf-configs/`, {
+      const res = await auth.apiFetch(`${BASE}/autotf/users/${auth.user.id}/tf-configs/`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${auth.token}` },
         body: form,
       })
       if (!res.ok) {
@@ -479,9 +500,8 @@ async function submitAdd() {
     }
     adding.value = true
     try {
-      const res = await fetch(`${BASE}/autotf/users/${auth.user.id}/tf-configs/text/`, {
+      const res = await auth.apiFetch(`${BASE}/autotf/users/${auth.user.id}/tf-configs/text/`, {
         method: 'POST',
-        headers: auth.authHeaders(),
         body: JSON.stringify(newText.value),
       })
       if (!res.ok) {
@@ -507,9 +527,8 @@ async function runFullScan() {
   if (!selectedConfig.value) return
   scanning.value = true
   try {
-    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/scan/`, {
+    const res = await auth.apiFetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/scan/`, {
       method: 'POST',
-      headers: auth.authHeaders(),
     })
     if (!res.ok) {
       const err = await res.json()
@@ -530,7 +549,7 @@ async function runFullScan() {
 
 // ─── Manual scan ──────────────────────────────────────────────
 const showManualScan = ref(false)
-const tools = ref<any[]>([])
+const tools = ref<Tool[]>([])
 const loadingTools = ref(false)
 const selectedToolIds = ref<number[]>([])
 
@@ -539,7 +558,7 @@ async function openManualScan() {
   showManualScan.value = true
   loadingTools.value = true
   try {
-    const res = await fetch(`${BASE}/autotf/tf-tools/`, { headers: auth.authHeaders() })
+    const res = await auth.apiFetch(`${BASE}/autotf/tf-tools/`)
     const json = await res.json()
     tools.value = json.data ?? []
   } catch {
@@ -554,9 +573,8 @@ async function runManualScan() {
   scanning.value = true
   showManualScan.value = false
   try {
-    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/scan/manual/`, {
+    const res = await auth.apiFetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/scan/manual/`, {
       method: 'POST',
-      headers: auth.authHeaders(),
       body: JSON.stringify({ tool_ids: selectedToolIds.value }),
     })
     if (!res.ok) {
@@ -576,16 +594,14 @@ async function runManualScan() {
 }
 
 // ─── Report ───────────────────────────────────────────────────
-const report = ref<any>(null)
+const report = ref<Report | null>(null)
 const loadingReport = ref(false)
 
 async function loadReport() {
   if (!selectedConfig.value) return
   loadingReport.value = true
   try {
-    const res = await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/report/`, {
-      headers: auth.authHeaders(),
-    })
+    const res = await auth.apiFetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/report/`)
     if (res.status === 404) {
       report.value = null
       return
@@ -610,9 +626,8 @@ async function deleteReport() {
   } catch {
     return
   }
-  await fetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/report/`, {
+  await auth.apiFetch(`${BASE}/autotf/tf-configs/${selectedConfig.value.id}/report/`, {
     method: 'DELETE',
-    headers: auth.authHeaders(),
   })
   report.value = null
   ElMessage.success('Report deleted')
@@ -634,7 +649,7 @@ function viewHtmlReport() {
 const hasFindings = computed(() => {
   const tools = report.value?.result?.tools
   if (!tools) return false
-  return Object.values(tools).some((t: any) => t.items?.length > 0)
+  return Object.values(tools).some((t) => t.items?.length > 0)
 })
 
 // ─── Helpers ─────────────────────────────────────────────────
