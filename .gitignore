@@ -1,0 +1,51 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# docs
+docs/
+
+# vscode
+.vscode/
+
+# .venv
+.venv312/
+
+# claude
+.claude
+
+# cilium-vector
+cilium-vector/
+
+# cluster-setup
+cluster-setup/
+
+
+# dataset
+dataset/
+
+# hubble-scripts
+hubble-scripts/
+
+# ingress-controller
+ingress-controller/
+
+kafka/
+kafka-svc/
+
+logs/
+traffic/
+
+.env
+
+zhouyang_request
+kubeadm-cluster
+
+*.csv
