@@ -45,7 +45,9 @@ traffic/
 
 .env
 
-zhouyang_request
+traffic_scripts
 kubeadm-cluster
 
 *.csv
+
+zhouyang_request/
