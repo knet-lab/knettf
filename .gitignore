@@ -50,4 +50,4 @@ kubeadm-cluster
 
 *.csv
 
-zhouyang_request/
+traffic_request/
