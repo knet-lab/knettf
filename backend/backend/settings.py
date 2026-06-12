@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     # apps
     'kcore',
     'autotf',
+    'vigil',
 ]
 
 MIDDLEWARE = [

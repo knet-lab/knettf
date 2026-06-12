@@ -16,6 +16,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/kcore/', include('kcore.urls')),
     path('api/autotf/', include('autotf.urls')),
+    path('api/vigil/', include('vigil.urls')),
     path('api/auth/token/', csrf_exempt(TokenObtainPairView.as_view()), name='token-obtain'),
     path('api/auth/token/refresh/', csrf_exempt(TokenRefreshView.as_view()), name='token-refresh'),
     re_path(r'^(?!api/|admin/|static/|ws/).*$', spa_view),

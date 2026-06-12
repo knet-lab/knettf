@@ -75,3 +75,6 @@ backend/media/
 *.tf
 terraform/
 .cloudflared/
+
+
+ads_ml/

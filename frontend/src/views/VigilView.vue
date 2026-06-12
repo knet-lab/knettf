@@ -1,16 +1,1136 @@
 <template>
   <div class="vigil-layout">
+
+    <!-- ── Sidebar ── -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <span class="sidebar-title">AI Vigil</span>
+        <div class="sidebar-brand">
+          <span class="brand-icon">⬡</span>
+          <span class="sidebar-title">AI Vigil</span>
+        </div>
+        <span class="live-pill" :class="wsStatus">
+          {{ wsStatus === 'live' ? 'WS' : 'POLL' }}
+        </span>
       </div>
-      <div class="sidebar-content">
-        <p>AI Vigil is currently under development. Stay tuned for updates!</p>
+
+      <div class="sidebar-group">
+        <div class="sidebar-label">Detection model</div>
+        <div class="model-list">
+          <div
+            v-for="m in models" :key="m"
+            class="model-item"
+            :class="{ active: selectedModel === m }"
+            @click="selectedModel = selectedModel === m ? null : m; loadRecords()"
+          >
+            <span class="model-dot" />
+            {{ m }}
+          </div>
+          <div v-if="!models.length" class="model-item-empty">No models registered</div>
+        </div>
+        <div v-if="selectedModel" class="model-active-hint">
+          Filtering: <span class="model-active-name">{{ selectedModel }}</span>
+        </div>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-label">Display</div>
+        <label class="toggle-row">
+          <span>Attacks only</span>
+          <div class="toggle-switch" :class="{ on: onlyAttacks }" @click="onlyAttacks = !onlyAttacks; loadRecords()">
+            <div class="toggle-knob" />
+          </div>
+        </label>
+      </div>
+
+      <div class="sidebar-group" style="margin-top: auto;">
+        <div class="sidebar-label">Last updated</div>
+        <div class="last-updated">{{ lastRefreshed || '—' }}</div>
+        <button class="refresh-btn" @click="loadAll">Refresh now</button>
       </div>
     </aside>
+
+    <!-- ── Content ── -->
+    <main class="content">
+
+      <!-- Page header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Network Anomaly Detection</h1>
+          <p class="page-subtitle">Real-time AI-powered traffic analysis via Cilium / Hubble</p>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon total">⬡</div>
+          <div class="stat-body">
+            <div class="stat-label">Total Inspected</div>
+            <div class="stat-value">{{ stats.total ?? '—' }}</div>
+          </div>
+        </div>
+        <div class="stat-card danger">
+          <div class="stat-icon attack">⚠</div>
+          <div class="stat-body">
+            <div class="stat-label">Attacks Detected</div>
+            <div class="stat-value">{{ stats.attacks ?? '—' }}</div>
+          </div>
+        </div>
+        <div class="stat-card ok">
+          <div class="stat-icon normal">✓</div>
+          <div class="stat-body">
+            <div class="stat-label">Normal Flows</div>
+            <div class="stat-value">{{ stats.normal ?? '—' }}</div>
+          </div>
+        </div>
+        <div class="stat-card warn">
+          <div class="stat-icon rate">%</div>
+          <div class="stat-body">
+            <div class="stat-label">Attack Rate</div>
+            <div class="stat-value">
+              {{ stats.attack_rate != null ? (stats.attack_rate * 100).toFixed(1) + '%' : '—' }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Middle row -->
+      <div class="mid-row">
+
+        <!-- Left col: attack breakdown + model coverage -->
+        <div class="left-col">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Attack Type Breakdown</span>
+            </div>
+            <div class="card-body">
+              <div v-if="!stats.by_attack_type?.length" class="empty-state">
+                <div class="empty-icon">◎</div>
+                <div>No attacks recorded yet</div>
+              </div>
+              <div v-else class="breakdown-list">
+                <div v-for="row in stats.by_attack_type" :key="row.attack_type" class="breakdown-row">
+                  <div class="breakdown-meta">
+                    <span class="breakdown-name">{{ row.attack_type || 'unknown' }}</span>
+                    <span class="breakdown-count">{{ row.count }}</span>
+                  </div>
+                  <div class="breakdown-track">
+                    <div
+                      class="breakdown-fill"
+                      :style="{ width: barWidth(row.count) + '%' }"
+                      :data-type="row.attack_type"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:14px">
+            <div class="card-header">
+              <span class="card-title">Model Coverage</span>
+            </div>
+            <div class="card-body">
+              <div v-if="!stats.by_model?.length" class="empty-state">
+                <div class="empty-icon">◎</div>
+                <div>No data yet</div>
+              </div>
+              <div v-else class="model-coverage-list">
+                <div v-for="m in stats.by_model" :key="m.model_name" class="model-coverage-row">
+                  <div class="model-coverage-meta">
+                    <span class="model-name-tag">{{ m.model_name }}</span>
+                    <span class="model-stat-count">{{ m.count }} flows</span>
+                  </div>
+                  <div class="breakdown-track">
+                    <div
+                      class="breakdown-fill model-bar"
+                      :style="{ width: modelBarWidth(m.count) + '%' }"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right col: recent attacks feed -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Recent Attack Events</span>
+            <span class="card-subtitle">Latest {{ recentAttacks.length }} detected</span>
+          </div>
+          <div class="card-body no-pad">
+            <div v-if="!recentAttacks.length" class="empty-state" style="padding:32px 0">
+              <div class="empty-icon">🛡</div>
+              <div>No attacks detected</div>
+            </div>
+            <div v-else class="attack-feed">
+              <div
+                v-for="r in recentAttacks" :key="r.id"
+                class="attack-event"
+              >
+                <div class="event-indicator" :data-type="r.attack_type" />
+                <div class="event-body">
+                  <div class="event-top">
+                    <span class="event-type">{{ r.attack_type || 'anomaly' }}</span>
+                    <span class="event-action" :class="`action-${r.cilium_action || 'ignore'}`">
+                      {{ r.cilium_action || '—' }}
+                    </span>
+                    <span class="event-time">{{ fmtTime(r.created_at) }}</span>
+                  </div>
+                  <div class="event-flow">
+                    <span class="flow-addr">{{ r.src_ip }}:{{ r.src_port }}</span>
+                    <span class="flow-arrow">→</span>
+                    <span class="flow-addr">{{ r.dst_ip }}:{{ r.dst_port }}</span>
+                    <span class="flow-proto">{{ r.protocol }}</span>
+                  </div>
+                  <div class="event-meta">
+                    <span class="event-model">{{ r.model_name }}</span>
+                    <span class="event-conf">conf {{ (r.confidence * 100).toFixed(0) }}%</span>
+                    <span v-if="r.explanation" class="event-explain">{{ r.explanation }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Detection log -->
+      <div class="card log-card">
+        <div class="card-header">
+          <span class="card-title">Detection Log</span>
+          <span class="card-subtitle">{{ records.length }} records shown</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Time</th>
+                <th>Source</th>
+                <th>Destination</th>
+                <th>Proto</th>
+                <th>Model</th>
+                <th>Verdict</th>
+                <th>Confidence</th>
+                <th>Attack type</th>
+                <th>Cilium action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="recordsLoading" class="skeleton-row">
+                <td colspan="10"><div class="skeleton" /></td>
+              </tr>
+              <tr v-else-if="records.length === 0">
+                <td colspan="10" class="table-empty">
+                  No detection records yet — waiting for traffic analysis results
+                </td>
+              </tr>
+              <tr
+                v-else
+                v-for="r in records" :key="r.id"
+                :class="{ 'row-attack': r.is_attack }"
+              >
+                <td class="col-id">{{ r.id }}</td>
+                <td class="col-time">{{ fmtTime(r.created_at) }}</td>
+                <td class="col-addr">
+                  <span class="addr-ip">{{ r.src_ip }}</span>
+                  <span class="addr-port">:{{ r.src_port }}</span>
+                </td>
+                <td class="col-addr">
+                  <span class="addr-ip">{{ r.dst_ip }}</span>
+                  <span class="addr-port">:{{ r.dst_port }}</span>
+                </td>
+                <td><span class="proto-tag">{{ r.protocol }}</span></td>
+                <td class="col-model">{{ r.model_name }}</td>
+                <td>
+                  <span class="verdict" :class="r.is_attack ? 'verdict-attack' : 'verdict-normal'">
+                    {{ r.is_attack ? 'ATTACK' : 'NORMAL' }}
+                  </span>
+                </td>
+                <td>
+                  <div class="conf-wrap">
+                    <div class="conf-bar">
+                      <div class="conf-fill" :style="{ width: ((r.confidence ?? 0) * 100) + '%' }" :class="r.is_attack ? 'cf-danger' : 'cf-ok'" />
+                    </div>
+                    <span class="conf-text">{{ r.confidence != null ? (r.confidence * 100).toFixed(0) + '%' : '—' }}</span>
+                  </div>
+                </td>
+                <td class="col-type">{{ r.attack_type || '—' }}</td>
+                <td>
+                  <span class="action-tag" :class="`action-${r.cilium_action || 'ignore'}`">
+                    {{ r.cilium_action || '—' }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
   </div>
 </template>
-<script lang="ts" setup>
 
+<script lang="ts" setup>
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+
+// ── State ──────────────────────────────────────────────────────────────────────
+const models = ref<string[]>([])
+const selectedModel = ref<string | null>(null)
+const onlyAttacks = ref(false)
+const lastRefreshed = ref('')
+
+const stats = reactive<any>({})
+const records = ref<any[]>([])
+const recordsLoading = ref(true)
+
+// 'live' = WS connected, 'poll' = WS down, falling back to polling
+const wsStatus = ref<'live' | 'poll'>('poll')
+
+const recentAttacks = computed(() =>
+  records.value.filter((r: any) => r.is_attack).slice(0, 15)
+)
+
+// ── API ────────────────────────────────────────────────────────────────────────
+async function apiFetch(path: string, opts: RequestInit = {}) {
+  const res = await auth.apiFetch(path, opts)
+  const json = await res.json()
+  return json.data ?? json
+}
+
+async function loadModels() {
+  const d = await apiFetch('/api/vigil/models/')
+  models.value = d.models ?? []
+}
+
+async function loadStats() {
+  const d = await apiFetch('/api/vigil/stats/')
+  Object.assign(stats, d)
+}
+
+async function loadRecords() {
+  recordsLoading.value = true
+  const p = new URLSearchParams({ limit: '100', only_attacks: String(onlyAttacks.value) })
+  if (selectedModel.value) p.set('model_name', selectedModel.value)
+  const d = await apiFetch(`/api/vigil/records/?${p}`)
+  records.value = d.records ?? []
+  recordsLoading.value = false
+}
+
+async function loadAll() {
+  await Promise.all([loadStats(), loadRecords()])
+  lastRefreshed.value = new Date().toLocaleTimeString()
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────────────────
+let ws: WebSocket | null = null
+let wsRetryTimer: ReturnType<typeof setTimeout> | null = null
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+function wsUrl(): string {
+  const base = window.location.origin
+  return base.replace(/^http/, 'ws') + '/ws/vigil/'
+}
+
+function applyLiveEvent(event: any) {
+  // Prepend to records (max 200 in memory)
+  records.value = [event, ...records.value].slice(0, 200)
+
+  // Update stats counters in place
+  stats.total = (stats.total ?? 0) + 1
+  if (event.is_attack) {
+    stats.attacks = (stats.attacks ?? 0) + 1
+    // update by_attack_type
+    const bt = stats.by_attack_type ?? []
+    const idx = bt.findIndex((x: any) => x.attack_type === event.attack_type)
+    if (idx >= 0) bt[idx].count++
+    else bt.push({ attack_type: event.attack_type, count: 1 })
+    stats.by_attack_type = [...bt]
+  } else {
+    stats.normal = (stats.normal ?? 0) + 1
+  }
+  stats.attack_rate = stats.total ? stats.attacks / stats.total : 0
+  lastRefreshed.value = new Date().toLocaleTimeString()
+}
+
+function connectWs() {
+  if (ws) ws.close()
+  try {
+    ws = new WebSocket(wsUrl())
+
+    ws.onopen = () => {
+      wsStatus.value = 'live'
+      // Stop polling — WS is live
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+    }
+
+    ws.onmessage = (msg) => {
+      try {
+        const data = JSON.parse(msg.data)
+        applyLiveEvent(data)
+      } catch { /* ignore malformed */ }
+    }
+
+    ws.onclose = () => {
+      ws = null
+      wsStatus.value = 'poll'
+      // Fallback to polling while WS is down
+      if (!pollTimer) pollTimer = setInterval(loadAll, 10000)
+      // Retry WS after 5s
+      wsRetryTimer = setTimeout(connectWs, 5000)
+    }
+
+    ws.onerror = () => ws?.close()
+  } catch {
+    wsStatus.value = 'poll'
+    if (!pollTimer) pollTimer = setInterval(loadAll, 10000)
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString()
+}
+
+function barWidth(count: number) {
+  const max = Math.max(...(stats.by_attack_type ?? []).map((x: any) => x.count), 1)
+  return ((count / max) * 100).toFixed(1)
+}
+
+function modelBarWidth(count: number) {
+  const max = Math.max(...(stats.by_model ?? []).map((x: any) => x.count), 1)
+  return ((count / max) * 100).toFixed(1)
+}
+
+// ── Lifecycle ──────────────────────────────────────────────────────────────────
+onMounted(async () => {
+  await loadModels()
+  await loadAll()
+  connectWs()
+})
+
+onUnmounted(() => {
+  ws?.close()
+  if (wsRetryTimer) clearTimeout(wsRetryTimer)
+  if (pollTimer) clearInterval(pollTimer)
+})
 </script>
-<style scoped></style>
+
+<style scoped>
+/* ── Root layout ── */
+.vigil-layout {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ───────────────────────── SIDEBAR ───────────────────────── */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #1a2233;
+  border-right: 1px solid #2d3748;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 14px 14px;
+  border-bottom: 1px solid #2d3748;
+  flex-shrink: 0;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.brand-icon {
+  font-size: 16px;
+  color: #3b82f6;
+  line-height: 1;
+}
+
+.sidebar-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e2e8f0;
+  letter-spacing: 0.3px;
+}
+
+.live-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+
+.live-pill.live {
+  background: #14532d;
+  color: #4ade80;
+  border: 1px solid #166534;
+  animation: pulse-bg 2s infinite;
+}
+
+.live-pill.paused {
+  background: #1e2d42;
+  color: #64748b;
+  border: 1px solid #334155;
+}
+
+@keyframes pulse-bg {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+.sidebar-group {
+  padding: 14px 14px 8px;
+  border-bottom: 1px solid #2d3748;
+}
+
+.sidebar-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+/* Model selector */
+.model-list { display: flex; flex-direction: column; gap: 2px; }
+
+.model-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s;
+  border: 1px solid transparent;
+}
+
+.model-item:hover {
+  background: #1e2d42;
+  color: #cbd5e1;
+}
+
+.model-item.active {
+  background: #1e3a5f;
+  color: #93c5fd;
+  border-color: #1d4ed8;
+}
+
+.model-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3b82f6;
+  flex-shrink: 0;
+}
+
+.model-item-empty {
+  font-size: 11px;
+  color: #475569;
+  padding: 4px 8px;
+  font-style: italic;
+}
+
+.model-active-hint {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #64748b;
+}
+
+.model-active-name {
+  color: #93c5fd;
+  font-family: 'Courier New', monospace;
+}
+
+/* Toggle switch */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.toggle-switch {
+  width: 30px;
+  height: 16px;
+  border-radius: 8px;
+  background: #2d3748;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-switch.on { background: #2563eb; }
+
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #94a3b8;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle-switch.on .toggle-knob {
+  transform: translateX(14px);
+  background: #fff;
+}
+
+/* Refresh section */
+.last-updated {
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.refresh-btn {
+  width: 100%;
+  padding: 6px;
+  background: #1e2d42;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.refresh-btn:hover {
+  background: #2d3e55;
+  color: #cbd5e1;
+}
+
+/* ───────────────────────── CONTENT ───────────────────────── */
+.content {
+  flex: 1;
+  background: #f0f4f8;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Page header */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.page-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 2px;
+}
+
+.page-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ── Stat cards ── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 1000px) {
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+.stat-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  transition: box-shadow 0.15s;
+}
+
+.stat-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+
+.stat-card.danger { border-left: 3px solid #ef4444; }
+.stat-card.ok     { border-left: 3px solid #22c55e; }
+.stat-card.warn   { border-left: 3px solid #f59e0b; }
+
+.stat-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.stat-icon.total  { background: #eff6ff; color: #3b82f6; }
+.stat-icon.attack { background: #fef2f2; color: #ef4444; }
+.stat-icon.normal { background: #f0fdf4; color: #22c55e; }
+.stat-icon.rate   { background: #fffbeb; color: #f59e0b; font-size: 13px; font-weight: 700; }
+
+.stat-label {
+  font-size: 11px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1;
+}
+
+/* ── Mid row ── */
+.mid-row {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .mid-row { grid-template-columns: 1fr; }
+}
+
+.left-col { display: flex; flex-direction: column; }
+
+/* ── Card ── */
+.card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafbfc;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.card-subtitle {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.card-body { padding: 14px 16px; }
+
+/* Header action chips */
+.header-actions { display: flex; gap: 6px; }
+
+.chip-btn {
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.chip-btn:hover { background: #e2e8f0; }
+.chip-btn.danger { border-color: #fca5a5; background: #fff1f2; color: #dc2626; }
+.chip-btn.danger:hover { background: #fee2e2; }
+
+/* ── Breakdown chart ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.empty-icon { font-size: 28px; opacity: 0.4; }
+
+.breakdown-list { display: flex; flex-direction: column; gap: 10px; }
+
+.breakdown-row {}
+
+.breakdown-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.breakdown-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.breakdown-count {
+  font-size: 12px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.breakdown-track {
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.breakdown-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #ef4444;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.breakdown-fill[data-type="syn_flood"] { background: #ef4444; }
+.breakdown-fill[data-type="flood"]     { background: #f97316; }
+.breakdown-fill[data-type="port_scan"] { background: #eab308; }
+.breakdown-fill[data-type="anomaly"]   { background: #8b5cf6; }
+
+.model-stats {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.model-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+
+.model-name-tag {
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  color: #3b82f6;
+  background: #eff6ff;
+  padding: 1px 7px;
+  border-radius: 4px;
+}
+
+.model-stat-count { font-size: 11px; color: #94a3b8; }
+
+/* ── Model coverage ── */
+.model-coverage-list { display: flex; flex-direction: column; gap: 10px; }
+
+.model-coverage-row {}
+
+.model-coverage-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.model-bar { background: #3b82f6; }
+
+/* ── Attack feed ── */
+.card-body.no-pad { padding: 0; }
+
+.attack-feed {
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.attack-event {
+  display: flex;
+  gap: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.1s;
+}
+
+.attack-event:last-child { border-bottom: none; }
+.attack-event:hover { background: #fff8f8; }
+
+.event-indicator {
+  width: 3px;
+  border-radius: 2px;
+  margin-right: 12px;
+  flex-shrink: 0;
+  background: #ef4444;
+}
+
+.event-indicator[data-type="syn_flood"] { background: #ef4444; }
+.event-indicator[data-type="flood"]     { background: #f97316; }
+.event-indicator[data-type="port_scan"] { background: #eab308; }
+.event-indicator[data-type="anomaly"]   { background: #8b5cf6; }
+
+.event-body { flex: 1; min-width: 0; }
+
+.event-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.event-type {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #dc2626;
+}
+
+.event-time {
+  margin-left: auto;
+  font-size: 10px;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.event-flow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #374151;
+}
+
+.flow-arrow { color: #94a3b8; font-size: 10px; }
+
+.flow-proto {
+  font-size: 10px;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #3b82f6;
+  padding: 0 5px;
+  border-radius: 3px;
+  margin-left: 2px;
+}
+
+.event-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.event-model {
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+  color: #3b82f6;
+  background: #eff6ff;
+  padding: 0 6px;
+  border-radius: 3px;
+}
+
+.event-conf {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.event-explain {
+  font-size: 10px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+/* ── Log table ── */
+.log-card { overflow: hidden; }
+
+.table-wrap { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+thead { position: sticky; top: 0; z-index: 1; }
+
+th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 9px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #374151;
+  vertical-align: middle;
+}
+
+tr:last-child td { border-bottom: none; }
+
+tr:hover td { background: #f8fafc; }
+
+tr.row-attack td { background: #fff8f8; }
+tr.row-attack:hover td { background: #fef2f2; }
+
+.table-empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 32px;
+  font-size: 13px;
+}
+
+/* Skeleton loader */
+.skeleton-row td { padding: 12px; }
+.skeleton {
+  height: 12px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* Table cell styles */
+.col-id    { color: #94a3b8; font-size: 11px; width: 40px; }
+.col-time  { color: #94a3b8; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.col-addr  { font-family: 'Courier New', monospace; white-space: nowrap; }
+.col-model { color: #3b82f6; font-size: 11px; font-family: 'Courier New', monospace; }
+.col-type  { color: #d97706; font-size: 11px; }
+
+.addr-ip   { color: #374151; }
+.addr-port { color: #94a3b8; font-size: 11px; }
+
+.proto-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  background: #eff6ff;
+  color: #3b82f6;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Verdict badge */
+.verdict {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.verdict-attack {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+.verdict-normal {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #86efac;
+}
+
+/* Confidence bar */
+.conf-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.conf-bar {
+  width: 48px;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.conf-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.cf-danger { background: #ef4444; }
+.cf-ok     { background: #22c55e; }
+
+.conf-text { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
+
+/* Cilium action tag */
+.action-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.action-drop       { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+.action-rate_limit { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
+.action-alert      { background: #eff6ff; color: #2563eb; border: 1px solid #93c5fd; }
+.action-ignore     { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
+</style>
