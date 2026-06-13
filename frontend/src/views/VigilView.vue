@@ -527,7 +527,7 @@ onMounted(async () => {
   await loadAll()
   connectWs()
   autoRefreshTimer = setInterval(loadAll, 30000)
-  clockTimer = setInterval(() => { now.value = Date.now() }, 10000)
+  clockTimer = setInterval(() => { now.value = Date.now() }, 1000)
 })
 
 onUnmounted(() => {
