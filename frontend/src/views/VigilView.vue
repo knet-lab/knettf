@@ -236,7 +236,7 @@
                 @click="openDetail(r.id)"
               >
                 <td class="col-id">{{ r.id }}</td>
-                <td class="col-time">{{ fmtTime(r.created_at) }}</td>
+                <td class="col-time">{{ fmtTime(r.created_at, now) }}</td>
                 <td class="col-addr">
                   <span class="addr-ip">{{ r.src_ip }}</span>
                   <span class="addr-port">:{{ r.src_port }}</span>
