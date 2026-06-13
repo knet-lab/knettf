@@ -177,7 +177,7 @@
                     <span class="event-action" :class="`action-${r.cilium_action || 'ignore'}`">
                       {{ r.cilium_action || '—' }}
                     </span>
-                    <span class="event-time">{{ fmtTime(r.created_at) }}</span>
+                    <span class="event-time">{{ fmtTime(r.created_at, now) }}</span>
                   </div>
                   <div class="event-flow">
                     <span class="flow-addr">{{ r.src_ip }}:{{ r.src_port }}</span>
@@ -501,9 +501,9 @@ function connectWs() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function fmtTime(iso: string) {
+function fmtTime(iso: string, _tick = now.value) {
   if (!iso) return '—'
-  const diff = Math.floor((now.value - new Date(iso).getTime()) / 1000)
+  const diff = Math.floor((_tick - new Date(iso).getTime()) / 1000)
   if (diff < 10)  return 'just now'
   if (diff < 60)  return `${diff}s ago`
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
