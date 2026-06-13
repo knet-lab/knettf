@@ -5,6 +5,7 @@ urlpatterns = [
     path("detect/", views.DetectView.as_view(), name="vigil-detect"),
     path("detect/batch/", views.DetectBatchView.as_view(), name="vigil-detect-batch"),
     path("records/", views.RecordsView.as_view(), name="vigil-records"),
+    path("records/<int:pk>/", views.RecordDetailView.as_view(), name="vigil-record-detail"),
     path("stats/", views.StatsView.as_view(), name="vigil-stats"),
     path("models/", views.ModelsView.as_view(), name="vigil-models"),
 ]

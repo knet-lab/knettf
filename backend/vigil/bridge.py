@@ -8,23 +8,38 @@ so the feature set is identical to DetectionInput / FLOW_FIELDS.
 import json
 import logging
 import math
-import subprocess
 import threading
 import time
 from collections import defaultdict
 
 import requests
+from confluent_kafka import Consumer, KafkaError, KafkaException
 
 logger = logging.getLogger("vigil.bridge")
 
 # ── Kafka config ───────────────────────────────────────────────────────────────
-KAFKA_POD        = "kafka-broker-0"
-KAFKA_NAMESPACE  = "default"
+KAFKA_BOOTSTRAP  = "192.168.100.200:9094,192.168.100.201:9094,192.168.100.202:9094,192.168.100.203:9094"
 KAFKA_TOPIC      = "ebpf-net-logs"
-BOOTSTRAP_SERVER = "localhost:9092"
+KAFKA_GROUP_ID   = "vigil-bridge"
 
-FLOW_TIMEOUT_SEC = 5   # idle gap that closes a flow (mirrors aggregate_flows.py default)
-BATCH_SIZE       = 20  # POST when this many completed flows are queued
+FLOW_TIMEOUT_SEC = 5
+BATCH_SIZE       = 20
+
+# 节点 IP + MetalLB VIP + Pod CIDR — 这些都是集群内部流量
+_NODE_IPS = {f"192.168.100.{i}" for i in range(10, 16)}
+_METALLB_IPS = {f"192.168.100.{i}" for i in range(200, 251)}
+_KAFKA_PORTS = {9092, 9093, 9094}
+_HOST_GW = "192.168.100.1"  # virbr-k8s 宿主机网关
+
+
+def _is_infrastructure(ip: str) -> bool:
+    """True if this IP belongs to cluster infrastructure (not external traffic)."""
+    return (
+        ip.startswith("10.")
+        or ip in _NODE_IPS
+        or ip in _METALLB_IPS
+        or ip == _HOST_GW
+    )
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -84,12 +99,10 @@ def _flow_key(flow: dict) -> tuple:
 
 
 def _hubble_to_packet(flow: dict) -> dict:
-    """Convert a Hubble flow event to the packet dict format used by compute_flow()."""
     l4 = flow.get("l4", {})
-    src_ip  = flow.get("IP", {}).get("source", "")
+    src_ip       = flow.get("IP", {}).get("source", "")
     dst_port_val = _port(l4, "destination_port")
 
-    # label from IP range: 192.168.100.20-29 = attack (1), .50-64 = normal (0)
     label = ""
     try:
         last = int(src_ip.split(".")[-1])
@@ -116,10 +129,6 @@ def _hubble_to_packet(flow: dict) -> dict:
 
 
 def compute_flow(packets: list) -> dict:
-    """
-    Identical logic to knetsentinel/dataset/aggregate_flows.py:compute_flow().
-    Produces all fields matching DetectionInput / FLOW_FIELDS.
-    """
     packets = sorted(packets, key=lambda p: p["ts"])
 
     timestamps = [p["ts"] for p in packets]
@@ -227,83 +236,89 @@ def _wait_for_server(base_url: str, timeout: int = 60):
 def run_bridge(base_url: str = "http://localhost:8080", token: str | None = None):
     _wait_for_server(base_url)
 
-    # open_flows: flow_key → list of packet dicts
+    consumer = Consumer({
+        "bootstrap.servers":         KAFKA_BOOTSTRAP,
+        "group.id":                  KAFKA_GROUP_ID,
+        "auto.offset.reset":         "latest",
+        "enable.auto.commit":        False,
+        "fetch.min.bytes":           1024 * 64,
+        "fetch.wait.max.ms":         500,
+        "max.partition.fetch.bytes": 1024 * 1024 * 4,
+        "session.timeout.ms":        30000,
+        "heartbeat.interval.ms":     10000,
+        "broker.address.family":     "v4",
+    })
+    consumer.subscribe([KAFKA_TOPIC])
+    logger.info("bridge starting → bootstrap=%s topic=%s group=%s → %s",
+                KAFKA_BOOTSTRAP, KAFKA_TOPIC, KAFKA_GROUP_ID, base_url)
+
     open_flows: dict[tuple, list] = defaultdict(list)
     pending:    list[dict]        = []
+    last_flush  = time.time()
 
-    cmd = [
-        "kubectl", "exec", "-n", KAFKA_NAMESPACE, KAFKA_POD, "--",
-        "/opt/kafka/bin/kafka-console-consumer.sh",
-        "--bootstrap-server", BOOTSTRAP_SERVER,
-        "--topic", KAFKA_TOPIC,
-    ]
-    logger.info("bridge starting → %s/%s topic=%s → %s", KAFKA_NAMESPACE, KAFKA_POD, KAFKA_TOPIC, base_url)
+    try:
+        while True:
+            msg = consumer.poll(timeout=1.0)
 
-    while True:
-        try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            last_flush = time.time()
-
-            for line in proc.stdout:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    event = json.loads(line)
-                    flow  = event.get("flow", {})
-                    if not flow:
-                        continue
-
-                    key = _flow_key(flow)
-                    pkt = _hubble_to_packet(flow)
-
-                    if key in open_flows and open_flows[key]:
-                        last_ts = open_flows[key][-1]["ts"]
-                        if pkt["ts"] - last_ts > FLOW_TIMEOUT_SEC:
-                            # timeout — close old flow, start new
-                            pending.append(compute_flow(open_flows[key]))
-                            open_flows[key] = [pkt]
-                        else:
-                            open_flows[key].append(pkt)
-                    else:
-                        open_flows[key] = [pkt]
-
-                except json.JSONDecodeError:
-                    continue
-
-                now = time.time()
-                if now - last_flush >= 1.0:
-                    # also flush idle flows
-                    expired = [k for k, pkts in open_flows.items()
-                               if pkts and now - pkts[-1]["ts"] >= FLOW_TIMEOUT_SEC]
-                    for k in expired:
-                        pending.append(compute_flow(open_flows.pop(k)))
-
-                    if len(pending) >= BATCH_SIZE:
-                        _push(pending, base_url, token)
-                        pending.clear()
-                    last_flush = now
-
-        except Exception as e:
-            logger.error("bridge error: %s — restarting in 10s", e)
-        finally:
-            try:
-                proc.terminate()
-                proc.wait(timeout=5)
-            except Exception:
+            if msg is None:
                 pass
+            elif msg.error():
+                if msg.error().code() == KafkaError._PARTITION_EOF:
+                    pass
+                else:
+                    raise KafkaException(msg.error())
+            else:
+                try:
+                    event = json.loads(msg.value().decode("utf-8"))
+                    flow  = event.get("flow", {})
+                    if flow:
+                        src = flow.get("IP", {}).get("source", "")
+                        dst = flow.get("IP", {}).get("destination", "")
+                        # 过滤纯集群内部流量（包括 Kafka 自身 TCP 连接）
+                        if _is_infrastructure(src) and _is_infrastructure(dst):
+                            continue
+                        l4_tmp = flow.get("l4", {})
+                        sp = _port(l4_tmp, "source_port")
+                        dp = _port(l4_tmp, "destination_port")
+                        if sp in _KAFKA_PORTS or dp in _KAFKA_PORTS:
+                            continue
+                        key = _flow_key(flow)
+                        pkt = _hubble_to_packet(flow)
 
-        # flush before restart
-        for pkts in open_flows.values():
-            if pkts:
-                pending.append(compute_flow(pkts))
+                        if key in open_flows and open_flows[key]:
+                            last_ts = open_flows[key][-1]["ts"]
+                            if pkt["ts"] - last_ts > FLOW_TIMEOUT_SEC:
+                                pending.append(compute_flow(open_flows[key]))
+                                open_flows[key] = [pkt]
+                            else:
+                                open_flows[key].append(pkt)
+                        else:
+                            open_flows[key] = [pkt]
+                except (json.JSONDecodeError, Exception) as e:
+                    logger.debug("skip malformed message: %s", e)
+
+            now = time.time()
+            if now - last_flush >= 1.0:
+                expired = [k for k, pkts in open_flows.items()
+                           if pkts and now - pkts[-1]["ts"] >= FLOW_TIMEOUT_SEC]
+                for k in expired:
+                    pending.append(compute_flow(open_flows.pop(k)))
+
+                if len(pending) >= BATCH_SIZE:
+                    _push(pending, base_url, token)
+                    consumer.commit(asynchronous=True)
+                    pending.clear()
+
+                last_flush = now
+
+    except Exception as e:
+        logger.error("bridge error: %s", e)
+    finally:
         if pending:
             _push(pending, base_url, token)
-            pending.clear()
-        open_flows.clear()
-
-        logger.info("bridge restarting in 10s...")
-        time.sleep(10)
+        consumer.commit(asynchronous=False)
+        consumer.close()
+        logger.info("bridge shut down cleanly")
 
 
 # ── Thread launcher ────────────────────────────────────────────────────────────

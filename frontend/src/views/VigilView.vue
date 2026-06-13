@@ -167,7 +167,8 @@
             <div v-else class="attack-feed">
               <div
                 v-for="r in recentAttacks" :key="r.id"
-                class="attack-event"
+                class="attack-event row-clickable"
+                @click="openDetail(r.id)"
               >
                 <div class="event-indicator" :data-type="r.attack_type" />
                 <div class="event-body">
@@ -231,7 +232,8 @@
               <tr
                 v-else
                 v-for="r in records" :key="r.id"
-                :class="{ 'row-attack': r.is_attack }"
+                :class="{ 'row-attack': r.is_attack, 'row-clickable': true }"
+                @click="openDetail(r.id)"
               >
                 <td class="col-id">{{ r.id }}</td>
                 <td class="col-time">{{ fmtTime(r.created_at) }}</td>
@@ -271,6 +273,86 @@
       </div>
 
     </main>
+
+    <!-- ── Detail Modal ── -->
+    <div v-if="detailRecord" class="modal-overlay" @click.self="detailRecord = null">
+      <div class="modal">
+        <div class="modal-header">
+          <span class="modal-title">
+            Record #{{ detailRecord.id }}
+            <span class="verdict ml-8" :class="detailRecord.is_attack ? 'verdict-attack' : 'verdict-normal'">
+              {{ detailRecord.is_attack ? 'ATTACK' : 'NORMAL' }}
+            </span>
+          </span>
+          <button class="modal-close" @click="detailRecord = null">✕</button>
+        </div>
+
+        <div class="modal-body">
+
+          <!-- Flow -->
+          <div class="detail-section">
+            <div class="detail-section-title">Flow</div>
+            <div class="detail-grid">
+              <div class="detail-row"><span class="dk">Source</span><span class="dv mono">{{ detailRecord.src_ip }}:{{ detailRecord.src_port }}</span></div>
+              <div class="detail-row"><span class="dk">Destination</span><span class="dv mono">{{ detailRecord.dst_ip }}:{{ detailRecord.dst_port }}</span></div>
+              <div class="detail-row"><span class="dk">Protocol</span><span class="dv"><span class="proto-tag">{{ detailRecord.protocol }}</span></span></div>
+              <div class="detail-row"><span class="dk">Time</span><span class="dv">{{ new Date(detailRecord.created_at).toLocaleString() }}</span></div>
+              <div v-if="detailRecord.label != null" class="detail-row">
+                <span class="dk">Ground Truth</span>
+                <span class="dv"><span class="verdict" :class="detailRecord.label === 1 ? 'verdict-attack' : 'verdict-normal'">{{ detailRecord.label === 1 ? 'ATTACK' : 'NORMAL' }}</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Detection -->
+          <div class="detail-section">
+            <div class="detail-section-title">Detection Result</div>
+            <div class="detail-grid">
+              <div class="detail-row"><span class="dk">Model</span><span class="dv mono blue">{{ detailRecord.model_name }}</span></div>
+              <div class="detail-row"><span class="dk">Confidence</span><span class="dv">{{ (detailRecord.confidence * 100).toFixed(1) }}%</span></div>
+              <div class="detail-row"><span class="dk">Attack Type</span><span class="dv orange">{{ detailRecord.attack_type || '—' }}</span></div>
+              <div class="detail-row"><span class="dk">Explanation</span><span class="dv">{{ detailRecord.explanation || '—' }}</span></div>
+            </div>
+          </div>
+
+          <!-- ZSL similarities -->
+          <div v-if="detailRecord.raw_output && Object.keys(detailRecord.raw_output).length" class="detail-section">
+            <div class="detail-section-title">ZSL Similarity Ranking</div>
+            <div class="zsl-list">
+              <div v-for="(sim, label) in sortedZsl" :key="label" class="zsl-row">
+                <span class="zsl-label">{{ label }}</span>
+                <div class="zsl-track">
+                  <div class="zsl-fill" :style="{ width: (sim * 100).toFixed(1) + '%' }" />
+                </div>
+                <span class="zsl-val">{{ (sim * 100).toFixed(1) }}%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cilium -->
+          <div class="detail-section">
+            <div class="detail-section-title">Cilium Response</div>
+            <div class="detail-grid">
+              <div class="detail-row"><span class="dk">Action</span><span class="dv"><span class="action-tag" :class="`action-${detailRecord.cilium_action || 'ignore'}`">{{ detailRecord.cilium_action || '—' }}</span></span></div>
+              <div class="detail-row"><span class="dk">Reason</span><span class="dv">{{ detailRecord.cilium_reason || '—' }}</span></div>
+            </div>
+          </div>
+
+          <!-- Flow features -->
+          <div v-if="detailRecord.flow_input" class="detail-section">
+            <div class="detail-section-title">Flow Features (30)</div>
+            <div class="feature-grid">
+              <div v-for="(val, key) in flowFeatures" :key="key" class="feature-cell">
+                <span class="fk">{{ key }}</span>
+                <span class="fv">{{ typeof val === 'number' ? val.toFixed(4) : val }}</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -296,6 +378,22 @@ const wsStatus = ref<'live' | 'poll'>('poll')
 const recentAttacks = computed(() =>
   records.value.filter((r: any) => r.is_attack).slice(0, 15)
 )
+
+const detailRecord = ref<any>(null)
+
+const sortedZsl = computed(() => {
+  if (!detailRecord.value?.raw_output) return {}
+  const entries = Object.entries(detailRecord.value.raw_output) as [string, number][]
+  return Object.fromEntries(entries.sort((a, b) => b[1] - a[1]))
+})
+
+const FLOW_META_KEYS = new Set(['src_ip', 'dst_ip', 'src_port', 'dst_port', 'protocol', 'label'])
+const flowFeatures = computed(() => {
+  if (!detailRecord.value?.flow_input) return {}
+  return Object.fromEntries(
+    Object.entries(detailRecord.value.flow_input).filter(([k]) => !FLOW_META_KEYS.has(k))
+  )
+})
 
 // ── API ────────────────────────────────────────────────────────────────────────
 async function apiFetch(path: string, opts: RequestInit = {}) {
@@ -323,6 +421,11 @@ async function loadRecords() {
   recordsLoading.value = false
 }
 
+async function openDetail(id: number) {
+  const d = await apiFetch(`/api/vigil/records/${id}/`)
+  detailRecord.value = d
+}
+
 async function loadAll() {
   await Promise.all([loadStats(), loadRecords()])
   lastRefreshed.value = new Date().toLocaleTimeString()
@@ -332,6 +435,7 @@ async function loadAll() {
 let ws: WebSocket | null = null
 let wsRetryTimer: ReturnType<typeof setTimeout> | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
 
 function wsUrl(): string {
   const base = window.location.origin
@@ -413,12 +517,14 @@ onMounted(async () => {
   await loadModels()
   await loadAll()
   connectWs()
+  autoRefreshTimer = setInterval(loadAll, 30000)
 })
 
 onUnmounted(() => {
   ws?.close()
   if (wsRetryTimer) clearTimeout(wsRetryTimer)
   if (pollTimer) clearInterval(pollTimer)
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer)
 })
 </script>
 
@@ -428,8 +534,8 @@ onUnmounted(() => {
   display: flex;
   height: 100%;
   overflow: hidden;
-  font-size: 13px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 /* ───────────────────────── SIDEBAR ───────────────────────── */
@@ -474,7 +580,7 @@ onUnmounted(() => {
 }
 
 .live-pill {
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   padding: 2px 7px;
@@ -505,7 +611,7 @@ onUnmounted(() => {
 }
 
 .sidebar-label {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -524,7 +630,7 @@ onUnmounted(() => {
   border-radius: 6px;
   cursor: pointer;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   transition: background 0.12s, color 0.12s;
   border: 1px solid transparent;
@@ -550,7 +656,7 @@ onUnmounted(() => {
 }
 
 .model-item-empty {
-  font-size: 11px;
+  font-size: 13px;
   color: #475569;
   padding: 4px 8px;
   font-style: italic;
@@ -558,7 +664,7 @@ onUnmounted(() => {
 
 .model-active-hint {
   margin-top: 8px;
-  font-size: 10px;
+  font-size: 14px;
   color: #64748b;
 }
 
@@ -575,7 +681,7 @@ onUnmounted(() => {
   padding: 4px 0;
   cursor: pointer;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .toggle-switch {
@@ -609,7 +715,7 @@ onUnmounted(() => {
 
 /* Refresh section */
 .last-updated {
-  font-size: 11px;
+  font-size: 13px;
   color: #64748b;
   margin-bottom: 8px;
   font-variant-numeric: tabular-nums;
@@ -622,7 +728,7 @@ onUnmounted(() => {
   border: 1px solid #2d3748;
   border-radius: 6px;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   transition: background 0.12s;
 }
@@ -658,7 +764,7 @@ onUnmounted(() => {
 }
 
 .page-subtitle {
-  font-size: 12px;
+  font-size: 14px;
   color: #64748b;
   margin: 0;
 }
@@ -709,7 +815,7 @@ onUnmounted(() => {
 .stat-icon.rate   { background: #fffbeb; color: #f59e0b; font-size: 13px; font-weight: 700; }
 
 .stat-label {
-  font-size: 11px;
+  font-size: 13px;
   color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -762,7 +868,7 @@ onUnmounted(() => {
 }
 
 .card-subtitle {
-  font-size: 11px;
+  font-size: 13px;
   color: #94a3b8;
 }
 
@@ -777,7 +883,7 @@ onUnmounted(() => {
   border: 1px solid #cbd5e1;
   background: #f8fafc;
   color: #475569;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.12s;
@@ -795,7 +901,7 @@ onUnmounted(() => {
   gap: 8px;
   padding: 24px 0;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .empty-icon { font-size: 28px; opacity: 0.4; }
@@ -811,7 +917,7 @@ onUnmounted(() => {
 }
 
 .breakdown-name {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: #374151;
   text-transform: uppercase;
@@ -819,7 +925,7 @@ onUnmounted(() => {
 }
 
 .breakdown-count {
-  font-size: 12px;
+  font-size: 14px;
   color: #6b7280;
   font-variant-numeric: tabular-nums;
 }
@@ -857,7 +963,7 @@ onUnmounted(() => {
 }
 
 .model-name-tag {
-  font-size: 11px;
+  font-size: 13px;
   font-family: 'Courier New', monospace;
   color: #3b82f6;
   background: #eff6ff;
@@ -865,7 +971,7 @@ onUnmounted(() => {
   border-radius: 4px;
 }
 
-.model-stat-count { font-size: 11px; color: #94a3b8; }
+.model-stat-count { font-size: 13px; color: #94a3b8; }
 
 /* ── Model coverage ── */
 .model-coverage-list { display: flex; flex-direction: column; gap: 10px; }
@@ -925,7 +1031,7 @@ onUnmounted(() => {
 }
 
 .event-type {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -934,7 +1040,7 @@ onUnmounted(() => {
 
 .event-time {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 14px;
   color: #94a3b8;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -946,14 +1052,14 @@ onUnmounted(() => {
   gap: 5px;
   margin-bottom: 3px;
   font-family: 'Courier New', monospace;
-  font-size: 12px;
+  font-size: 14px;
   color: #374151;
 }
 
-.flow-arrow { color: #94a3b8; font-size: 10px; }
+.flow-arrow { color: #94a3b8; font-size: 14px; }
 
 .flow-proto {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
   background: #eff6ff;
   color: #3b82f6;
@@ -969,7 +1075,7 @@ onUnmounted(() => {
 }
 
 .event-model {
-  font-size: 10px;
+  font-size: 14px;
   font-family: 'Courier New', monospace;
   color: #3b82f6;
   background: #eff6ff;
@@ -978,12 +1084,12 @@ onUnmounted(() => {
 }
 
 .event-conf {
-  font-size: 10px;
+  font-size: 14px;
   color: #64748b;
 }
 
 .event-explain {
-  font-size: 10px;
+  font-size: 14px;
   color: #94a3b8;
   white-space: nowrap;
   overflow: hidden;
@@ -999,7 +1105,7 @@ onUnmounted(() => {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 thead { position: sticky; top: 0; z-index: 1; }
@@ -1007,7 +1113,7 @@ thead { position: sticky; top: 0; z-index: 1; }
 th {
   background: #f8fafc;
   color: #64748b;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1051,14 +1157,14 @@ tr.row-attack:hover td { background: #fef2f2; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 /* Table cell styles */
-.col-id    { color: #94a3b8; font-size: 11px; width: 40px; }
+.col-id    { color: #94a3b8; font-size: 13px; width: 40px; }
 .col-time  { color: #94a3b8; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .col-addr  { font-family: 'Courier New', monospace; white-space: nowrap; }
-.col-model { color: #3b82f6; font-size: 11px; font-family: 'Courier New', monospace; }
-.col-type  { color: #d97706; font-size: 11px; }
+.col-model { color: #3b82f6; font-size: 13px; font-family: 'Courier New', monospace; }
+.col-type  { color: #d97706; font-size: 13px; }
 
 .addr-ip   { color: #374151; }
-.addr-port { color: #94a3b8; font-size: 11px; }
+.addr-port { color: #94a3b8; font-size: 13px; }
 
 .proto-tag {
   display: inline-block;
@@ -1066,7 +1172,7 @@ tr.row-attack:hover td { background: #fef2f2; }
   background: #eff6ff;
   color: #3b82f6;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -1075,7 +1181,7 @@ tr.row-attack:hover td { background: #fef2f2; }
   display: inline-block;
   padding: 2px 8px;
   border-radius: 20px;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -1117,14 +1223,14 @@ tr.row-attack:hover td { background: #fef2f2; }
 .cf-danger { background: #ef4444; }
 .cf-ok     { background: #22c55e; }
 
-.conf-text { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
+.conf-text { font-size: 13px; color: #64748b; font-variant-numeric: tabular-nums; }
 
 /* Cilium action tag */
 .action-tag {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
@@ -1133,4 +1239,139 @@ tr.row-attack:hover td { background: #fef2f2; }
 .action-rate_limit { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
 .action-alert      { background: #eff6ff; color: #2563eb; border: 1px solid #93c5fd; }
 .action-ignore     { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
+
+.row-clickable { cursor: pointer; }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  width: 100%;
+  max-width: 720px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fafbfc;
+  flex-shrink: 0;
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ml-8 { margin-left: 8px; }
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+.modal-close:hover { background: #f1f5f9; color: #475569; }
+
+.modal-body {
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-section { }
+
+.detail-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.detail-grid { display: flex; flex-direction: column; gap: 5px; }
+
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.dk {
+  width: 120px;
+  flex-shrink: 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.dv { color: #1e293b; word-break: break-all; }
+.dv.mono { font-family: 'Courier New', monospace; }
+.dv.blue { color: #3b82f6; font-family: 'Courier New', monospace; }
+.dv.orange { color: #d97706; font-weight: 600; }
+
+/* ZSL */
+.zsl-list { display: flex; flex-direction: column; gap: 6px; }
+.zsl-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.zsl-label { width: 140px; flex-shrink: 0; color: #374151; font-weight: 500; }
+.zsl-track {
+  flex: 1;
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.zsl-fill { height: 100%; background: #3b82f6; border-radius: 3px; }
+.zsl-val { width: 44px; text-align: right; color: #64748b; font-variant-numeric: tabular-nums; }
+
+/* Feature grid */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px 12px;
+}
+
+.feature-cell {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 6px;
+  background: #f8fafc;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.fk { color: #64748b; }
+.fv { color: #1e293b; font-variant-numeric: tabular-nums; font-family: 'Courier New', monospace; }
 </style>

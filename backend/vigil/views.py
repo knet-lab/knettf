@@ -1,11 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 import common
 
 from common.response import ResponseMixin
 from .serializers import FlowInputSerializer, BatchFlowInputSerializer, DetectionRecordSerializer
 from .models import DetectionRecord
 from . import services
+
 
 
 class DetectView(APIView, ResponseMixin):
@@ -58,6 +60,17 @@ class RecordsView(APIView, ResponseMixin):
             "records": DetectionRecordSerializer(records, many=True).data,
             "count": len(records),
         })
+
+
+class RecordDetailView(APIView, ResponseMixin):
+    """GET /api/vigil/records/<id>/ — full detail of one detection record."""
+
+    def get(self, request: common.Request, pk: int):
+        try:
+            record = DetectionRecord.objects.get(pk=pk)
+        except DetectionRecord.DoesNotExist:
+            return self.error_response("not found", status_code=404)
+        return self.success_response(DetectionRecordSerializer(record).data)
 
 
 class StatsView(APIView, ResponseMixin):

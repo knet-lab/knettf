@@ -159,6 +159,8 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+VIGIL_BRIDGE_TOKEN = env.str("VIGIL_BRIDGE_TOKEN", default=None)
+
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True
 

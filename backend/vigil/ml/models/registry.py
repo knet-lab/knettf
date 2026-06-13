@@ -7,7 +7,6 @@ To add a new model:
 """
 
 from .base import BaseDetectionModel
-from .example_threshold import ThresholdModel
 
 
 def _load_ads_ml():
@@ -39,8 +38,6 @@ class ModelRegistry:
 registry = ModelRegistry()
 
 # ── Register models here ──────────────────────────────────────────────────────
-registry.register(ThresholdModel())
-
 _ads = _load_ads_ml()
 if _ads:
     registry.register(_ads)

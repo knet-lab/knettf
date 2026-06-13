@@ -66,7 +66,7 @@ def detect_flow(flow_data: dict) -> list[dict]:
             raw_output=result.raw_output,
             cilium_action=action.action,
             cilium_reason=action.reason,
-            label=flow.label,
+            label=int(flow.label) if flow.label != "" else None,
         )
         item = {
             **asdict(result),
