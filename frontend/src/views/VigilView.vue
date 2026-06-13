@@ -436,6 +436,9 @@ let ws: WebSocket | null = null
 let wsRetryTimer: ReturnType<typeof setTimeout> | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
+let clockTimer: ReturnType<typeof setInterval> | null = null
+
+const now = ref(Date.now())
 
 function wsUrl(): string {
   const base = window.location.origin
@@ -499,7 +502,13 @@ function connectWs() {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString()
+  if (!iso) return '—'
+  const diff = Math.floor((now.value - new Date(iso).getTime()) / 1000)
+  if (diff < 10)  return 'just now'
+  if (diff < 60)  return `${diff}s ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return new Date(iso).toLocaleDateString()
 }
 
 function barWidth(count: number) {
@@ -518,6 +527,7 @@ onMounted(async () => {
   await loadAll()
   connectWs()
   autoRefreshTimer = setInterval(loadAll, 30000)
+  clockTimer = setInterval(() => { now.value = Date.now() }, 10000)
 })
 
 onUnmounted(() => {
@@ -525,6 +535,7 @@ onUnmounted(() => {
   if (wsRetryTimer) clearTimeout(wsRetryTimer)
   if (pollTimer) clearInterval(pollTimer)
   if (autoRefreshTimer) clearInterval(autoRefreshTimer)
+  if (clockTimer) clearInterval(clockTimer)
 })
 </script>
 
