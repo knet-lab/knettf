@@ -366,21 +366,12 @@ const auth = useAuthStore()
 const models = ref<string[]>([])
 const selectedModel = ref<string | null>(null)
 const onlyAttacks = ref(false)
-const lastRefreshedAt = ref('')
-
-const tz = (() => {
-  const offset = -new Date().getTimezoneOffset() / 60
-  return `UTC${offset >= 0 ? '+' : ''}${offset}`
-})()
+const lastRefreshed = ref('—')
 
 const formatTime = (iso: string): string => {
   if (!iso) return '—'
   return iso.slice(0, 19).replace('T', ' ')
 }
-
-const lastRefreshed = computed(() =>
-  lastRefreshedAt.value ? `${tz} · ${formatTime(lastRefreshedAt.value)}` : '—'
-)
 
 const stats = reactive<any>({})
 const records = ref<any[]>([])
@@ -439,7 +430,7 @@ const openDetail = async (id: number) => {
 
 const loadAll = async () => {
   await Promise.all([loadStats(), loadRecords()])
-  lastRefreshedAt.value = new Date().toISOString()
+  lastRefreshed.value = formatTime(new Date().toISOString())
 }
 
 // ── WebSocket ──────────────────────────────────────────────────────────────────
@@ -470,7 +461,7 @@ const applyLiveEvent = (event: any) => {
     stats.normal = (stats.normal ?? 0) + 1
   }
   stats.attack_rate = stats.total ? stats.attacks / stats.total : 0
-  lastRefreshedAt.value = new Date().toISOString()
+  lastRefreshed.value = formatTime(new Date().toISOString())
 }
 
 const connectWs = () => {
@@ -641,7 +632,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   color: #94a3b8;
   font-size: 14px;
@@ -740,7 +731,7 @@ onUnmounted(() => {
   padding: 6px;
   background: #1e2d42;
   border: 1px solid #2d3748;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #94a3b8;
   font-size: 14px;
   cursor: pointer;
@@ -797,7 +788,7 @@ onUnmounted(() => {
 .stat-card {
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 14px;
   padding: 16px;
   display: flex;
   align-items: center;
@@ -815,7 +806,7 @@ onUnmounted(() => {
 .stat-icon {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -861,7 +852,7 @@ onUnmounted(() => {
 .card {
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 14px;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
   overflow: hidden;
 }
@@ -946,13 +937,13 @@ onUnmounted(() => {
 .breakdown-track {
   height: 6px;
   background: #f1f5f9;
-  border-radius: 3px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
 .breakdown-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: 6px;
   background: #ef4444;
   transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -981,7 +972,7 @@ onUnmounted(() => {
   color: #3b82f6;
   background: #eff6ff;
   padding: 1px 7px;
-  border-radius: 4px;
+  border-radius: 8px;
 }
 
 .model-stat-count { font-size: 13px; color: #94a3b8; }
@@ -1076,7 +1067,7 @@ onUnmounted(() => {
   background: #eff6ff;
   color: #3b82f6;
   padding: 0 5px;
-  border-radius: 3px;
+  border-radius: 6px;
   margin-left: 2px;
 }
 
@@ -1092,7 +1083,7 @@ onUnmounted(() => {
   color: #3b82f6;
   background: #eff6ff;
   padding: 0 6px;
-  border-radius: 3px;
+  border-radius: 6px;
 }
 
 .event-conf {
@@ -1183,7 +1174,7 @@ tr.row-attack:hover td { background: #fef2f2; }
   padding: 1px 7px;
   background: #eff6ff;
   color: #3b82f6;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
 }
@@ -1221,14 +1212,14 @@ tr.row-attack:hover td { background: #fef2f2; }
   width: 48px;
   height: 4px;
   background: #e2e8f0;
-  border-radius: 2px;
+  border-radius: 4px;
   overflow: hidden;
   flex-shrink: 0;
 }
 
 .conf-fill {
   height: 100%;
-  border-radius: 2px;
+  border-radius: 4px;
   transition: width 0.3s;
 }
 
@@ -1241,7 +1232,7 @@ tr.row-attack:hover td { background: #fef2f2; }
 .action-tag {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -1251,6 +1242,15 @@ tr.row-attack:hover td { background: #fef2f2; }
 .action-rate_limit { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
 .action-alert      { background: #eff6ff; color: #2563eb; border: 1px solid #93c5fd; }
 .action-ignore     { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
+
+.event-action {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
 
 .row-clickable { cursor: pointer; }
 
@@ -1268,7 +1268,7 @@ tr.row-attack:hover td { background: #fef2f2; }
 
 .modal {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 18px;
   box-shadow: 0 20px 60px rgba(0,0,0,.25);
   width: 100%;
   max-width: 720px;
@@ -1306,7 +1306,7 @@ tr.row-attack:hover td { background: #fef2f2; }
   font-size: 16px;
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: 8px;
   transition: background 0.1s;
 }
 .modal-close:hover { background: #f1f5f9; color: #475569; }
@@ -1360,10 +1360,10 @@ tr.row-attack:hover td { background: #fef2f2; }
   flex: 1;
   height: 6px;
   background: #f1f5f9;
-  border-radius: 3px;
+  border-radius: 6px;
   overflow: hidden;
 }
-.zsl-fill { height: 100%; background: #3b82f6; border-radius: 3px; }
+.zsl-fill { height: 100%; background: #3b82f6; border-radius: 6px; }
 .zsl-val { width: 44px; text-align: right; color: #64748b; font-variant-numeric: tabular-nums; }
 
 /* Feature grid */
@@ -1379,7 +1379,7 @@ tr.row-attack:hover td { background: #fef2f2; }
   align-items: center;
   padding: 3px 6px;
   background: #f8fafc;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 13px;
 }
 
