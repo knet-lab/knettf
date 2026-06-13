@@ -41,9 +41,5 @@ class VigilConfig(AppConfig):
         if not _should_start_bridge():
             return
 
-        from django.conf import settings
-        base_url = getattr(settings, "VIGIL_BRIDGE_URL", "http://localhost:8080")
-        token    = getattr(settings, "VIGIL_BRIDGE_TOKEN", None)
-
         from vigil import bridge
-        bridge.start(base_url=base_url, token=token)
+        bridge.start()

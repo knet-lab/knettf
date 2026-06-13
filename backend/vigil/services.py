@@ -2,6 +2,7 @@
 Vigil service layer — orchestrates ML inference, Cilium feedback, and DB persistence.
 """
 
+import time
 from dataclasses import asdict
 
 from .ml.models import flow_from_dict, run_all, run_one, registry
@@ -34,10 +35,16 @@ def detect_flow(flow_data: dict) -> list[dict]:
     Returns a list of result dicts (one per model that ran).
     """
     flow_data = dict(flow_data)
-    model_name = flow_data.pop("model", None)
+    model_name     = flow_data.pop("model", None)
+    aggregation_ms = flow_data.pop("aggregation_ms", None)
     flow = flow_from_dict(flow_data)
 
+    t0 = time.time()
     results = [run_one(model_name, flow)] if model_name else run_all(flow)
+    inference_ms = round((time.time() - t0) * 1000, 2)
+
+    if not flow.src_ip or not flow.dst_ip:
+        return []
 
     flow_meta = {
         "src_ip": flow.src_ip, "dst_ip": flow.dst_ip,
@@ -63,7 +70,9 @@ def detect_flow(flow_data: dict) -> list[dict]:
             confidence=result.confidence,
             attack_type=result.attack_type,
             explanation=result.explanation,
-            raw_output=result.raw_output,
+            raw_output={**(result.raw_output or {}),
+                        "aggregation_ms": aggregation_ms,
+                        "inference_ms": inference_ms},
             cilium_action=action.action,
             cilium_reason=action.reason,
             label=int(flow.label) if flow.label != "" else None,
@@ -79,6 +88,8 @@ def detect_flow(flow_data: dict) -> list[dict]:
             "dst_port": flow.dst_port,
             "protocol": flow.protocol,
             "created_at": record.created_at.isoformat(),
+            "aggregation_ms": aggregation_ms,
+            "inference_ms": inference_ms,
         }
         _broadcast(item)
         output.append(item)
@@ -86,11 +97,13 @@ def detect_flow(flow_data: dict) -> list[dict]:
 
 
 def detect_batch(flows_data: list[dict], model_name: str | None = None) -> list[dict]:
+    from django.db import transaction
     results = []
-    for d in flows_data:
-        if model_name:
-            d = {**d, "model": model_name}
-        results.extend(detect_flow(d))
+    with transaction.atomic():
+        for d in flows_data:
+            if model_name:
+                d = {**d, "model": model_name}
+            results.extend(detect_flow(d))
     return results
 
 

@@ -43,6 +43,11 @@
       </div>
 
       <div class="sidebar-group" style="margin-top: auto;">
+        <div class="sidebar-label">{{ tzOffset }} · {{ tz }}</div>
+        <div class="last-updated clock">{{ nowClock }}</div>
+      </div>
+
+      <div class="sidebar-group">
         <div class="sidebar-label">Last updated</div>
         <div class="last-updated">{{ lastRefreshed }}</div>
         <button class="refresh-btn" @click="loadAll">Refresh now</button>
@@ -366,12 +371,30 @@ const auth = useAuthStore()
 const models = ref<string[]>([])
 const selectedModel = ref<string | null>(null)
 const onlyAttacks = ref(false)
-const lastRefreshed = ref('—')
+const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+const tzOffset = (() => {
+  const o = -new Date().getTimezoneOffset() / 60
+  return `UTC${o >= 0 ? '+' : ''}${o}`
+})()
 
 const formatTime = (iso: string): string => {
   if (!iso) return '—'
-  return iso.slice(0, 19).replace('T', ' ')
+  return formatLocalTime(new Date(iso))
 }
+
+const nowClock = ref('')
+const formatLocalTime = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+const updateClock = () => {
+  nowClock.value = formatLocalTime(new Date())
+}
+updateClock()
+let clockTimer: ReturnType<typeof setInterval> | null = null
+
+const lastRefreshed = ref('—')
 
 const stats = reactive<any>({})
 const records = ref<any[]>([])
@@ -398,39 +421,53 @@ const flowFeatures = computed(() => {
 })
 
 // ── API ────────────────────────────────────────────────────────────────────────
-async function apiFetch(path: string, opts: RequestInit = {}) {
-  const res = await auth.apiFetch(path, opts)
-  const json = await res.json()
-  return json.data ?? json
+async function apiFetch(path: string, opts: RequestInit = {}, timeoutMs = 8000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await auth.apiFetch(path, { ...opts, signal: controller.signal })
+    const json = await res.json()
+    return json.data ?? json
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 async function loadModels() {
-  const d = await apiFetch('/api/vigil/models/')
-  models.value = d.models ?? []
+  try {
+    const d = await apiFetch('/api/vigil/models/')
+    models.value = d.models ?? []
+  } catch { /* keep stale */ }
 }
 
 async function loadStats() {
-  const d = await apiFetch('/api/vigil/stats/')
-  Object.assign(stats, d)
+  try {
+    const d = await apiFetch('/api/vigil/stats/')
+    Object.assign(stats, d)
+  } catch { /* keep stale */ }
 }
 
 const loadRecords = async () => {
   recordsLoading.value = true
-  const p = new URLSearchParams({ limit: '100', only_attacks: String(onlyAttacks.value) })
-  if (selectedModel.value) p.set('model_name', selectedModel.value)
-  const d = await apiFetch(`/api/vigil/records/?${p}`)
-  records.value = d.records ?? []
-  recordsLoading.value = false
+  try {
+    const p = new URLSearchParams({ limit: '100', only_attacks: String(onlyAttacks.value) })
+    if (selectedModel.value) p.set('model_name', selectedModel.value)
+    const d = await apiFetch(`/api/vigil/records/?${p}`)
+    records.value = d.records ?? []
+  } catch { /* keep stale */ }
+  finally { recordsLoading.value = false }
 }
 
 const openDetail = async (id: number) => {
-  const d = await apiFetch(`/api/vigil/records/${id}/`)
-  detailRecord.value = d
+  try {
+    const d = await apiFetch(`/api/vigil/records/${id}/`)
+    detailRecord.value = d
+  } catch { /* ignore */ }
 }
 
 const loadAll = async () => {
   await Promise.all([loadStats(), loadRecords()])
-  lastRefreshed.value = formatTime(new Date().toISOString())
+  lastRefreshed.value = formatLocalTime(new Date())
 }
 
 // ── WebSocket ──────────────────────────────────────────────────────────────────
@@ -443,41 +480,65 @@ const wsUrl = (): string => {
   return base.replace(/^http/, 'ws') + '/ws/vigil/'
 }
 
-const applyLiveEvent = (event: any) => {
-  // Prepend to records (max 200 in memory)
-  records.value = [event, ...records.value].slice(0, 200)
+// ── WS event buffer — flush to UI every 800ms ─────────────────────────────────
+const wsBuffer: any[] = []
+let flushTimer: ReturnType<typeof setInterval> | null = null
 
-  // Update stats counters in place
-  stats.total = (stats.total ?? 0) + 1
-  if (event.is_attack) {
-    stats.attacks = (stats.attacks ?? 0) + 1
-    // update by_attack_type
-    const bt = stats.by_attack_type ?? []
-    const idx = bt.findIndex((x: any) => x.attack_type === event.attack_type)
-    if (idx >= 0) bt[idx].count++
-    else bt.push({ attack_type: event.attack_type, count: 1 })
-    stats.by_attack_type = [...bt]
-  } else {
-    stats.normal = (stats.normal ?? 0) + 1
+const flushBuffer = () => {
+  if (!wsBuffer.length) return
+  const batch = wsBuffer.splice(0)
+
+  // Prepend batch to records (max 200 in memory)
+  records.value = [...batch, ...records.value].slice(0, 200)
+
+  // Aggregate stats from batch
+  for (const event of batch) {
+    stats.total = (stats.total ?? 0) + 1
+    if (event.is_attack) {
+      stats.attacks = (stats.attacks ?? 0) + 1
+      const bt = stats.by_attack_type ?? []
+      const idx = bt.findIndex((x: any) => x.attack_type === event.attack_type)
+      if (idx >= 0) bt[idx].count++
+      else bt.push({ attack_type: event.attack_type, count: 1 })
+      stats.by_attack_type = [...bt]
+    } else {
+      stats.normal = (stats.normal ?? 0) + 1
+    }
   }
   stats.attack_rate = stats.total ? stats.attacks / stats.total : 0
-  lastRefreshed.value = formatTime(new Date().toISOString())
+  lastRefreshed.value = formatLocalTime(new Date())
+}
+
+const applyLiveEvent = (event: any) => {
+  wsBuffer.push(event)
+}
+
+let wsRetryDelay = 2000
+
+const scheduleWsReconnect = () => {
+  if (wsRetryTimer) clearTimeout(wsRetryTimer)
+  wsRetryTimer = setTimeout(connectWs, wsRetryDelay)
+  wsRetryDelay = Math.min(wsRetryDelay * 2, 30000)
 }
 
 const connectWs = () => {
-  if (ws) ws.close()
+  if (ws) { ws.onclose = null; ws.close(); ws = null }
+  if (wsRetryTimer) { clearTimeout(wsRetryTimer); wsRetryTimer = null }
+
   try {
     ws = new WebSocket(wsUrl())
 
     ws.onopen = () => {
       wsStatus.value = 'live'
-      // Stop polling — WS is live
+      wsRetryDelay = 2000
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+      loadAll()
     }
 
     ws.onmessage = (msg) => {
       try {
         const data = JSON.parse(msg.data)
+        if (data.type === 'ping') return
         applyLiveEvent(data)
       } catch { /* ignore malformed */ }
     }
@@ -485,16 +546,15 @@ const connectWs = () => {
     ws.onclose = () => {
       ws = null
       wsStatus.value = 'poll'
-      // Fallback to polling while WS is down
       if (!pollTimer) pollTimer = setInterval(loadAll, 10000)
-      // Retry WS after 5s
-      wsRetryTimer = setTimeout(connectWs, 5000)
+      scheduleWsReconnect()
     }
 
     ws.onerror = () => ws?.close()
   } catch {
     wsStatus.value = 'poll'
     if (!pollTimer) pollTimer = setInterval(loadAll, 10000)
+    scheduleWsReconnect()
   }
 }
 
@@ -523,6 +583,8 @@ onMounted(async () => {
   await loadAll()
   connectWs()
   autoRefreshTimer = setInterval(loadAll, 30000)
+  clockTimer = setInterval(updateClock, 1000)
+  flushTimer = setInterval(flushBuffer, 800)
 })
 
 onUnmounted(() => {
@@ -530,6 +592,8 @@ onUnmounted(() => {
   if (wsRetryTimer) clearTimeout(wsRetryTimer)
   if (pollTimer) clearInterval(pollTimer)
   if (autoRefreshTimer) clearInterval(autoRefreshTimer)
+  if (clockTimer) clearInterval(clockTimer)
+  if (flushTimer) clearInterval(flushTimer)
 })
 </script>
 
@@ -726,6 +790,13 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
+.last-updated.clock {
+  font-size: 14px;
+  color: #cbd5e1;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.04em;
+}
+
 .refresh-btn {
   width: 100%;
   padding: 6px;
@@ -746,12 +817,12 @@ onUnmounted(() => {
 /* ───────────────────────── CONTENT ───────────────────────── */
 .content {
   flex: 1;
-  background: #f0f4f8;
+  background: #0d1117;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: 22px 28px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 
 /* Page header */
@@ -762,15 +833,16 @@ onUnmounted(() => {
 }
 
 .page-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  color: #1e293b;
-  margin: 0 0 2px;
+  color: #f1f5f9;
+  margin: 0 0 4px;
+  letter-spacing: -0.3px;
 }
 
 .page-subtitle {
-  font-size: 14px;
-  color: #64748b;
+  font-size: 13px;
+  color: #475569;
   margin: 0;
 }
 
@@ -778,7 +850,7 @@ onUnmounted(() => {
 .stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 14px;
 }
 
 @media (max-width: 1000px) {
@@ -786,58 +858,61 @@ onUnmounted(() => {
 }
 
 .stat-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: #161b22;
+  border: 1px solid #21262d;
   border-radius: 14px;
-  padding: 16px;
+  padding: 18px 20px;
   display: flex;
   align-items: center;
   gap: 14px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04);
-  transition: box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.stat-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+.stat-card:hover {
+  border-color: #30363d;
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+}
 
-.stat-card.danger { border-left: 3px solid #ef4444; }
-.stat-card.ok     { border-left: 3px solid #22c55e; }
-.stat-card.warn   { border-left: 3px solid #f59e0b; }
+.stat-card.danger { border-left: 3px solid #f85149; }
+.stat-card.ok     { border-left: 3px solid #3fb950; }
+.stat-card.warn   { border-left: 3px solid #d29922; }
 
 .stat-icon {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 17px;
   flex-shrink: 0;
 }
 
-.stat-icon.total  { background: #eff6ff; color: #3b82f6; }
-.stat-icon.attack { background: #fef2f2; color: #ef4444; }
-.stat-icon.normal { background: #f0fdf4; color: #22c55e; }
-.stat-icon.rate   { background: #fffbeb; color: #f59e0b; font-size: 13px; font-weight: 700; }
+.stat-icon.total  { background: rgba(59,130,246,.15); color: #60a5fa; }
+.stat-icon.attack { background: rgba(248,81,73,.15);  color: #f85149; }
+.stat-icon.normal { background: rgba(63,185,80,.15);  color: #3fb950; }
+.stat-icon.rate   { background: rgba(210,153,34,.15); color: #d29922; font-size: 13px; font-weight: 700; }
 
 .stat-label {
-  font-size: 13px;
-  color: #94a3b8;
+  font-size: 11px;
+  color: #6e7681;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 2px;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
 }
 
 .stat-value {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
-  color: #1e293b;
+  color: #e6edf3;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Mid row ── */
 .mid-row {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 290px 1fr;
   gap: 16px;
   align-items: start;
 }
@@ -850,10 +925,9 @@ onUnmounted(() => {
 
 /* ── Card ── */
 .card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: #161b22;
+  border: 1px solid #21262d;
   border-radius: 14px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04);
   overflow: hidden;
 }
 
@@ -861,23 +935,23 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #f1f5f9;
-  background: #fafbfc;
+  padding: 13px 18px;
+  border-bottom: 1px solid #21262d;
 }
 
 .card-title {
   font-size: 13px;
   font-weight: 600;
-  color: #1e293b;
+  color: #c9d1d9;
+  letter-spacing: 0.01em;
 }
 
 .card-subtitle {
-  font-size: 13px;
-  color: #94a3b8;
+  font-size: 12px;
+  color: #484f58;
 }
 
-.card-body { padding: 14px 16px; }
+.card-body { padding: 16px 18px; }
 
 /* Header action chips */
 .header-actions { display: flex; gap: 6px; }
@@ -885,18 +959,18 @@ onUnmounted(() => {
 .chip-btn {
   padding: 4px 10px;
   border-radius: 20px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 13px;
+  border: 1px solid #30363d;
+  background: #21262d;
+  color: #8b949e;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
 
-.chip-btn:hover { background: #e2e8f0; }
-.chip-btn.danger { border-color: #fca5a5; background: #fff1f2; color: #dc2626; }
-.chip-btn.danger:hover { background: #fee2e2; }
+.chip-btn:hover { background: #30363d; color: #c9d1d9; }
+.chip-btn.danger { border-color: #6e2a2a; background: #2a1515; color: #f85149; }
+.chip-btn.danger:hover { background: #3a1a1a; }
 
 /* ── Breakdown chart ── */
 .empty-state {
@@ -904,39 +978,38 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 24px 0;
-  color: #94a3b8;
-  font-size: 14px;
+  padding: 28px 0;
+  color: #484f58;
+  font-size: 13px;
 }
 
-.empty-icon { font-size: 28px; opacity: 0.4; }
+.empty-icon { font-size: 28px; opacity: 0.3; }
 
-.breakdown-list { display: flex; flex-direction: column; gap: 10px; }
-
+.breakdown-list { display: flex; flex-direction: column; gap: 12px; }
 
 .breakdown-meta {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 
 .breakdown-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8b949e;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .breakdown-count {
-  font-size: 14px;
-  color: #6b7280;
+  font-size: 13px;
+  color: #6e7681;
   font-variant-numeric: tabular-nums;
 }
 
 .breakdown-track {
-  height: 6px;
-  background: #f1f5f9;
+  height: 5px;
+  background: #21262d;
   border-radius: 6px;
   overflow: hidden;
 }
@@ -944,19 +1017,19 @@ onUnmounted(() => {
 .breakdown-fill {
   height: 100%;
   border-radius: 6px;
-  background: #ef4444;
+  background: #f85149;
   transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.breakdown-fill[data-type="syn_flood"] { background: #ef4444; }
-.breakdown-fill[data-type="flood"]     { background: #f97316; }
-.breakdown-fill[data-type="port_scan"] { background: #eab308; }
-.breakdown-fill[data-type="anomaly"]   { background: #8b5cf6; }
+.breakdown-fill[data-type="syn_flood"] { background: #f85149; }
+.breakdown-fill[data-type="flood"]     { background: #fb923c; }
+.breakdown-fill[data-type="port_scan"] { background: #d29922; }
+.breakdown-fill[data-type="anomaly"]   { background: #a78bfa; }
 
 .model-stats {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid #f1f5f9;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #21262d;
 }
 
 .model-stat-row {
@@ -967,28 +1040,27 @@ onUnmounted(() => {
 }
 
 .model-name-tag {
-  font-size: 13px;
+  font-size: 12px;
   font-family: 'Courier New', monospace;
-  color: #3b82f6;
-  background: #eff6ff;
-  padding: 1px 7px;
+  color: #60a5fa;
+  background: rgba(59,130,246,.12);
+  padding: 2px 8px;
   border-radius: 8px;
 }
 
-.model-stat-count { font-size: 13px; color: #94a3b8; }
+.model-stat-count { font-size: 12px; color: #484f58; }
 
 /* ── Model coverage ── */
-.model-coverage-list { display: flex; flex-direction: column; gap: 10px; }
-
+.model-coverage-list { display: flex; flex-direction: column; gap: 12px; }
 
 .model-coverage-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 
-.model-bar { background: #3b82f6; }
+.model-bar { background: #1f6feb; }
 
 /* ── Attack feed ── */
 .card-body.no-pad { padding: 0; }
@@ -996,33 +1068,34 @@ onUnmounted(() => {
 .attack-feed {
   display: flex;
   flex-direction: column;
-  max-height: 420px;
+  max-height: 440px;
   overflow-y: auto;
 }
 
 .attack-event {
   display: flex;
   gap: 0;
-  padding: 10px 16px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 11px 18px;
+  border-bottom: 1px solid #21262d;
   transition: background 0.1s;
+  cursor: pointer;
 }
 
 .attack-event:last-child { border-bottom: none; }
-.attack-event:hover { background: #fff8f8; }
+.attack-event:hover { background: #1c2128; }
 
 .event-indicator {
   width: 3px;
   border-radius: 2px;
-  margin-right: 12px;
+  margin-right: 13px;
   flex-shrink: 0;
-  background: #ef4444;
+  background: #f85149;
 }
 
-.event-indicator[data-type="syn_flood"] { background: #ef4444; }
-.event-indicator[data-type="flood"]     { background: #f97316; }
-.event-indicator[data-type="port_scan"] { background: #eab308; }
-.event-indicator[data-type="anomaly"]   { background: #8b5cf6; }
+.event-indicator[data-type="syn_flood"] { background: #f85149; }
+.event-indicator[data-type="flood"]     { background: #fb923c; }
+.event-indicator[data-type="port_scan"] { background: #d29922; }
+.event-indicator[data-type="anomaly"]   { background: #a78bfa; }
 
 .event-body { flex: 1; min-width: 0; }
 
@@ -1034,18 +1107,19 @@ onUnmounted(() => {
 }
 
 .event-type {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #dc2626;
+  letter-spacing: 0.06em;
+  color: #f85149;
 }
 
 .event-time {
   margin-left: auto;
-  font-size: 14px;
-  color: #94a3b8;
+  font-size: 12px;
+  color: #484f58;
   font-variant-numeric: tabular-nums;
+  font-family: 'Courier New', monospace;
   flex-shrink: 0;
 }
 
@@ -1053,22 +1127,23 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
   font-family: 'Courier New', monospace;
-  font-size: 14px;
-  color: #374151;
+  font-size: 13px;
+  color: #8b949e;
 }
 
-.flow-arrow { color: #94a3b8; font-size: 14px; }
+.flow-arrow { color: #30363d; font-size: 13px; }
 
 .flow-proto {
-  font-size: 14px;
-  font-weight: 600;
-  background: #eff6ff;
-  color: #3b82f6;
-  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(31,111,235,.2);
+  color: #60a5fa;
+  padding: 1px 6px;
   border-radius: 6px;
-  margin-left: 2px;
+  margin-left: 3px;
+  letter-spacing: 0.04em;
 }
 
 .event-meta {
@@ -1078,26 +1153,26 @@ onUnmounted(() => {
 }
 
 .event-model {
-  font-size: 14px;
+  font-size: 12px;
   font-family: 'Courier New', monospace;
-  color: #3b82f6;
-  background: #eff6ff;
-  padding: 0 6px;
+  color: #60a5fa;
+  background: rgba(59,130,246,.1);
+  padding: 1px 6px;
   border-radius: 6px;
 }
 
 .event-conf {
-  font-size: 14px;
-  color: #64748b;
+  font-size: 12px;
+  color: #6e7681;
 }
 
 .event-explain {
-  font-size: 14px;
-  color: #94a3b8;
+  font-size: 12px;
+  color: #484f58;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;
+  max-width: 200px;
 }
 
 /* ── Log table ── */
@@ -1108,50 +1183,50 @@ onUnmounted(() => {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 thead { position: sticky; top: 0; z-index: 1; }
 
 th {
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 14px;
+  background: #161b22;
+  color: #6e7681;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 9px 12px;
+  letter-spacing: 0.08em;
+  padding: 10px 14px;
   text-align: left;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #21262d;
   white-space: nowrap;
 }
 
 td {
-  padding: 8px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #374151;
+  padding: 9px 14px;
+  border-bottom: 1px solid #161b22;
+  color: #8b949e;
   vertical-align: middle;
 }
 
 tr:last-child td { border-bottom: none; }
 
-tr:hover td { background: #f8fafc; }
+tr:hover td { background: #1c2128; }
 
-tr.row-attack td { background: #fff8f8; }
-tr.row-attack:hover td { background: #fef2f2; }
+tr.row-attack td { background: rgba(248,81,73,.05); }
+tr.row-attack:hover td { background: rgba(248,81,73,.1); }
 
 .table-empty {
   text-align: center;
-  color: #94a3b8;
-  padding: 32px;
+  color: #484f58;
+  padding: 40px;
   font-size: 13px;
 }
 
 /* Skeleton loader */
-.skeleton-row td { padding: 12px; }
+.skeleton-row td { padding: 14px; }
 .skeleton {
-  height: 12px;
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  height: 10px;
+  background: linear-gradient(90deg, #21262d 25%, #2d333b 50%, #21262d 75%);
   background-size: 200% 100%;
   border-radius: 6px;
   animation: shimmer 1.4s infinite;
@@ -1160,58 +1235,59 @@ tr.row-attack:hover td { background: #fef2f2; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 /* Table cell styles */
-.col-id    { color: #94a3b8; font-size: 13px; width: 40px; }
-.col-time  { color: #94a3b8; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.col-id    { color: #484f58; font-size: 12px; width: 40px; font-variant-numeric: tabular-nums; }
+.col-time  { color: #6e7681; font-variant-numeric: tabular-nums; white-space: nowrap; font-family: 'Courier New', monospace; font-size: 12px; }
 .col-addr  { font-family: 'Courier New', monospace; white-space: nowrap; }
-.col-model { color: #3b82f6; font-size: 13px; font-family: 'Courier New', monospace; }
-.col-type  { color: #d97706; font-size: 13px; }
+.col-model { color: #60a5fa; font-size: 12px; font-family: 'Courier New', monospace; }
+.col-type  { color: #d29922; font-size: 12px; font-weight: 600; }
 
-.addr-ip   { color: #374151; }
-.addr-port { color: #94a3b8; font-size: 13px; }
+.addr-ip   { color: #c9d1d9; }
+.addr-port { color: #484f58; font-size: 12px; }
 
 .proto-tag {
   display: inline-block;
-  padding: 1px 7px;
-  background: #eff6ff;
-  color: #3b82f6;
+  padding: 2px 7px;
+  background: rgba(31,111,235,.15);
+  color: #60a5fa;
   border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 /* Verdict badge */
 .verdict {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 2px 9px;
   border-radius: 20px;
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .verdict-attack {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fca5a5;
+  background: rgba(248,81,73,.15);
+  color: #f85149;
+  border: 1px solid rgba(248,81,73,.3);
 }
 
 .verdict-normal {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #86efac;
+  background: rgba(63,185,80,.12);
+  color: #3fb950;
+  border: 1px solid rgba(63,185,80,.3);
 }
 
 /* Confidence bar */
 .conf-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 
 .conf-bar {
-  width: 48px;
+  width: 52px;
   height: 4px;
-  background: #e2e8f0;
+  background: #21262d;
   border-radius: 4px;
   overflow: hidden;
   flex-shrink: 0;
@@ -1223,34 +1299,25 @@ tr.row-attack:hover td { background: #fef2f2; }
   transition: width 0.3s;
 }
 
-.cf-danger { background: #ef4444; }
-.cf-ok     { background: #22c55e; }
+.cf-danger { background: #f85149; }
+.cf-ok     { background: #3fb950; }
 
-.conf-text { font-size: 13px; color: #64748b; font-variant-numeric: tabular-nums; }
+.conf-text { font-size: 12px; color: #6e7681; font-variant-numeric: tabular-nums; }
 
 /* Cilium action tag */
-.action-tag {
+.action-tag, .event-action {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
-.action-drop       { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
-.action-rate_limit { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
-.action-alert      { background: #eff6ff; color: #2563eb; border: 1px solid #93c5fd; }
-.action-ignore     { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
-
-.event-action {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
+.action-drop       { background: rgba(248,81,73,.15);  color: #f85149; border: 1px solid rgba(248,81,73,.3); }
+.action-rate_limit { background: rgba(210,153,34,.15); color: #d29922; border: 1px solid rgba(210,153,34,.3); }
+.action-alert      { background: rgba(31,111,235,.15); color: #60a5fa; border: 1px solid rgba(31,111,235,.3); }
+.action-ignore     { background: #21262d;              color: #6e7681; border: 1px solid #30363d; }
 
 .row-clickable { cursor: pointer; }
 
@@ -1258,18 +1325,20 @@ tr.row-attack:hover td { background: #fef2f2; }
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.45);
+  background: rgba(0,0,0,.65);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 24px;
+  backdrop-filter: blur(2px);
 }
 
 .modal {
-  background: #fff;
+  background: #161b22;
+  border: 1px solid #30363d;
   border-radius: 18px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  box-shadow: 0 24px 80px rgba(0,0,0,.6);
   width: 100%;
   max-width: 720px;
   max-height: 88vh;
@@ -1282,16 +1351,15 @@ tr.row-attack:hover td { background: #fef2f2; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fafbfc;
+  padding: 15px 22px;
+  border-bottom: 1px solid #21262d;
   flex-shrink: 0;
 }
 
 .modal-title {
   font-size: 15px;
   font-weight: 700;
-  color: #1e293b;
+  color: #e6edf3;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1302,87 +1370,87 @@ tr.row-attack:hover td { background: #fef2f2; }
 .modal-close {
   background: none;
   border: none;
-  color: #94a3b8;
+  color: #6e7681;
   font-size: 16px;
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 8px;
-  transition: background 0.1s;
+  transition: background 0.1s, color 0.1s;
 }
-.modal-close:hover { background: #f1f5f9; color: #475569; }
+.modal-close:hover { background: #21262d; color: #c9d1d9; }
 
 .modal-body {
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 18px 22px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
-
 
 .detail-section-title {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #64748b;
-  margin-bottom: 8px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid #f1f5f9;
+  letter-spacing: 0.09em;
+  color: #6e7681;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #21262d;
 }
 
-.detail-grid { display: flex; flex-direction: column; gap: 5px; }
+.detail-grid { display: flex; flex-direction: column; gap: 6px; }
 
 .detail-row {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .dk {
   width: 120px;
   flex-shrink: 0;
-  color: #94a3b8;
-  font-size: 13px;
+  color: #484f58;
+  font-size: 12px;
 }
 
-.dv { color: #1e293b; word-break: break-all; }
-.dv.mono { font-family: 'Courier New', monospace; }
-.dv.blue { color: #3b82f6; font-family: 'Courier New', monospace; }
-.dv.orange { color: #d97706; font-weight: 600; }
+.dv { color: #c9d1d9; word-break: break-all; }
+.dv.mono { font-family: 'Courier New', monospace; color: #8b949e; }
+.dv.blue { color: #60a5fa; font-family: 'Courier New', monospace; }
+.dv.orange { color: #d29922; font-weight: 600; }
 
 /* ZSL */
-.zsl-list { display: flex; flex-direction: column; gap: 6px; }
-.zsl-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
-.zsl-label { width: 140px; flex-shrink: 0; color: #374151; font-weight: 500; }
+.zsl-list { display: flex; flex-direction: column; gap: 7px; }
+.zsl-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.zsl-label { width: 140px; flex-shrink: 0; color: #8b949e; font-weight: 500; }
 .zsl-track {
   flex: 1;
-  height: 6px;
-  background: #f1f5f9;
+  height: 5px;
+  background: #21262d;
   border-radius: 6px;
   overflow: hidden;
 }
-.zsl-fill { height: 100%; background: #3b82f6; border-radius: 6px; }
-.zsl-val { width: 44px; text-align: right; color: #64748b; font-variant-numeric: tabular-nums; }
+.zsl-fill { height: 100%; background: #1f6feb; border-radius: 6px; }
+.zsl-val { width: 44px; text-align: right; color: #6e7681; font-variant-numeric: tabular-nums; }
 
 /* Feature grid */
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px 12px;
+  gap: 5px 10px;
 }
 
 .feature-cell {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 3px 6px;
-  background: #f8fafc;
+  padding: 4px 8px;
+  background: #0d1117;
+  border: 1px solid #21262d;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 12px;
 }
 
-.fk { color: #64748b; }
-.fv { color: #1e293b; font-variant-numeric: tabular-nums; font-family: 'Courier New', monospace; }
+.fk { color: #6e7681; }
+.fv { color: #8b949e; font-variant-numeric: tabular-nums; font-family: 'Courier New', monospace; }
 </style>

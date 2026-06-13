@@ -8,11 +8,11 @@ so the feature set is identical to DetectionInput / FLOW_FIELDS.
 import json
 import logging
 import math
+import queue
 import threading
 import time
 from collections import defaultdict
 
-import requests
 from confluent_kafka import Consumer, KafkaError, KafkaException
 
 logger = logging.getLogger("vigil.bridge")
@@ -22,8 +22,9 @@ KAFKA_BOOTSTRAP  = "192.168.100.200:9094,192.168.100.201:9094,192.168.100.202:90
 KAFKA_TOPIC      = "ebpf-net-logs"
 KAFKA_GROUP_ID   = "vigil-bridge"
 
-FLOW_TIMEOUT_SEC = 5
-BATCH_SIZE       = 20
+PACKET_FLUSH_COUNT = 1000      # 累计包数达到此值立即聚合推送
+TIME_FLUSH_SEC     = 0.5     # 兜底：超过此秒数强制 flush 一次
+# BATCH_SIZE         = 20
 
 # 节点 IP + MetalLB VIP + Pod CIDR — 这些都是集群内部流量
 _NODE_IPS = {f"192.168.100.{i}" for i in range(10, 16)}
@@ -197,45 +198,12 @@ def compute_flow(packets: list) -> dict:
     }
 
 
-# ── HTTP push ──────────────────────────────────────────────────────────────────
-def _push(flows: list[dict], base_url: str, token: str | None):
-    url     = f"{base_url.rstrip('/')}/api/vigil/detect/batch/"
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    try:
-        r = requests.post(url, json={"flows": flows}, headers=headers, timeout=10)
-        if r.status_code == 200:
-            results   = (r.json().get("data") or {}).get("results") or []
-            n_attacks = sum(1 for x in results if x.get("is_attack"))
-            logger.info("pushed %d flows → %d attack(s)", len(flows), n_attacks)
-        else:
-            logger.warning("push HTTP %s: %s", r.status_code, r.text[:200])
-    except requests.RequestException as e:
-        logger.warning("push failed: %s", e)
-
-
-# ── Wait for server ────────────────────────────────────────────────────────────
-def _wait_for_server(base_url: str, timeout: int = 60):
-    url      = f"{base_url.rstrip('/')}/api/vigil/stats/"
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            r = requests.get(url, timeout=2)
-            if r.status_code in (200, 401, 403):
-                logger.info("server ready at %s", base_url)
-                return True
-        except requests.RequestException:
-            pass
-        time.sleep(1)
-    logger.warning("server not ready after %ds, starting anyway", timeout)
-    return False
+# ── In-process queue (bridge thread → async consumer) ─────────────────────────
+flow_queue: queue.Queue = queue.Queue(maxsize=2000)
 
 
 # ── Main loop ──────────────────────────────────────────────────────────────────
-def run_bridge(base_url: str = "http://localhost:8080", token: str | None = None):
-    _wait_for_server(base_url)
-
+def run_bridge():
     consumer = Consumer({
         "bootstrap.servers":         KAFKA_BOOTSTRAP,
         "group.id":                  KAFKA_GROUP_ID,
@@ -244,21 +212,43 @@ def run_bridge(base_url: str = "http://localhost:8080", token: str | None = None
         "fetch.min.bytes":           1024 * 64,
         "fetch.wait.max.ms":         500,
         "max.partition.fetch.bytes": 1024 * 1024 * 4,
-        "session.timeout.ms":        30000,
-        "heartbeat.interval.ms":     10000,
+        "session.timeout.ms":        6000,
+        "heartbeat.interval.ms":     2000,
         "broker.address.family":     "v4",
     })
     consumer.subscribe([KAFKA_TOPIC])
-    logger.info("bridge starting → bootstrap=%s topic=%s group=%s → %s",
-                KAFKA_BOOTSTRAP, KAFKA_TOPIC, KAFKA_GROUP_ID, base_url)
+    logger.info("bridge starting → bootstrap=%s topic=%s group=%s",
+                KAFKA_BOOTSTRAP, KAFKA_TOPIC, KAFKA_GROUP_ID)
 
-    open_flows: dict[tuple, list] = defaultdict(list)
-    pending:    list[dict]        = []
-    last_flush  = time.time()
+    open_flows:  dict[tuple, list] = defaultdict(list)
+    pending:     list[dict]        = []
+    total_pkts   = 0
+    last_flush   = time.time()
+
+    def _flush():
+        nonlocal total_pkts, last_flush
+        flush_ts = time.time()
+        for k, pkts in open_flows.items():
+            if pkts:
+                flow = compute_flow(pkts)
+                first_ts = min(p["ts"] for p in pkts)
+                flow["aggregation_ms"] = round((flush_ts - first_ts) * 1000, 1)
+                pending.append(flow)
+        open_flows.clear()
+        total_pkts = 0
+        last_flush = time.time()
+        if pending:
+            batch = pending[:]
+            pending.clear()
+            try:
+                flow_queue.put_nowait(batch)
+            except queue.Full:
+                logger.warning("flow_queue full, dropping batch of %d flows", len(batch))
+            consumer.commit(asynchronous=True)
 
     try:
         while True:
-            msg = consumer.poll(timeout=1.0)
+            msg = consumer.poll(timeout=0.1)
 
             if msg is None:
                 pass
@@ -274,7 +264,8 @@ def run_bridge(base_url: str = "http://localhost:8080", token: str | None = None
                     if flow:
                         src = flow.get("IP", {}).get("source", "")
                         dst = flow.get("IP", {}).get("destination", "")
-                        # 过滤纯集群内部流量（包括 Kafka 自身 TCP 连接）
+                        if not src or not dst:
+                            continue
                         if _is_infrastructure(src) and _is_infrastructure(dst):
                             continue
                         l4_tmp = flow.get("l4", {})
@@ -284,38 +275,28 @@ def run_bridge(base_url: str = "http://localhost:8080", token: str | None = None
                             continue
                         key = _flow_key(flow)
                         pkt = _hubble_to_packet(flow)
+                        open_flows[key].append(pkt)
+                        total_pkts += 1
 
-                        if key in open_flows and open_flows[key]:
-                            last_ts = open_flows[key][-1]["ts"]
-                            if pkt["ts"] - last_ts > FLOW_TIMEOUT_SEC:
-                                pending.append(compute_flow(open_flows[key]))
-                                open_flows[key] = [pkt]
-                            else:
-                                open_flows[key].append(pkt)
-                        else:
-                            open_flows[key] = [pkt]
+                        # 包数量触发
+                        if total_pkts >= PACKET_FLUSH_COUNT:
+                            _flush()
+
                 except (json.JSONDecodeError, Exception) as e:
                     logger.debug("skip malformed message: %s", e)
 
-            now = time.time()
-            if now - last_flush >= 1.0:
-                expired = [k for k, pkts in open_flows.items()
-                           if pkts and now - pkts[-1]["ts"] >= FLOW_TIMEOUT_SEC]
-                for k in expired:
-                    pending.append(compute_flow(open_flows.pop(k)))
-
-                if len(pending) >= BATCH_SIZE:
-                    _push(pending, base_url, token)
-                    consumer.commit(asynchronous=True)
-                    pending.clear()
-
-                last_flush = now
+            # 时间兜底触发
+            if time.time() - last_flush >= TIME_FLUSH_SEC and open_flows:
+                _flush()
 
     except Exception as e:
         logger.error("bridge error: %s", e)
     finally:
         if pending:
-            _push(pending, base_url, token)
+            try:
+                flow_queue.put_nowait(pending)
+            except queue.Full:
+                pass
         consumer.commit(asynchronous=False)
         consumer.close()
         logger.info("bridge shut down cleanly")
@@ -333,6 +314,6 @@ def start(base_url: str = "http://localhost:8080", token: str | None = None):
         if _started:
             return
         _started = True
-    t = threading.Thread(target=run_bridge, args=(base_url, token), daemon=True, name="vigil-bridge")
+    t = threading.Thread(target=run_bridge, daemon=True, name="vigil-bridge")
     t.start()
     logger.info("vigil bridge thread started")
