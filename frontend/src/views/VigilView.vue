@@ -44,7 +44,7 @@
 
       <div class="sidebar-group" style="margin-top: auto;">
         <div class="sidebar-label">Last updated</div>
-        <div class="last-updated">{{ lastRefreshed || '—' }}</div>
+        <div class="last-updated">{{ lastRefreshed }}</div>
         <button class="refresh-btn" @click="loadAll">Refresh now</button>
       </div>
     </aside>
@@ -157,16 +157,16 @@
         <div class="card">
           <div class="card-header">
             <span class="card-title">Recent Attack Events</span>
-            <span class="card-subtitle">Latest {{ recentAttacks.length }} detected</span>
+            <span class="card-subtitle">Latest {{ displayAttacks.length }} detected</span>
           </div>
           <div class="card-body no-pad">
-            <div v-if="!recentAttacks.length" class="empty-state" style="padding:32px 0">
+            <div v-if="!displayAttacks.length" class="empty-state" style="padding:32px 0">
               <div class="empty-icon">🛡</div>
               <div>No attacks detected</div>
             </div>
             <div v-else class="attack-feed">
               <div
-                v-for="r in recentAttacks" :key="r.id"
+                v-for="r in displayAttacks" :key="r.id"
                 class="attack-event row-clickable"
                 @click="openDetail(r.id)"
               >
@@ -177,7 +177,7 @@
                     <span class="event-action" :class="`action-${r.cilium_action || 'ignore'}`">
                       {{ r.cilium_action || '—' }}
                     </span>
-                    <span class="event-time">{{ now && fmtTime(r.created_at) }}</span>
+                    <span class="event-time">{{ r._time }}</span>
                   </div>
                   <div class="event-flow">
                     <span class="flow-addr">{{ r.src_ip }}:{{ r.src_port }}</span>
@@ -202,7 +202,7 @@
       <div class="card log-card">
         <div class="card-header">
           <span class="card-title">Detection Log</span>
-          <span class="card-subtitle">{{ records.length }} records shown</span>
+          <span class="card-subtitle">{{ displayRecords.length }} records shown</span>
         </div>
         <div class="table-wrap">
           <table>
@@ -231,12 +231,12 @@
               </tr>
               <tr
                 v-else
-                v-for="r in records" :key="r.id"
+                v-for="r in displayRecords" :key="r.id"
                 :class="{ 'row-attack': r.is_attack, 'row-clickable': true }"
                 @click="openDetail(r.id)"
               >
                 <td class="col-id">{{ r.id }}</td>
-                <td class="col-time">{{ now && fmtTime(r.created_at) }}</td>
+                <td class="col-time">{{ r._time }}</td>
                 <td class="col-addr">
                   <span class="addr-ip">{{ r.src_ip }}</span>
                   <span class="addr-port">:{{ r.src_port }}</span>
@@ -296,7 +296,7 @@
               <div class="detail-row"><span class="dk">Source</span><span class="dv mono">{{ detailRecord.src_ip }}:{{ detailRecord.src_port }}</span></div>
               <div class="detail-row"><span class="dk">Destination</span><span class="dv mono">{{ detailRecord.dst_ip }}:{{ detailRecord.dst_port }}</span></div>
               <div class="detail-row"><span class="dk">Protocol</span><span class="dv"><span class="proto-tag">{{ detailRecord.protocol }}</span></span></div>
-              <div class="detail-row"><span class="dk">Time</span><span class="dv">{{ new Date(detailRecord.created_at).toLocaleString() }}</span></div>
+              <div class="detail-row"><span class="dk">Time</span><span class="dv">{{ detailRecord.created_at }}</span></div>
               <div v-if="detailRecord.label != null" class="detail-row">
                 <span class="dk">Ground Truth</span>
                 <span class="dv"><span class="verdict" :class="detailRecord.label === 1 ? 'verdict-attack' : 'verdict-normal'">{{ detailRecord.label === 1 ? 'ATTACK' : 'NORMAL' }}</span></span>
@@ -366,7 +366,21 @@ const auth = useAuthStore()
 const models = ref<string[]>([])
 const selectedModel = ref<string | null>(null)
 const onlyAttacks = ref(false)
-const lastRefreshed = ref('')
+const lastRefreshedAt = ref('')
+
+const tz = (() => {
+  const offset = -new Date().getTimezoneOffset() / 60
+  return `UTC${offset >= 0 ? '+' : ''}${offset}`
+})()
+
+const formatTime = (iso: string): string => {
+  if (!iso) return '—'
+  return iso.slice(0, 19).replace('T', ' ')
+}
+
+const lastRefreshed = computed(() =>
+  lastRefreshedAt.value ? `${tz} · ${formatTime(lastRefreshedAt.value)}` : '—'
+)
 
 const stats = reactive<any>({})
 const records = ref<any[]>([])
@@ -375,9 +389,6 @@ const recordsLoading = ref(true)
 // 'live' = WS connected, 'poll' = WS down, falling back to polling
 const wsStatus = ref<'live' | 'poll'>('poll')
 
-const recentAttacks = computed(() =>
-  records.value.filter((r: any) => r.is_attack).slice(0, 15)
-)
 
 const detailRecord = ref<any>(null)
 
@@ -412,7 +423,7 @@ async function loadStats() {
   Object.assign(stats, d)
 }
 
-async function loadRecords() {
+const loadRecords = async () => {
   recordsLoading.value = true
   const p = new URLSearchParams({ limit: '100', only_attacks: String(onlyAttacks.value) })
   if (selectedModel.value) p.set('model_name', selectedModel.value)
@@ -421,14 +432,14 @@ async function loadRecords() {
   recordsLoading.value = false
 }
 
-async function openDetail(id: number) {
+const openDetail = async (id: number) => {
   const d = await apiFetch(`/api/vigil/records/${id}/`)
   detailRecord.value = d
 }
 
-async function loadAll() {
+const loadAll = async () => {
   await Promise.all([loadStats(), loadRecords()])
-  lastRefreshed.value = new Date().toLocaleTimeString()
+  lastRefreshedAt.value = new Date().toISOString()
 }
 
 // ── WebSocket ──────────────────────────────────────────────────────────────────
@@ -436,16 +447,12 @@ let ws: WebSocket | null = null
 let wsRetryTimer: ReturnType<typeof setTimeout> | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
-let clockTimer: ReturnType<typeof setInterval> | null = null
-
-const now = ref(Date.now())
-
-function wsUrl(): string {
+const wsUrl = (): string => {
   const base = window.location.origin
   return base.replace(/^http/, 'ws') + '/ws/vigil/'
 }
 
-function applyLiveEvent(event: any) {
+const applyLiveEvent = (event: any) => {
   // Prepend to records (max 200 in memory)
   records.value = [event, ...records.value].slice(0, 200)
 
@@ -463,10 +470,10 @@ function applyLiveEvent(event: any) {
     stats.normal = (stats.normal ?? 0) + 1
   }
   stats.attack_rate = stats.total ? stats.attacks / stats.total : 0
-  lastRefreshed.value = new Date().toLocaleTimeString()
+  lastRefreshedAt.value = new Date().toISOString()
 }
 
-function connectWs() {
+const connectWs = () => {
   if (ws) ws.close()
   try {
     ws = new WebSocket(wsUrl())
@@ -501,22 +508,20 @@ function connectWs() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function fmtTime(iso: string) {
-  const diff = Math.floor((now.value - new Date(iso).getTime()) / 1000)
-  if (!iso) return '—'
-  if (diff < 10)  return 'just now'
-  if (diff < 60)  return `${diff}s ago`
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-  return new Date(iso).toLocaleDateString()
-}
+const displayRecords = computed(() =>
+  records.value.map(r => ({ ...r, _time: formatTime(r.created_at) }))
+)
 
-function barWidth(count: number) {
+const displayAttacks = computed(() =>
+  displayRecords.value.filter((r: any) => r.is_attack).slice(0, 15)
+)
+
+const barWidth = (count: number) => {
   const max = Math.max(...(stats.by_attack_type ?? []).map((x: any) => x.count), 1)
   return ((count / max) * 100).toFixed(1)
 }
 
-function modelBarWidth(count: number) {
+const modelBarWidth = (count: number) => {
   const max = Math.max(...(stats.by_model ?? []).map((x: any) => x.count), 1)
   return ((count / max) * 100).toFixed(1)
 }
@@ -527,7 +532,6 @@ onMounted(async () => {
   await loadAll()
   connectWs()
   autoRefreshTimer = setInterval(loadAll, 30000)
-  clockTimer = setInterval(() => { now.value = Date.now() }, 1000)
 })
 
 onUnmounted(() => {
@@ -535,7 +539,6 @@ onUnmounted(() => {
   if (wsRetryTimer) clearTimeout(wsRetryTimer)
   if (pollTimer) clearInterval(pollTimer)
   if (autoRefreshTimer) clearInterval(autoRefreshTimer)
-  if (clockTimer) clearInterval(clockTimer)
 })
 </script>
 
@@ -919,7 +922,6 @@ onUnmounted(() => {
 
 .breakdown-list { display: flex; flex-direction: column; gap: 10px; }
 
-.breakdown-row {}
 
 .breakdown-meta {
   display: flex;
@@ -987,7 +989,6 @@ onUnmounted(() => {
 /* ── Model coverage ── */
 .model-coverage-list { display: flex; flex-direction: column; gap: 10px; }
 
-.model-coverage-row {}
 
 .model-coverage-meta {
   display: flex;
@@ -1318,7 +1319,6 @@ tr.row-attack:hover td { background: #fef2f2; }
   gap: 16px;
 }
 
-.detail-section { }
 
 .detail-section-title {
   font-size: 13px;
