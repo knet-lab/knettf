@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aiohttp>=3.14.1",
     "confluent-kafka==2.13.2",
     "python-dotenv==1.2.2",
     "scapy==2.7.0",
+    "websockets>=16.0",
 ]

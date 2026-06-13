@@ -51,3 +51,7 @@ kubeadm-cluster
 *.csv
 
 traffic_request/
+
+detector/
+
+simulation/
