@@ -8,9 +8,7 @@
           <span class="brand-icon">⬡</span>
           <span class="sidebar-title">AI Vigil</span>
         </div>
-        <span class="live-pill" :class="wsStatus">
-          {{ wsStatus === 'live' ? 'WS' : 'POLL' }}
-        </span>
+        <span class="live-pill poll">POLL</span>
       </div>
 
       <div class="sidebar-group">
@@ -20,7 +18,7 @@
             v-for="m in models" :key="m"
             class="model-item"
             :class="{ active: selectedModel === m }"
-            @click="selectedModel = selectedModel === m ? null : m; loadRecords()"
+            @click="selectedModel = selectedModel === m ? null : m; loadRecords(true)"
           >
             <span class="model-dot" />
             {{ m }}
@@ -36,7 +34,7 @@
         <div class="sidebar-label">Display</div>
         <label class="toggle-row">
           <span>Attacks only</span>
-          <div class="toggle-switch" :class="{ on: onlyAttacks }" @click="onlyAttacks = !onlyAttacks; loadRecords()">
+          <div class="toggle-switch" :class="{ on: onlyAttacks }" @click="onlyAttacks = !onlyAttacks; loadRecords(true)">
             <div class="toggle-knob" />
           </div>
         </label>
@@ -71,21 +69,21 @@
           <div class="stat-icon total">⬡</div>
           <div class="stat-body">
             <div class="stat-label">Total Inspected</div>
-            <div class="stat-value">{{ stats.total ?? '—' }}</div>
+            <div class="stat-value"><RollingNumber :value="stats.total ?? null" /></div>
           </div>
         </div>
         <div class="stat-card danger">
           <div class="stat-icon attack">⚠</div>
           <div class="stat-body">
             <div class="stat-label">Attacks Detected</div>
-            <div class="stat-value">{{ stats.attacks ?? '—' }}</div>
+            <div class="stat-value"><RollingNumber :value="stats.attacks ?? null" /></div>
           </div>
         </div>
         <div class="stat-card ok">
           <div class="stat-icon normal">✓</div>
           <div class="stat-body">
             <div class="stat-label">Normal Flows</div>
-            <div class="stat-value">{{ stats.normal ?? '—' }}</div>
+            <div class="stat-value"><RollingNumber :value="stats.normal ?? null" /></div>
           </div>
         </div>
         <div class="stat-card warn">
@@ -93,7 +91,7 @@
           <div class="stat-body">
             <div class="stat-label">Attack Rate</div>
             <div class="stat-value">
-              {{ stats.attack_rate != null ? (stats.attack_rate * 100).toFixed(1) + '%' : '—' }}
+              <RollingNumber :value="stats.attack_rate != null ? stats.attack_rate * 100 : null" :decimals="1" suffix="%" />
             </div>
           </div>
         </div>
@@ -113,7 +111,7 @@
                 <div class="empty-icon">◎</div>
                 <div>No attacks recorded yet</div>
               </div>
-              <div v-else class="breakdown-list">
+              <TransitionGroup v-else tag="div" name="list-item" class="breakdown-list">
                 <div v-for="row in stats.by_attack_type" :key="row.attack_type" class="breakdown-row">
                   <div class="breakdown-meta">
                     <span class="breakdown-name">{{ row.attack_type || 'unknown' }}</span>
@@ -127,7 +125,7 @@
                     />
                   </div>
                 </div>
-              </div>
+              </TransitionGroup>
             </div>
           </div>
 
@@ -140,7 +138,7 @@
                 <div class="empty-icon">◎</div>
                 <div>No data yet</div>
               </div>
-              <div v-else class="model-coverage-list">
+              <TransitionGroup v-else tag="div" name="list-item" class="model-coverage-list">
                 <div v-for="m in stats.by_model" :key="m.model_name" class="model-coverage-row">
                   <div class="model-coverage-meta">
                     <span class="model-name-tag">{{ m.model_name }}</span>
@@ -153,7 +151,7 @@
                     />
                   </div>
                 </div>
-              </div>
+              </TransitionGroup>
             </div>
           </div>
         </div>
@@ -162,14 +160,17 @@
         <div class="card">
           <div class="card-header">
             <span class="card-title">Recent Attack Events</span>
-            <span class="card-subtitle">Latest {{ displayAttacks.length }} detected</span>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="card-subtitle">Latest {{ displayAttacks.length }} detected</span>
+              <button class="log-link-btn" @click="router.push('/vigil/log')">View log →</button>
+            </div>
           </div>
           <div class="card-body no-pad">
             <div v-if="!displayAttacks.length" class="empty-state" style="padding:32px 0">
               <div class="empty-icon">🛡</div>
               <div>No attacks detected</div>
             </div>
-            <div v-else class="attack-feed">
+            <TransitionGroup v-else tag="div" name="feed" class="attack-feed">
               <div
                 v-for="r in displayAttacks" :key="r.id"
                 class="attack-event row-clickable"
@@ -197,7 +198,7 @@
                   </div>
                 </div>
               </div>
-            </div>
+            </TransitionGroup>
           </div>
         </div>
 
@@ -225,18 +226,17 @@
                 <th>Cilium action</th>
               </tr>
             </thead>
-            <tbody>
-              <tr v-if="recordsLoading" class="skeleton-row">
+            <TransitionGroup tag="tbody" name="log-row">
+              <tr v-if="recordsLoading" key="__loading__" class="skeleton-row">
                 <td colspan="10"><div class="skeleton" /></td>
               </tr>
-              <tr v-else-if="records.length === 0">
+              <tr v-if="!recordsLoading && displayRecords.length === 0" key="__empty__">
                 <td colspan="10" class="table-empty">
                   No detection records yet — waiting for traffic analysis results
                 </td>
               </tr>
               <tr
-                v-else
-                v-for="r in displayRecords" :key="r.id"
+                v-for="r in (recordsLoading ? [] : displayRecords)" :key="r.id"
                 :class="{ 'row-attack': r.is_attack, 'row-clickable': true }"
                 @click="openDetail(r.id)"
               >
@@ -272,7 +272,7 @@
                   </span>
                 </td>
               </tr>
-            </tbody>
+            </TransitionGroup>
           </table>
         </div>
       </div>
@@ -280,6 +280,7 @@
     </main>
 
     <!-- ── Detail Modal ── -->
+    <Transition name="modal-fade">
     <div v-if="detailRecord" class="modal-overlay" @click.self="detailRecord = null">
       <div class="modal">
         <div class="modal-header">
@@ -357,6 +358,7 @@
         </div>
       </div>
     </div>
+    </Transition>
 
   </div>
 </template>
@@ -364,8 +366,11 @@
 <script lang="ts" setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
+import RollingNumber from '@/components/RollingNumber.vue'
 
 const auth = useAuthStore()
+const router = useRouter()
 
 // ── State ──────────────────────────────────────────────────────────────────────
 const models = ref<string[]>([])
@@ -399,10 +404,6 @@ const lastRefreshed = ref('—')
 const stats = reactive<any>({})
 const records = ref<any[]>([])
 const recordsLoading = ref(true)
-
-// 'live' = WS connected, 'poll' = WS down, falling back to polling
-const wsStatus = ref<'live' | 'poll'>('poll')
-
 
 const detailRecord = ref<any>(null)
 
@@ -447,13 +448,22 @@ async function loadStats() {
   } catch { /* keep stale */ }
 }
 
-const loadRecords = async () => {
-  recordsLoading.value = true
+const loadRecords = async (force = false) => {
+  if (records.value.length === 0) recordsLoading.value = true
   try {
     const p = new URLSearchParams({ limit: '100', only_attacks: String(onlyAttacks.value) })
     if (selectedModel.value) p.set('model_name', selectedModel.value)
     const d = await apiFetch(`/api/vigil/records/?${p}`)
-    records.value = d.records ?? []
+    const incoming: any[] = d.records ?? []
+    if (force || records.value.length === 0) {
+      records.value = incoming
+    } else {
+      const knownIds = new Set(records.value.map((r: any) => r.id))
+      const newRows = incoming.filter((r: any) => !knownIds.has(r.id))
+      if (newRows.length > 0) {
+        records.value = [...newRows, ...records.value].slice(0, 200)
+      }
+    }
   } catch { /* keep stale */ }
   finally { recordsLoading.value = false }
 }
@@ -470,93 +480,8 @@ const loadAll = async () => {
   lastRefreshed.value = formatLocalTime(new Date())
 }
 
-// ── WebSocket ──────────────────────────────────────────────────────────────────
-let ws: WebSocket | null = null
-let wsRetryTimer: ReturnType<typeof setTimeout> | null = null
+// ── Polling ────────────────────────────────────────────────────────────────────
 let pollTimer: ReturnType<typeof setInterval> | null = null
-let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
-const wsUrl = (): string => {
-  const base = window.location.origin
-  return base.replace(/^http/, 'ws') + '/ws/vigil/'
-}
-
-// ── WS event buffer — flush to UI every 800ms ─────────────────────────────────
-const wsBuffer: any[] = []
-let flushTimer: ReturnType<typeof setInterval> | null = null
-
-const flushBuffer = () => {
-  if (!wsBuffer.length) return
-  const batch = wsBuffer.splice(0)
-
-  // Prepend batch to records (max 200 in memory)
-  records.value = [...batch, ...records.value].slice(0, 200)
-
-  // Aggregate stats from batch
-  for (const event of batch) {
-    stats.total = (stats.total ?? 0) + 1
-    if (event.is_attack) {
-      stats.attacks = (stats.attacks ?? 0) + 1
-      const bt = stats.by_attack_type ?? []
-      const idx = bt.findIndex((x: any) => x.attack_type === event.attack_type)
-      if (idx >= 0) bt[idx].count++
-      else bt.push({ attack_type: event.attack_type, count: 1 })
-      stats.by_attack_type = [...bt]
-    } else {
-      stats.normal = (stats.normal ?? 0) + 1
-    }
-  }
-  stats.attack_rate = stats.total ? stats.attacks / stats.total : 0
-  lastRefreshed.value = formatLocalTime(new Date())
-}
-
-const applyLiveEvent = (event: any) => {
-  wsBuffer.push(event)
-}
-
-let wsRetryDelay = 2000
-
-const scheduleWsReconnect = () => {
-  if (wsRetryTimer) clearTimeout(wsRetryTimer)
-  wsRetryTimer = setTimeout(connectWs, wsRetryDelay)
-  wsRetryDelay = Math.min(wsRetryDelay * 2, 30000)
-}
-
-const connectWs = () => {
-  if (ws) { ws.onclose = null; ws.close(); ws = null }
-  if (wsRetryTimer) { clearTimeout(wsRetryTimer); wsRetryTimer = null }
-
-  try {
-    ws = new WebSocket(wsUrl())
-
-    ws.onopen = () => {
-      wsStatus.value = 'live'
-      wsRetryDelay = 2000
-      if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-      loadAll()
-    }
-
-    ws.onmessage = (msg) => {
-      try {
-        const data = JSON.parse(msg.data)
-        if (data.type === 'ping') return
-        applyLiveEvent(data)
-      } catch { /* ignore malformed */ }
-    }
-
-    ws.onclose = () => {
-      ws = null
-      wsStatus.value = 'poll'
-      if (!pollTimer) pollTimer = setInterval(loadAll, 10000)
-      scheduleWsReconnect()
-    }
-
-    ws.onerror = () => ws?.close()
-  } catch {
-    wsStatus.value = 'poll'
-    if (!pollTimer) pollTimer = setInterval(loadAll, 10000)
-    scheduleWsReconnect()
-  }
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 const displayRecords = computed(() =>
@@ -564,7 +489,7 @@ const displayRecords = computed(() =>
 )
 
 const displayAttacks = computed(() =>
-  displayRecords.value.filter((r: any) => r.is_attack).slice(0, 15)
+  displayRecords.value.filter((r: any) => r.is_attack).slice(0, 30)
 )
 
 const barWidth = (count: number) => {
@@ -581,19 +506,13 @@ const modelBarWidth = (count: number) => {
 onMounted(async () => {
   await loadModels()
   await loadAll()
-  connectWs()
-  autoRefreshTimer = setInterval(loadAll, 30000)
+  pollTimer = setInterval(loadAll, 3000)
   clockTimer = setInterval(updateClock, 1000)
-  flushTimer = setInterval(flushBuffer, 800)
 })
 
 onUnmounted(() => {
-  ws?.close()
-  if (wsRetryTimer) clearTimeout(wsRetryTimer)
   if (pollTimer) clearInterval(pollTimer)
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer)
   if (clockTimer) clearInterval(clockTimer)
-  if (flushTimer) clearInterval(flushTimer)
 })
 </script>
 
@@ -1065,10 +984,22 @@ onUnmounted(() => {
 /* ── Attack feed ── */
 .card-body.no-pad { padding: 0; }
 
+.log-link-btn {
+  background: none;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #58a6ff;
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.log-link-btn:hover { background: #1f6feb22; }
+
 .attack-feed {
   display: flex;
   flex-direction: column;
-  max-height: 440px;
+  max-height: 640px;
   overflow-y: auto;
 }
 
@@ -1083,6 +1014,27 @@ onUnmounted(() => {
 
 .attack-event:last-child { border-bottom: none; }
 .attack-event:hover { background: #1c2128; }
+
+/* ── Attack feed TransitionGroup ── */
+.feed-enter-active {
+  transition: transform 0.42s cubic-bezier(0.34, 1.3, 0.64, 1), opacity 0.3s ease;
+}
+.feed-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  position: absolute;
+  width: 100%;
+}
+.feed-move {
+  transition: transform 0.38s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.feed-enter-from {
+  transform: translateX(-56px);
+  opacity: 0;
+}
+.feed-leave-to {
+  opacity: 0;
+  transform: translateX(24px);
+}
 
 .event-indicator {
   width: 3px;
@@ -1178,7 +1130,7 @@ onUnmounted(() => {
 /* ── Log table ── */
 .log-card { overflow: hidden; }
 
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; overflow-y: auto; max-height: 480px; }
 
 table {
   width: 100%;
@@ -1453,4 +1405,26 @@ tr.row-attack:hover td { background: rgba(248,81,73,.1); }
 
 .fk { color: #6e7681; }
 .fv { color: #8b949e; font-variant-numeric: tabular-nums; font-family: 'Courier New', monospace; }
+
+/* ── log-row TransitionGroup (Detection Log) ── */
+.log-row-enter-active { transition: opacity 0.35s ease; }
+.log-row-enter-from   { opacity: 0; }
+.log-row-move         { transition: transform 0.3s ease; }
+
+/* ── list-item TransitionGroup (breakdown / model coverage) ── */
+.list-item-enter-active { transition: opacity 0.3s ease, transform 0.3s ease; }
+.list-item-leave-active { transition: opacity 0.2s ease; }
+.list-item-enter-from   { opacity: 0; transform: translateX(-10px); }
+.list-item-leave-to     { opacity: 0; }
+.list-item-move         { transition: transform 0.3s ease; }
+
+/* ── Modal Transition ── */
+.modal-fade-enter-active { transition: opacity 0.22s ease; }
+.modal-fade-leave-active { transition: opacity 0.18s ease; }
+.modal-fade-enter-from,
+.modal-fade-leave-to     { opacity: 0; }
+.modal-fade-enter-active .modal {
+  transition: transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.22s ease;
+}
+.modal-fade-enter-from .modal { transform: scale(0.95) translateY(-8px); opacity: 0; }
 </style>

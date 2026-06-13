@@ -92,11 +92,18 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
-        'OPTIONS': {
-            'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
-        },
-    }
+    },
+    'vigil': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'vigil.sqlite3',
+    },
+    'autotf': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'autotf.sqlite3',
+    },
 }
+
+DATABASE_ROUTERS = ['backend.db_router.AppRouter']
 
 
 # Password validation

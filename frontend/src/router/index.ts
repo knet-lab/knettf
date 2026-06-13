@@ -35,6 +35,12 @@ const router = createRouter({
       meta: { requiresAuth: true, title: 'NetSentinel - Vigil' },
     },
     {
+      path: '/vigil/log',
+      name: 'vigil-log',
+      component: () => import('../views/VigilLogView.vue'),
+      meta: { requiresAuth: true, title: 'NetSentinel - Detection Log' },
+    },
+    {
       path: '/help',
       name: 'help',
       component: () => import('../views/HelpView.vue'),

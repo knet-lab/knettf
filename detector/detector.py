@@ -28,8 +28,7 @@ logger = logging.getLogger("detector")
 KAFKA_BOOTSTRAP   = os.environ.get("KAFKA_BOOTSTRAP", "192.168.100.200:9094,192.168.100.201:9094,192.168.100.202:9094,192.168.100.203:9094")
 CONSUME_TOPIC     = os.environ.get("CONSUME_TOPIC",   "ebpf-net-logs")
 GROUP_ID          = os.environ.get("GROUP_ID",         "vigil-detector")
-FLOW_TIMEOUT_SEC  = int(os.environ.get("FLOW_TIMEOUT_SEC", "5"))
-BATCH_SIZE        = int(os.environ.get("BATCH_SIZE",       "20"))
+PKT_BATCH_SIZE    = int(os.environ.get("PKT_BATCH_SIZE", "10000"))  # 包数触发聚合
 MODEL_DIR         = Path(os.environ.get("MODEL_DIR", Path(__file__).parent / "ads_ml"))
 DJANGO_WS_URL     = os.environ.get("DJANGO_WS_URL",   "ws://192.168.100.1:8080/ws/detector/push/")
 DJANGO_TOKEN      = os.environ.get("DJANGO_TOKEN",    "")
@@ -256,8 +255,8 @@ def run():
         "group.id":                  GROUP_ID,
         "auto.offset.reset":         "latest",
         "enable.auto.commit":        False,
-        "fetch.min.bytes":           1024 * 64,
-        "fetch.wait.max.ms":         500,
+        "fetch.min.bytes":           1,
+        "fetch.wait.max.ms":         10,
         "broker.address.family":     "v4",
     })
     consumer.subscribe([CONSUME_TOPIC])
@@ -276,12 +275,11 @@ def run():
     ws_thread.start()
 
     open_flows: dict[tuple, list] = defaultdict(list)
-    pending:    list[dict]        = []
-    last_flush  = time.time()
+    pkt_count   = 0  # 全局包计数，达到 PKT_BATCH_SIZE 触发一次聚合推理
 
     try:
         while True:
-            msg = consumer.poll(timeout=1.0)
+            msg = consumer.poll(timeout=0.01)
 
             if msg is None:
                 pass
@@ -294,35 +292,22 @@ def run():
                     flow  = event.get("flow", {})
                     if flow and not _skip(flow):
                         key = _flow_key(flow)
-                        pkt = _to_packet(flow)
-                        if key in open_flows and open_flows[key]:
-                            if pkt["ts"] - open_flows[key][-1]["ts"] > FLOW_TIMEOUT_SEC:
-                                pending.append(_compute_flow(open_flows[key]))
-                                open_flows[key] = [pkt]
-                            else:
-                                open_flows[key].append(pkt)
-                        else:
-                            open_flows[key] = [pkt]
+                        open_flows[key].append(_to_packet(flow))
+                        pkt_count += 1
                 except Exception as e:
                     logger.debug("skip malformed: %s", e)
 
-            now = time.time()
-            if now - last_flush >= 1.0:
-                expired = [k for k, pkts in open_flows.items()
-                           if pkts and now - pkts[-1]["ts"] >= FLOW_TIMEOUT_SEC]
-                for k in expired:
-                    pending.append(_compute_flow(open_flows.pop(k)))
-
-                if len(pending) >= BATCH_SIZE:
-                    results = [_infer(f, pipeline, prototypes, X_train) for f in pending]
-                    payload = json.dumps({"results": results})
-                    loop.call_soon_threadsafe(queue.put_nowait, payload)
-                    attacks = sum(1 for r in results if r["is_attack"])
-                    logger.info("batch %d flows → %d attack(s)", len(results), attacks)
-                    consumer.commit(asynchronous=True)
-                    pending.clear()
-
-                last_flush = now
+            if pkt_count >= PKT_BATCH_SIZE:
+                flows   = [_compute_flow(pkts) for pkts in open_flows.values() if pkts]
+                results = [_infer(f, pipeline, prototypes, X_train) for f in flows]
+                payload = json.dumps({"results": results})
+                loop.call_soon_threadsafe(queue.put_nowait, payload)
+                attacks = sum(1 for r in results if r["is_attack"])
+                logger.info("batch %d flows (%d pkts) → %d attack(s)",
+                            len(flows), pkt_count, attacks)
+                consumer.commit(asynchronous=True)
+                open_flows.clear()
+                pkt_count = 0
 
     finally:
         consumer.commit(asynchronous=False)

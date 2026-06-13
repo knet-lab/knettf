@@ -46,19 +46,35 @@ class RecordsView(APIView, ResponseMixin):
 
     def get(self, request: common.Request):
         only_attacks = request.query_params.get("only_attacks", "false").lower() == "true"
-        model_name = request.query_params.get("model_name")
-        limit = min(int(request.query_params.get("limit", 50)), 500)
+        only_normal  = request.query_params.get("only_normal",  "false").lower() == "true"
+        model_name   = request.query_params.get("model_name")
+        attack_type  = request.query_params.get("attack_type")
+        time_from    = request.query_params.get("time_from")
+        time_to      = request.query_params.get("time_to")
+        limit  = min(int(request.query_params.get("limit",  50)), 500)
         offset = int(request.query_params.get("offset", 0))
 
         qs = DetectionRecord.objects.all()
         if only_attacks:
             qs = qs.filter(is_attack=True)
+        if only_normal:
+            qs = qs.filter(is_attack=False)
         if model_name:
             qs = qs.filter(model_name=model_name)
+        if attack_type:
+            qs = qs.filter(attack_type=attack_type)
+        if time_from:
+            qs = qs.filter(created_at__gte=time_from)
+        if time_to:
+            qs = qs.filter(created_at__lte=time_to)
+
+        total = qs.count()
         records = qs[offset: offset + limit]
         return self.success_response({
             "records": DetectionRecordSerializer(records, many=True).data,
-            "count": len(records),
+            "total":   total,
+            "offset":  offset,
+            "limit":   limit,
         })
 
 

@@ -645,9 +645,86 @@
   <div class="section" id="vigil">
     <div class="section-badge gray">🤖 AI Vigil</div>
     <h2>AI Vigil</h2>
-    <div class="alert alert-blue">
-      <span class="alert-icon">🔧</span>
-      <div>The AI Vigil module is currently under development. Once released, it will provide AI-powered intelligent security analysis and anomaly detection capabilities.</div>
+    <p>AI Vigil provides real-time network anomaly detection powered by machine learning. It continuously monitors all traffic flowing through the Kubernetes cluster via Cilium / Hubble eBPF, classifies each flow, and pushes results to the dashboard over WebSocket.</p>
+
+    <h3 style="margin:20px 0 10px;font-size:15px;color:#2d3748;">Detection Pipeline</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">Traffic Capture — Cilium / Hubble eBPF</div>
+          <div class="step-desc">Hubble hooks into the Cilium dataplane at the eBPF level and exports every network flow (TCP, UDP, ICMP) as a structured JSON event to a Kafka topic (<code>ebpf-net-logs</code>). No agents need to be installed on workloads.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">Flow Aggregation — Bridge</div>
+          <div class="step-desc">The backend bridge thread consumes Kafka events and aggregates raw packets into per-flow feature vectors (30 statistical features: packet counts, IAT statistics, TCP flag ratios, directionality, etc.). Aggregation is triggered every 100 packets or every 2 seconds, whichever comes first. Infrastructure-internal flows are filtered out automatically.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">Anomaly Detection — OCSVM + ZSL</div>
+          <div class="step-desc">Each aggregated flow is scored by a One-Class SVM (OCSVM) pipeline. Flows scoring below the anomaly threshold are flagged as attacks. A Zero-Shot Learning (ZSL) cosine-similarity step then maps the flow embedding to the nearest known attack-type prototype (e.g. Slowloris, SYN Flood, Credential Hijacking) to produce a human-readable classification and confidence score.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div>
+          <div class="step-title">Real-time Push — WebSocket</div>
+          <div class="step-desc">Detection results are saved to the database and immediately broadcast to all connected frontend clients over WebSocket (<code>/ws/vigil/</code>). The sidebar status pill turns green (<strong>WS</strong>) when a live connection is established. If the connection drops, the dashboard falls back to polling every 10 seconds and attempts to reconnect automatically.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div>
+          <div class="step-title">Cilium Response</div>
+          <div class="step-desc">Based on the detection result, a Cilium policy action is suggested and logged: <code>alert</code> (log only), <code>rate_limit</code> (throttle the source), or <code>drop</code> (block the flow). Actions are visible on each detection record.</div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin:24px 0 10px;font-size:15px;color:#2d3748;">Dashboard Overview</h3>
+    <table>
+      <thead><tr><th>Panel</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Total Inspected</strong></td><td>Cumulative number of flows evaluated by the model since the page loaded (or since the last Refresh).</td></tr>
+        <tr><td><strong>Attacks Detected</strong></td><td>Number of flows classified as anomalous / malicious.</td></tr>
+        <tr><td><strong>Normal Flows</strong></td><td>Flows the model classified as benign.</td></tr>
+        <tr><td><strong>Attack Rate</strong></td><td>Percentage of detected attacks out of all inspected flows.</td></tr>
+        <tr><td><strong>Attack Type Breakdown</strong></td><td>Bar chart of attack-type distribution for all detected attacks. Bars animate as new events arrive.</td></tr>
+        <tr><td><strong>Model Coverage</strong></td><td>Proportion of flows processed by each registered detection model.</td></tr>
+        <tr><td><strong>Recent Attack Events</strong></td><td>Live feed of the 15 most recent attack detections. New events slide in from the left.</td></tr>
+        <tr><td><strong>Detection Log</strong></td><td>Full scrollable log of all flows (attacks and normal). Click any row to open the detail modal.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin:24px 0 10px;font-size:15px;color:#2d3748;">Detection Record Detail</h3>
+    <p>Click any row in the Detection Log to open its detail panel, which shows:</p>
+    <ul style="margin:10px 0 0 18px;line-height:1.9;font-size:14px;color:#4a5568;">
+      <li><strong>Flow</strong> — source / destination IP and port, protocol, timestamp, and ground-truth label (if available from simulation).</li>
+      <li><strong>Detection Result</strong> — model name, confidence score, classified attack type, and explanation string.</li>
+      <li><strong>ZSL Similarity Ranking</strong> — ranked similarity scores against all known attack-type prototypes, visualised as a bar chart.</li>
+      <li><strong>Cilium Response</strong> — the policy action taken and the reason string.</li>
+      <li><strong>Flow Features (30)</strong> — raw feature vector used for inference, including duration, packet counts, IAT statistics, and TCP flag ratios.</li>
+    </ul>
+
+    <h3 style="margin:24px 0 10px;font-size:15px;color:#2d3748;">Sidebar Controls</h3>
+    <table>
+      <thead><tr><th>Control</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Detection model</strong></td><td>Click a model name to filter the Detection Log to only that model's results. Click again to clear the filter.</td></tr>
+        <tr><td><strong>Attacks only</strong></td><td>Toggle to hide normal-flow records from the Detection Log.</td></tr>
+        <tr><td><strong>Refresh now</strong></td><td>Manually reload stats and records from the server.</td></tr>
+        <tr><td><strong>WS / POLL pill</strong></td><td>Green <strong>WS</strong> = live WebSocket feed active. Grey <strong>POLL</strong> = polling fallback (10 s interval).</td></tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-blue" style="margin-top:20px;">
+      <span class="alert-icon">ℹ️</span>
+      <div>AI Vigil only analyses traffic that passes through the Cilium dataplane (i.e. flows entering or leaving Kubernetes pods). Host-to-host traffic that bypasses the cluster network will not appear in the detection log.</div>
     </div>
   </div>
 

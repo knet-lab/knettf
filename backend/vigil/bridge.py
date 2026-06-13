@@ -22,9 +22,7 @@ KAFKA_BOOTSTRAP  = "192.168.100.200:9094,192.168.100.201:9094,192.168.100.202:90
 KAFKA_TOPIC      = "ebpf-net-logs"
 KAFKA_GROUP_ID   = "vigil-bridge"
 
-PACKET_FLUSH_COUNT = 1000      # 累计包数达到此值立即聚合推送
-TIME_FLUSH_SEC     = 0.5     # 兜底：超过此秒数强制 flush 一次
-# BATCH_SIZE         = 20
+CONSUME_BATCH = 10000  # 每次从 Kafka 取的消息数，取完即聚合
 
 # 节点 IP + MetalLB VIP + Pod CIDR — 这些都是集群内部流量
 _NODE_IPS = {f"192.168.100.{i}" for i in range(10, 16)}
@@ -220,13 +218,10 @@ def run_bridge():
     logger.info("bridge starting → bootstrap=%s topic=%s group=%s",
                 KAFKA_BOOTSTRAP, KAFKA_TOPIC, KAFKA_GROUP_ID)
 
-    open_flows:  dict[tuple, list] = defaultdict(list)
-    pending:     list[dict]        = []
-    total_pkts   = 0
-    last_flush   = time.time()
+    open_flows: dict[tuple, list] = defaultdict(list)
+    pending:    list[dict]        = []
 
     def _flush():
-        nonlocal total_pkts, last_flush
         flush_ts = time.time()
         for k, pkts in open_flows.items():
             if pkts:
@@ -235,8 +230,6 @@ def run_bridge():
                 flow["aggregation_ms"] = round((flush_ts - first_ts) * 1000, 1)
                 pending.append(flow)
         open_flows.clear()
-        total_pkts = 0
-        last_flush = time.time()
         if pending:
             batch = pending[:]
             pending.clear()
@@ -248,16 +241,13 @@ def run_bridge():
 
     try:
         while True:
-            msg = consumer.poll(timeout=0.1)
+            msgs = consumer.consume(num_messages=CONSUME_BATCH, timeout=0.1)
 
-            if msg is None:
-                pass
-            elif msg.error():
-                if msg.error().code() == KafkaError._PARTITION_EOF:
-                    pass
-                else:
-                    raise KafkaException(msg.error())
-            else:
+            for msg in msgs:
+                if msg.error():
+                    if msg.error().code() != KafkaError._PARTITION_EOF:
+                        raise KafkaException(msg.error())
+                    continue
                 try:
                     event = json.loads(msg.value().decode("utf-8"))
                     flow  = event.get("flow", {})
@@ -274,19 +264,12 @@ def run_bridge():
                         if sp in _KAFKA_PORTS or dp in _KAFKA_PORTS:
                             continue
                         key = _flow_key(flow)
-                        pkt = _hubble_to_packet(flow)
-                        open_flows[key].append(pkt)
-                        total_pkts += 1
-
-                        # 包数量触发
-                        if total_pkts >= PACKET_FLUSH_COUNT:
-                            _flush()
+                        open_flows[key].append(_hubble_to_packet(flow))
 
                 except (json.JSONDecodeError, Exception) as e:
                     logger.debug("skip malformed message: %s", e)
 
-            # 时间兜底触发
-            if time.time() - last_flush >= TIME_FLUSH_SEC and open_flows:
+            if open_flows:
                 _flush()
 
     except Exception as e:
