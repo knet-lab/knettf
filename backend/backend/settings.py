@@ -94,8 +94,12 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     },
     'vigil': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'vigil.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'vigil',
+        'USER': 'vigil',
+        'PASSWORD': 'vigil123',
+        'HOST': '127.0.0.1',
+        'PORT': '5432',
     },
     'autotf': {
         'ENGINE': 'django.db.backends.sqlite3',

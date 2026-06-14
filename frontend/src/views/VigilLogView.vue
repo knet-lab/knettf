@@ -291,7 +291,7 @@ function nextPage() {
 
 onMounted(() => {
   loadRecords()
-  pollTimer = setInterval(loadRecords, 5000)
+  pollTimer = setInterval(loadRecords, 15000)
 })
 
 onUnmounted(() => {

@@ -32,6 +32,7 @@ class DetectionRecord(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        managed = False  # DDL managed by hand-written migration SQL (partitioned table)
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["is_attack"]),
