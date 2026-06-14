@@ -38,6 +38,31 @@ def main(...):
 
 ---
 
+## 问题：推理阶段依赖训练集（过拟合风险）
+
+### 位置
+
+`backend/vigil/ml/ads_ml/utils/anomaly_detection.py`
+
+### 原因
+
+`ad()` 函数在 OCSVM 判断置信度不足时（`score_gap < 0.10`），会把输入样本与整个训练集做 cosine 相似度比对来辅助决策：
+
+```python
+sim     = cosine_similarity(sample, X_train)[0]
+avg_sim = np.mean(np.sort(sim)[-TOP_K:])
+```
+
+这导致：
+1. 推理时必须加载完整训练集（`step_10_final_train_data.csv`），增加内存和启动开销
+2. 边界样本的判断结果强行向训练集靠拢，**等同于推理时看答案，导致过拟合**
+
+### 修复
+
+删除 cosine 兜底逻辑，`ad()` 直接返回 OCSVM 预测结果；`_load_resources()` 不再加载训练集 CSV。
+
+---
+
 ## 分表方案：DetectionRecord 按天分区
 
 ### 方案
