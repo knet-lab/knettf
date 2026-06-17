@@ -191,61 +191,130 @@
                         No report yet. Run a scan first.
                     </div>
                     <template v-else>
-                        <!-- 报告摘要 -->
-                        <div class="report-meta">
-                            <el-descriptions :column="4" size="small" border>
-                                <el-descriptions-item label="Status">
-                                    <el-tag :type="reportStatusType(report.status)" size="small">
-                                        {{ reportStatusLabel(report.status) }}
-                                    </el-tag>
-                                </el-descriptions-item>
-                                <el-descriptions-item label="Tools">
-                                    {{report.tools?.map((t) => t.name).join(', ') || '—'}}
-                                </el-descriptions-item>
-                                <el-descriptions-item label="Scanned At">
-                                    {{ formatTime(report.scanned_at) }}
-                                </el-descriptions-item>
-                                <el-descriptions-item label="Risk Summary">
-                                    <el-tag type="danger" size="small" style="margin-right:4px">
-                                        HIGH {{ report.result?.summary?.high ?? 0 }}
-                                    </el-tag>
-                                    <el-tag type="warning" size="small" style="margin-right:4px">
-                                        MED {{ report.result?.summary?.medium ?? 0 }}
-                                    </el-tag>
-                                    <el-tag type="info" size="small">
-                                        LOW {{ report.result?.summary?.low ?? 0 }}
-                                    </el-tag>
-                                </el-descriptions-item>
-                            </el-descriptions>
-                        </div>
+                        <!-- ── Overview ── -->
+                        <div class="report-overview">
+                            <div class="overview-meta">
+                                <span class="overview-time">Scanned {{ formatTime(report.scanned_at) }}</span>
+                                <el-tag :type="reportStatusType(report.status)" size="small" style="margin-left:8px">
+                                    {{ reportStatusLabel(report.status) }}
+                                </el-tag>
+                            </div>
 
-                        <!-- 发现问题列表（按工具分组） -->
-                        <div v-if="hasFindings" class="findings">
-                            <div v-for="(toolResult, toolName) in report.result?.tools" :key="toolName"
-                                class="tool-findings">
-                                <div class="tool-name">{{ toolName }}</div>
-                                <div v-if="!toolResult.items || toolResult.items.length === 0" class="report-empty"
-                                    style="padding: 8px 0">
-                                    No findings
+                            <div class="sev-counters">
+                                <div class="sev-counter sev-high">
+                                    <span class="sev-num">{{ report.result?.summary?.high ?? 0 }}</span>
+                                    <span class="sev-lbl">HIGH</span>
                                 </div>
-                                <el-table v-else :data="toolResult.items" size="small" stripe style="margin-top: 6px">
-                                    <el-table-column label="Rule ID" prop="rule_id" min-width="140" />
-                                    <el-table-column label="Severity" width="100">
-                                        <template #default="{ row }">
-                                            <el-tag :type="severityType(row.severity)" size="small">
-                                                {{ row.severity }}
-                                            </el-tag>
-                                        </template>
-                                    </el-table-column>
-                                    <el-table-column label="Description" prop="description" min-width="240"
-                                        show-overflow-tooltip />
-                                    <el-table-column label="Location" prop="location" min-width="180"
-                                        show-overflow-tooltip />
-                                </el-table>
+                                <div class="sev-counter sev-med">
+                                    <span class="sev-num">{{ report.result?.summary?.medium ?? 0 }}</span>
+                                    <span class="sev-lbl">MEDIUM</span>
+                                </div>
+                                <div class="sev-counter sev-low">
+                                    <span class="sev-num">{{ report.result?.summary?.low ?? 0 }}</span>
+                                    <span class="sev-lbl">LOW</span>
+                                </div>
+                                <div class="sev-counter sev-total">
+                                    <span class="sev-num">{{ totalFindings }}</span>
+                                    <span class="sev-lbl">TOTAL</span>
+                                </div>
+                            </div>
+
+                            <!-- severity 分布条 -->
+                            <div v-if="totalFindings > 0" class="sev-bar-wrap">
+                                <div class="sev-bar">
+                                    <div v-if="(report.result?.summary?.high ?? 0) > 0"
+                                        class="sev-bar-seg seg-high"
+                                        :style="{ width: sevPct('high') + '%' }"
+                                        :title="`HIGH: ${report.result?.summary?.high}`" />
+                                    <div v-if="(report.result?.summary?.medium ?? 0) > 0"
+                                        class="sev-bar-seg seg-med"
+                                        :style="{ width: sevPct('medium') + '%' }"
+                                        :title="`MEDIUM: ${report.result?.summary?.medium}`" />
+                                    <div v-if="(report.result?.summary?.low ?? 0) > 0"
+                                        class="sev-bar-seg seg-low"
+                                        :style="{ width: sevPct('low') + '%' }"
+                                        :title="`LOW: ${report.result?.summary?.low}`" />
+                                </div>
+                                <div class="sev-bar-legend">
+                                    <span class="legend-dot dot-high" /> HIGH {{ sevPct('high') }}%
+                                    <span class="legend-dot dot-med" style="margin-left:12px" /> MED {{ sevPct('medium') }}%
+                                    <span class="legend-dot dot-low" style="margin-left:12px" /> LOW {{ sevPct('low') }}%
+                                </div>
+                            </div>
+                            <div v-else class="all-clear">
+                                ✓ No security issues found across all tools
                             </div>
                         </div>
-                        <div v-else class="report-empty">
-                            No security issues found
+
+                        <!-- ── Per-tool sections ── -->
+                        <div v-for="(toolResult, toolName) in report.result?.tools" :key="toolName"
+                            class="tool-section">
+                            <!-- 工具头部 -->
+                            <div class="tool-header">
+                                <div class="tool-header-left">
+                                    <span class="tool-title">{{ toolName }}</span>
+                                    <el-tag v-if="toolMeta(toolName)?.version" size="small" type="info" effect="plain"
+                                        style="font-family:monospace;font-size:11px">
+                                        {{ toolMeta(toolName)?.version }}
+                                    </el-tag>
+                                    <el-tag size="small" effect="plain"
+                                        :type="toolMeta(toolName)?.output_format === 'sarif' ? 'warning' : 'success'">
+                                        {{ (toolMeta(toolName)?.output_format ?? 'json').toUpperCase() }}
+                                    </el-tag>
+                                </div>
+                                <div class="tool-header-right">
+                                    <el-tag v-if="toolResult.items?.length > 0"
+                                        :type="toolFindingsBadgeType(toolResult.items)"
+                                        size="small" effect="dark">
+                                        {{ toolResult.items.length }} finding{{ toolResult.items.length !== 1 ? 's' : '' }}
+                                    </el-tag>
+                                    <el-tag v-else type="success" size="small" effect="dark">✓ Clean</el-tag>
+                                </div>
+                            </div>
+
+                            <!-- 工具检查方式说明 -->
+                            <div class="tool-info-grid">
+                                <div class="tool-info-row">
+                                    <span class="info-label">Checks</span>
+                                    <span class="info-value">{{ toolCheckDesc(String(toolName)) }}</span>
+                                </div>
+                                <div class="tool-info-row" v-if="toolMeta(toolName)?.cmd">
+                                    <span class="info-label">Command</span>
+                                    <code class="info-cmd">{{ simplifyCmd(toolMeta(toolName)?.cmd ?? '') }}</code>
+                                </div>
+                                <div class="tool-info-row" v-if="toolMeta(toolName)?.init_cmd">
+                                    <span class="info-label">Init</span>
+                                    <code class="info-cmd">{{ simplifyCmd(toolMeta(toolName)?.init_cmd ?? '') }}</code>
+                                </div>
+                                <div class="tool-info-row">
+                                    <span class="info-label">Output</span>
+                                    <span class="info-value">
+                                        {{ toolMeta(toolName)?.output_format === 'sarif'
+                                            ? 'SARIF — Static Analysis Results Interchange Format (industry standard)'
+                                            : 'JSON — parsed via custom field mapping' }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- findings 表格 -->
+                            <div v-if="!toolResult.items || toolResult.items.length === 0" class="tool-no-findings">
+                                No findings from this tool
+                            </div>
+                            <el-table v-else :data="toolResult.items" size="small" stripe class="findings-table">
+                                <el-table-column label="Rule ID" prop="rule_id" min-width="160"
+                                    show-overflow-tooltip />
+                                <el-table-column label="Severity" width="100">
+                                    <template #default="{ row }">
+                                        <el-tag :type="severityType(row.severity)" size="small" effect="dark">
+                                            {{ row.severity }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="Description" prop="description" min-width="260"
+                                    show-overflow-tooltip />
+                                <el-table-column label="Location" prop="location" min-width="180"
+                                    show-overflow-tooltip />
+                            </el-table>
                         </div>
                     </template>
                 </el-card>
@@ -331,6 +400,9 @@ interface Tool {
     id: number
     name: string
     version: string
+    cmd?: string
+    init_cmd?: string
+    output_format?: string
 }
 
 interface FindingItem {
@@ -626,6 +698,45 @@ async function runFullScan() {
     }
 }
 
+// ─── All tools metadata (for report display) ─────────────────
+const allToolsMeta = ref<Tool[]>([])
+
+async function fetchAllTools() {
+    try {
+        const res = await auth.apiFetch(`${BASE}/autotf/tf-tools/`)
+        const json = await res.json()
+        allToolsMeta.value = json.data ?? []
+    } catch { /* non-critical */ }
+}
+
+function toolMeta(name: string): Tool | undefined {
+    return allToolsMeta.value.find((t) => t.name === name)
+}
+
+const TOOL_CHECK_DESC: Record<string, string> = {
+    terraform_validate: 'Syntax validation & schema check — verifies resource types, required attributes, and HCL structure against provider schemas',
+    tflint: 'Linting & best practices — detects deprecated syntax, unused variables, naming conventions, and provider-specific rule violations',
+    checkov: 'Policy-as-code security scan — 1000+ CIS benchmark checks covering IAM, encryption, network exposure, logging, and compliance (AWS/GCP/Azure/K8s)',
+    tfsec: 'Security misconfiguration detection — static analysis for insecure defaults: open security groups, unencrypted storage, public S3 buckets, missing TLS',
+    trivy: 'Vulnerability & misconfiguration scanner — checks CVE databases, secret detection, and IaC misconfigurations across cloud providers',
+}
+
+function simplifyCmd(cmd: string): string {
+    // replace absolute paths like /usr/bin/foo or /home/.../foo with just the binary name
+    return cmd.replace(/(?:\/[^\s/]+)+\/([^\s/]+)/g, '$1')
+}
+
+function toolCheckDesc(name: string): string {
+    const key = Object.keys(TOOL_CHECK_DESC).find((k) => name.toLowerCase().includes(k))
+    return key ? TOOL_CHECK_DESC[key]! : 'Static analysis scan for security issues and misconfigurations'
+}
+
+function toolFindingsBadgeType(items: FindingItem[]): string {
+    if (items.some((i) => i.severity === 'HIGH' || i.severity === 'CRITICAL')) return 'danger'
+    if (items.some((i) => i.severity === 'MEDIUM')) return 'warning'
+    return 'info'
+}
+
 // ─── Manual scan ──────────────────────────────────────────────
 const showManualScan = ref(false)
 const tools = ref<Tool[]>([])
@@ -731,6 +842,19 @@ const hasFindings = computed(() => {
     return Object.values(tools).some((t) => t.items?.length > 0)
 })
 
+const totalFindings = computed(() => {
+    const s = report.value?.result?.summary
+    if (!s) return 0
+    return (s.high ?? 0) + (s.medium ?? 0) + (s.low ?? 0)
+})
+
+function sevPct(level: 'high' | 'medium' | 'low'): number {
+    const total = totalFindings.value
+    if (total === 0) return 0
+    const val = report.value?.result?.summary?.[level] ?? 0
+    return Math.round((val / total) * 100)
+}
+
 // ─── Helpers ─────────────────────────────────────────────────
 function formatTime(ts: string | null | undefined) {
     if (!ts) return '—'
@@ -755,7 +879,10 @@ function severityType(s: string) {
     return 'info'
 }
 
-onMounted(fetchConfigs)
+onMounted(() => {
+    fetchConfigs()
+    fetchAllTools()
+})
 </script>
 
 <style scoped>
@@ -958,36 +1085,197 @@ onMounted(fetchConfigs)
     padding: 8px 0;
 }
 
-.report-meta {
+/* ── Overview ── */
+.report-overview {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 18px 20px;
+}
+
+.overview-meta {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: #718096;
+}
+
+.overview-time {
+    font-size: 12px;
+    color: #718096;
+}
+
+.sev-counters {
+    display: flex;
+    gap: 16px;
     margin-bottom: 16px;
 }
 
-.tool-findings {
-    margin-bottom: 20px;
+.sev-counter {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 8px;
+    border-radius: 8px;
+    border: 1px solid transparent;
 }
 
-.tool-name {
-    font-size: 14px;
+.sev-counter.sev-high   { background: #fff5f5; border-color: #fed7d7; }
+.sev-counter.sev-med    { background: #fffaf0; border-color: #feebc8; }
+.sev-counter.sev-low    { background: #f0fff4; border-color: #c6f6d5; }
+.sev-counter.sev-total  { background: #f7fafc; border-color: #e2e8f0; }
+
+.sev-num {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+}
+.sev-high .sev-num  { color: #e53e3e; }
+.sev-med .sev-num   { color: #dd6b20; }
+.sev-low .sev-num   { color: #38a169; }
+.sev-total .sev-num { color: #2d3748; }
+
+.sev-lbl {
+    font-size: 11px;
     font-weight: 600;
-    color: #2d3748;
-    margin-bottom: 8px;
-    padding-bottom: 4px;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+    color: #718096;
+}
+
+.sev-bar-wrap {
+    margin-top: 4px;
+}
+
+.sev-bar {
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+    display: flex;
+    background: #edf2f7;
+}
+
+.sev-bar-seg {
+    height: 100%;
+    transition: width 0.3s;
+}
+.seg-high { background: #e53e3e; }
+.seg-med  { background: #ed8936; }
+.seg-low  { background: #48bb78; }
+
+.sev-bar-legend {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #718096;
+    display: flex;
+    align-items: center;
+}
+
+.legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+.dot-high { background: #e53e3e; }
+.dot-med  { background: #ed8936; }
+.dot-low  { background: #48bb78; }
+
+.all-clear {
+    color: #38a169;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 0 4px;
+}
+
+/* ── Tool sections ── */
+.tool-section {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.tool-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #f7fafc;
     border-bottom: 1px solid #e2e8f0;
 }
 
-.severity-group {
-    margin-bottom: 12px;
-}
-
-.severity-label {
+.tool-header-left {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 4px;
 }
 
-.finding-count {
+.tool-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a202c;
+    font-family: 'Courier New', monospace;
+}
+
+.tool-header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tool-info-grid {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border-bottom: 1px solid #f0f4f8;
+    background: #fdfdfe;
+}
+
+.tool-info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
     font-size: 12px;
-    color: #718096;
+}
+
+.info-label {
+    flex-shrink: 0;
+    width: 62px;
+    color: #a0aec0;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    padding-top: 1px;
+    letter-spacing: 0.3px;
+}
+
+.info-value {
+    color: #4a5568;
+    line-height: 1.5;
+}
+
+.info-cmd {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: #2b6cb0;
+    background: #ebf8ff;
+    padding: 2px 6px;
+    border-radius: 3px;
+    word-break: break-all;
+}
+
+.tool-no-findings {
+    padding: 10px 16px;
+    font-size: 12px;
+    color: #a0aec0;
+}
+
+.findings-table {
+    border-radius: 0;
 }
 </style>

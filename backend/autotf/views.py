@@ -45,7 +45,7 @@ class TerraformConfigList(APIView, ResponseMixin):
         user = UserService.get_user_by_id(user_pk)
         check_owner(request, user.pk)
         serializer = TerraformConfigCreateSerializer(
-            data=request.data, context={'owner': user})
+            data=request.data, context={'owner_id': user.pk})
         serializer.is_valid(raise_exception=True)
         config = TerraformConfigService.create_from_file(
             owner=user, **serializer.validated_data)
@@ -58,7 +58,7 @@ class TerraformConfigTextCreate(APIView, ResponseMixin):
         user = UserService.get_user_by_id(user_pk)
         check_owner(request, user.pk)
         serializer = TerraformConfigTextCreateSerializer(
-            data=request.data, context={'owner': user})
+            data=request.data, context={'owner_id': user.pk})
         serializer.is_valid(raise_exception=True)
         config = TerraformConfigService.create_from_text(
             owner=user, **serializer.validated_data)
@@ -71,14 +71,14 @@ class TerraformConfigTextCreate(APIView, ResponseMixin):
 class TerraformConfigDetail(APIView, ResponseMixin):
     def get(self, request: common.Request, config_pk: int):
         config = TerraformConfigService.get_config_by_id(config_pk)
-        check_owner(request, config.owner.pk)
+        check_owner(request, config.owner_id)
         return self.success_response(TerraformConfigDetailSerializer(config).data)
 
     def put(self, request: common.Request, config_pk: int):
         config = TerraformConfigService.get_config_by_id(config_pk)
-        check_owner(request, config.owner.pk)
+        check_owner(request, config.owner_id)
         serializer = TerraformConfigUpdateSerializer(
-            data=request.data, context={'owner': config.owner, 'instance': config})
+            data=request.data, context={'owner_id': config.owner_id, 'instance': config})
         serializer.is_valid(raise_exception=True)
         config = TerraformConfigService.update_config(
             config, **serializer.validated_data)
@@ -86,7 +86,7 @@ class TerraformConfigDetail(APIView, ResponseMixin):
 
     def delete(self, request: common.Request, config_pk: int):
         config = TerraformConfigService.get_config_by_id(config_pk)
-        check_owner(request, config.owner.pk)
+        check_owner(request, config.owner_id)
         TerraformConfigService.delete_config(config)
         return self.success_response({'message': 'Config deleted'})
 
@@ -94,7 +94,7 @@ class TerraformConfigDetail(APIView, ResponseMixin):
 class TerraformConfigContent(APIView, ResponseMixin):
     def get(self, request: common.Request, config_pk: int):
         config = TerraformConfigService.get_config_by_id(config_pk)
-        check_owner(request, config.owner.pk)
+        check_owner(request, config.owner_id)
         content = TerraformConfigService.read_content(config)
         return self.success_response({'content': content})
 
@@ -102,7 +102,7 @@ class TerraformConfigContent(APIView, ResponseMixin):
 class TerraformConfigFullScan(APIView, ResponseMixin):
     def post(self, request: common.Request, config_pk: int):
         config = TerraformConfigService.get_config_by_id(config_pk)
-        check_owner(request, config.owner.pk)
+        check_owner(request, config.owner_id)
         ScanService.run_full_scan(config)
         report = ScanReportService.get_report_by_config(config)
         return self.success_response(ScanReportDetailSerializer(report).data)
@@ -111,7 +111,7 @@ class TerraformConfigFullScan(APIView, ResponseMixin):
 class TerraformConfigManualScan(APIView, ResponseMixin):
     def post(self, request: common.Request, config_pk: int):
         config = TerraformConfigService.get_config_by_id(config_pk)
-        check_owner(request, config.owner.pk)
+        check_owner(request, config.owner_id)
         serializer = ScanTriggerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ScanService.run_manual_scan(
@@ -123,7 +123,7 @@ class TerraformConfigManualScan(APIView, ResponseMixin):
 class TerraformConfigApply(APIView, ResponseMixin):
     def post(self, request: common.Request, config_pk: int):
         config = TerraformConfigService.get_config_by_id(config_pk)
-        check_owner(request, config.owner.pk)
+        check_owner(request, config.owner_id)
         config = ApplyService.apply(config)
         return self.success_response(TerraformConfigDetailSerializer(config).data)
 
@@ -131,13 +131,13 @@ class TerraformConfigApply(APIView, ResponseMixin):
 class ScanReportDetail(APIView, ResponseMixin):
     def get(self, request: common.Request, config_pk: int):
         config = TerraformConfigService.get_config_by_id(config_pk)
-        check_owner(request, config.owner.pk)
+        check_owner(request, config.owner_id)
         report = ScanReportService.get_report_by_config(config)
         return self.success_response(ScanReportDetailSerializer(report).data)
 
     def delete(self, request: common.Request, config_pk: int):
         config = TerraformConfigService.get_config_by_id(config_pk)
-        check_owner(request, config.owner.pk)
+        check_owner(request, config.owner_id)
         ScanReportService.delete_report(config)
         return self.success_response({'message': 'Report deleted'})
 
@@ -209,7 +209,7 @@ class ScanReportHTMLView(View):
             config = TerraformConfigService.get_config_by_id(config_pk)
         except Exception:
             return HttpResponseNotFound('Config not found')
-        if config.owner.pk != user.pk:
+        if config.owner_id != user.pk:
             return HttpResponseForbidden('Forbidden')
 
         try:
@@ -231,7 +231,7 @@ class ScanReportPDFView(View):
             config = TerraformConfigService.get_config_by_id(config_pk)
         except Exception:
             return HttpResponseNotFound('Config not found')
-        if config.owner.pk != user.pk:
+        if config.owner_id != user.pk:
             return HttpResponseForbidden('Forbidden')
 
         try:

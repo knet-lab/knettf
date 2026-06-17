@@ -93,8 +93,8 @@ class TerraformConfigCreateSerializer(serializers.ModelSerializer):
         fields = ['name', 'file']
 
     def validate_name(self, value):
-        owner = self.context['owner']
-        if TerraformConfig.objects.filter(owner=owner, name=value).exists():
+        owner_id = self.context['owner_id']
+        if TerraformConfig.objects.filter(owner_id=owner_id, name=value).exists():
             raise serializers.ValidationError('Config name already exists')
         return value
 
@@ -105,8 +105,8 @@ class TerraformConfigTextCreateSerializer(serializers.Serializer):
     content = serializers.CharField()
 
     def validate_name(self, value):
-        owner = self.context['owner']
-        if TerraformConfig.objects.filter(owner=owner, name=value).exists():
+        owner_id = self.context['owner_id']
+        if TerraformConfig.objects.filter(owner_id=owner_id, name=value).exists():
             raise serializers.ValidationError('Config name already exists')
         return value
 
@@ -118,9 +118,9 @@ class TerraformConfigUpdateSerializer(serializers.Serializer):
     content = serializers.CharField(required=False)
 
     def validate_name(self, value):
-        owner = self.context['owner']
+        owner_id = self.context['owner_id']
         instance = self.context['instance']
-        if TerraformConfig.objects.filter(owner=owner, name=value).exclude(pk=instance.pk).exists():
+        if TerraformConfig.objects.filter(owner_id=owner_id, name=value).exclude(pk=instance.pk).exists():
             raise serializers.ValidationError('Config name already exists')
         return value
 

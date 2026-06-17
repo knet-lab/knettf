@@ -37,6 +37,8 @@ def _mock_execute(config, tools):
 
 
 class BaseAutotfTest(APITestCase):
+    databases = {'default', 'autotf'}
+
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
         self._media_override = override_settings(MEDIA_ROOT=self.tmp_dir)
@@ -46,6 +48,9 @@ class BaseAutotfTest(APITestCase):
             username='alice', email='alice@test.com', password='pass')
         self.other = User.objects.create_user(
             username='bob', email='bob@test.com', password='pass')
+        # Mirror users into autotf DB to satisfy cross-DB FK constraints at teardown.
+        self.user.save(using='autotf')
+        self.other.save(using='autotf')
         self.tool = TerraformTool.objects.create(
             name='tfsec', version='1.0.0', is_enabled=True)
         self.tool_disabled = TerraformTool.objects.create(
@@ -401,3 +406,244 @@ class ToolListTests(BaseAutotfTest):
         self.client.force_authenticate(user=None)
         resp = self.client.get(self.url)
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_admin_sees_all_tools(self):
+        admin = User.objects.create_user(
+            username='admin', email='admin@test.com', password='pass', is_staff=True)
+        self.client.force_authenticate(user=admin)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        names = [t['name'] for t in resp.data['data']]
+        self.assertIn('tfsec', names)
+        self.assertIn('checkov', names)
+
+    def test_admin_can_create_tool(self):
+        admin = User.objects.create_user(
+            username='admin2', email='admin2@test.com', password='pass', is_staff=True)
+        self.client.force_authenticate(user=admin)
+        payload = {
+            'name': 'new-tool', 'version': '1.0.0', 'is_enabled': True,
+            'cmd': 'newtool {target_dir}', 'output_format': 'json',
+        }
+        resp = self.client.post(self.url, payload, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(TerraformTool.objects.filter(name='new-tool').exists())
+
+    def test_non_admin_cannot_create_tool(self):
+        payload = {
+            'name': 'bad-tool', 'version': '1.0.0', 'is_enabled': True,
+            'cmd': 'x', 'output_format': 'json',
+        }
+        resp = self.client.post(self.url, payload, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_create_duplicate_tool_name_rejected(self):
+        admin = User.objects.create_user(
+            username='admin3', email='admin3@test.com', password='pass', is_staff=True)
+        self.client.force_authenticate(user=admin)
+        payload = {
+            'name': 'tfsec', 'version': '2.0.0', 'is_enabled': True,
+            'cmd': 'tfsec {target_dir}', 'output_format': 'json',
+        }
+        resp = self.client.post(self.url, payload, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+# ── Tool Detail ────────────────────────────────────────────────────────────────
+
+class ToolDetailTests(BaseAutotfTest):
+    def setUp(self):
+        super().setUp()
+        self.admin = User.objects.create_user(
+            username='admin', email='admin@test.com', password='pass', is_staff=True)
+        self.url = reverse('tf-tool-detail', kwargs={'tool_id': self.tool.pk})
+
+    def test_admin_patch_tool(self):
+        self.client.force_authenticate(user=self.admin)
+        resp = self.client.patch(self.url, {'version': '2.0.0'}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data['data']['version'], '2.0.0')
+        self.tool.refresh_from_db()
+        self.assertEqual(self.tool.version, '2.0.0')
+
+    def test_admin_patch_disable_tool(self):
+        self.client.force_authenticate(user=self.admin)
+        resp = self.client.patch(self.url, {'is_enabled': False}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.tool.refresh_from_db()
+        self.assertFalse(self.tool.is_enabled)
+
+    def test_non_admin_cannot_patch_tool(self):
+        resp = self.client.patch(self.url, {'version': '9.9.9'}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_patch_not_found(self):
+        self.client.force_authenticate(user=self.admin)
+        resp = self.client.patch(
+            reverse('tf-tool-detail', kwargs={'tool_id': 9999}),
+            {'version': '1.0.0'}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_admin_delete_tool(self):
+        self.client.force_authenticate(user=self.admin)
+        resp = self.client.delete(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertFalse(TerraformTool.objects.filter(pk=self.tool.pk).exists())
+
+    def test_non_admin_cannot_delete_tool(self):
+        resp = self.client.delete(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(TerraformTool.objects.filter(pk=self.tool.pk).exists())
+
+    def test_delete_not_found(self):
+        self.client.force_authenticate(user=self.admin)
+        resp = self.client.delete(
+            reverse('tf-tool-detail', kwargs={'tool_id': 9999}))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+
+# ── Apply ──────────────────────────────────────────────────────────────────────
+
+class ApplyTests(BaseAutotfTest):
+    def setUp(self):
+        super().setUp()
+        self.config = self.create_config()
+        self.url = reverse('tf-config-apply', kwargs={'config_pk': self.config.pk})
+
+    def _make_clean_report(self):
+        report = ScanReport.objects.create(
+            config=self.config,
+            status=ScanReport.DONE,
+            result={'summary': {'high': 0, 'medium': 1, 'low': 0}, 'tools': {}},
+            scanned_at=timezone.now(),
+        )
+        report.tools.set([self.tool])
+        return report
+
+    def test_apply_no_report_returns_400(self):
+        resp = self.client.post(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_apply_scan_not_done_returns_400(self):
+        ScanReport.objects.create(
+            config=self.config, status=ScanReport.RUNNING,
+            result={}, scanned_at=None)
+        resp = self.client.post(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_apply_high_severity_returns_400(self):
+        ScanReport.objects.create(
+            config=self.config, status=ScanReport.DONE,
+            result={'summary': {'high': 2, 'medium': 0, 'low': 0}},
+            scanned_at=timezone.now())
+        resp = self.client.post(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch('autotf.services.subprocess.run')
+    def test_apply_success_updates_config(self, mock_run):
+        self._make_clean_report()
+        mock_run.return_value = type('P', (), {'returncode': 0, 'stdout': 'ok', 'stderr': ''})()
+        resp = self.client.post(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.data['data']
+        self.assertIsNotNone(data['last_apply_at'])
+        self.config.refresh_from_db()
+        self.assertEqual(self.config.last_apply_status, 'success')
+
+    @patch('autotf.services.subprocess.run')
+    def test_apply_terraform_failure_returns_failed_status(self, mock_run):
+        self._make_clean_report()
+        mock_run.return_value = type('P', (), {
+            'returncode': 1, 'stdout': '', 'stderr': 'error'})()
+        resp = self.client.post(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.config.refresh_from_db()
+        self.assertEqual(self.config.last_apply_status, 'failed')
+
+    def test_apply_forbidden_for_other_user(self):
+        self._make_clean_report()
+        self.client.force_authenticate(user=self.other)
+        resp = self.client.post(self.url)
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ── Report HTML / PDF (token auth) ────────────────────────────────────────────
+
+class ReportHTMLTests(BaseAutotfTest):
+    def setUp(self):
+        super().setUp()
+        self.config = self.create_config()
+        self.report = self.create_report(self.config)
+        self.url = reverse('tf-config-report-html', kwargs={'config_pk': self.config.pk})
+
+    def _token(self, user=None):
+        from rest_framework_simplejwt.tokens import AccessToken
+        return str(AccessToken.for_user(user or self.user))
+
+    def test_html_with_valid_token(self):
+        resp = self.client.get(self.url, {'token': self._token()})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'Scan Report', resp.content)
+        self.assertEqual(resp['Content-Type'], 'text/html; charset=utf-8')
+
+    def test_html_missing_token_returns_403(self):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_html_invalid_token_returns_403(self):
+        resp = self.client.get(self.url, {'token': 'garbage'})
+        self.assertEqual(resp.status_code, 403)
+
+    def test_html_other_user_token_returns_403(self):
+        resp = self.client.get(self.url, {'token': self._token(self.other)})
+        self.assertEqual(resp.status_code, 403)
+
+    def test_html_no_report_returns_404(self):
+        self.report.delete()
+        resp = self.client.get(self.url, {'token': self._token()})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_html_config_not_found_returns_404(self):
+        url = reverse('tf-config-report-html', kwargs={'config_pk': 9999})
+        resp = self.client.get(url, {'token': self._token()})
+        self.assertEqual(resp.status_code, 404)
+
+
+class ReportPDFTests(BaseAutotfTest):
+    def setUp(self):
+        super().setUp()
+        self.config = self.create_config()
+        self.report = self.create_report(self.config)
+        self.url = reverse('tf-config-report-pdf', kwargs={'config_pk': self.config.pk})
+
+    def _token(self, user=None):
+        from rest_framework_simplejwt.tokens import AccessToken
+        return str(AccessToken.for_user(user or self.user))
+
+    def test_pdf_with_valid_token(self):
+        resp = self.client.get(self.url, {'token': self._token()})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'application/pdf')
+        self.assertTrue(resp.content.startswith(b'%PDF'))
+
+    def test_pdf_missing_token_returns_403(self):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_pdf_invalid_token_returns_403(self):
+        resp = self.client.get(self.url, {'token': 'bad'})
+        self.assertEqual(resp.status_code, 403)
+
+    def test_pdf_other_user_token_returns_403(self):
+        resp = self.client.get(self.url, {'token': self._token(self.other)})
+        self.assertEqual(resp.status_code, 403)
+
+    def test_pdf_no_report_returns_404(self):
+        self.report.delete()
+        resp = self.client.get(self.url, {'token': self._token()})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_pdf_config_not_found_returns_404(self):
+        url = reverse('tf-config-report-pdf', kwargs={'config_pk': 9999})
+        resp = self.client.get(url, {'token': self._token()})
+        self.assertEqual(resp.status_code, 404)
