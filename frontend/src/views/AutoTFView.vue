@@ -1,25 +1,18 @@
 <template>
     <div class="autotf-layout">
-        <!-- ── 左侧 Sidebar ── -->
-        <aside class="sidebar">
+        <!-- ── Sidebar (wide screens) ── -->
+        <aside class="sidebar wide-sidebar">
             <div class="sidebar-header">
                 <span class="sidebar-title">My Configs</span>
                 <el-button size="small" type="primary" @click="openAddDialog">
-                    <el-icon>
-                        <Plus />
-                    </el-icon>
+                    <el-icon><Plus /></el-icon>
                     New
                 </el-button>
             </div>
-
             <div v-if="loadingConfigs" class="sidebar-loading">
-                <el-icon class="is-loading">
-                    <Loading />
-                </el-icon>
+                <el-icon class="is-loading"><Loading /></el-icon>
             </div>
-            <div v-else-if="configs.length === 0" class="sidebar-empty">
-                No configs yet
-            </div>
+            <div v-else-if="configs.length === 0" class="sidebar-empty">No configs yet</div>
             <div v-else class="config-list">
                 <div v-for="cfg in configs" :key="cfg.id" class="config-card"
                     :class="{ active: selectedConfig?.id === cfg.id }" @click="selectConfig(cfg)">
@@ -31,24 +24,59 @@
             </div>
         </aside>
 
-        <!-- ── 右侧内容区 ── -->
+        <!-- ── Sidebar drawer (narrow screens) ── -->
+        <el-drawer v-model="sidebarOpen" direction="ltr" size="80%"
+            :show-close="false" :with-header="false" class="sidebar-drawer">
+            <div class="sidebar drawer-sidebar">
+                <div class="sidebar-header">
+                    <span class="sidebar-title">My Configs</span>
+                    <el-button size="small" type="primary" @click="openAddDialog(); sidebarOpen = false">
+                        <el-icon><Plus /></el-icon>
+                        New
+                    </el-button>
+                </div>
+                <div v-if="loadingConfigs" class="sidebar-loading">
+                    <el-icon class="is-loading"><Loading /></el-icon>
+                </div>
+                <div v-else-if="configs.length === 0" class="sidebar-empty">No configs yet</div>
+                <div v-else class="config-list">
+                    <div v-for="cfg in configs" :key="cfg.id" class="config-card"
+                        :class="{ active: selectedConfig?.id === cfg.id }"
+                        @click="selectConfig(cfg); sidebarOpen = false">
+                        <div class="config-card-name">{{ cfg.name }}</div>
+                        <el-tag :type="cfg.is_scanned ? 'success' : 'info'" size="small" effect="dark">
+                            {{ cfg.is_scanned ? 'Scanned' : 'Not scanned' }}
+                        </el-tag>
+                    </div>
+                </div>
+            </div>
+        </el-drawer>
+
+        <!-- ── Main content ── -->
         <main class="content">
             <div v-if="!selectedConfig" class="content-empty">
-                <el-icon size="48" color="#4a5568">
-                    <Document />
-                </el-icon>
+                <el-icon size="48" color="#4a5568"><Document /></el-icon>
                 <p>Select a config from the left</p>
+                <!-- narrow: show open button -->
+                <el-button class="narrow-only" type="primary" @click="sidebarOpen = true">
+                    <el-icon><List /></el-icon>
+                    My Configs
+                </el-button>
             </div>
 
             <div v-else class="content-body">
                 <!-- 标题栏 -->
                 <div class="content-header">
-                    <span class="content-title">{{ selectedConfig.name }}</span>
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <el-button class="narrow-only sidebar-toggle" size="small" plain
+                            @click="sidebarOpen = true">
+                            <el-icon><List /></el-icon>
+                        </el-button>
+                        <span class="content-title">{{ selectedConfig.name }}</span>
+                    </div>
                     <div class="header-actions">
                         <el-button size="small" plain type="danger" @click="confirmDelete">
-                            <el-icon>
-                                <Delete />
-                            </el-icon>
+                            <el-icon><Delete /></el-icon>
                             Delete Config
                         </el-button>
                     </div>
@@ -296,25 +324,50 @@
                                 </div>
                             </div>
 
-                            <!-- findings 表格 -->
-                            <div v-if="!toolResult.items || toolResult.items.length === 0" class="tool-no-findings">
-                                No findings from this tool
+                            <!-- checklist -->
+                            <div class="check-list">
+                                <div v-if="!toolResult.items || toolResult.items.length === 0"
+                                    class="check-row check-pass">
+                                    <span class="check-bullet">—</span>
+                                    <span class="check-desc">All checks passed</span>
+                                    <span class="check-status status-pass">pass</span>
+                                </div>
+                                <div v-for="item in toolResult.items" :key="item.rule_id + item.location"
+                                    class="check-row" :class="'check-' + item.severity.toLowerCase()">
+                                    <span class="check-bullet">—</span>
+                                    <span class="check-desc">
+                                        <span class="check-detail">{{ item.description || item.rule_id }}</span>
+                                        <span v-if="item.rule_id" class="check-item-name">[{{ item.rule_id }}]</span>
+                                        <span v-if="item.location" class="check-loc">@ {{ item.location }}</span>
+                                    </span>
+                                    <span class="check-status" :class="'status-' + item.severity.toLowerCase()">
+                                        risk[{{ item.severity.toLowerCase() }}]
+                                    </span>
+                                </div>
                             </div>
-                            <el-table v-else :data="toolResult.items" size="small" stripe class="findings-table">
-                                <el-table-column label="Rule ID" prop="rule_id" min-width="160"
-                                    show-overflow-tooltip />
-                                <el-table-column label="Severity" width="100">
-                                    <template #default="{ row }">
-                                        <el-tag :type="severityType(row.severity)" size="small" effect="dark">
-                                            {{ row.severity }}
-                                        </el-tag>
-                                    </template>
-                                </el-table-column>
-                                <el-table-column label="Description" prop="description" min-width="260"
-                                    show-overflow-tooltip />
-                                <el-table-column label="Location" prop="location" min-width="180"
-                                    show-overflow-tooltip />
-                            </el-table>
+
+                            <!-- result summary line -->
+                            <div class="tool-result-line">
+                                <span class="result-label">result:</span>
+                                <template v-if="!toolResult.items || toolResult.items.length === 0">
+                                    <span class="result-clean">no issues found</span>
+                                </template>
+                                <template v-else>
+                                    <span class="result-total">{{ toolResult.items.length }} finding{{ toolResult.items.length !== 1 ? 's' : '' }}</span>
+                                    <span v-if="toolSevCount(toolResult.items, 'HIGH') > 0" class="result-sev sev-high">
+                                        {{ toolSevCount(toolResult.items, 'HIGH') }} high
+                                    </span>
+                                    <span v-if="toolSevCount(toolResult.items, 'CRITICAL') > 0" class="result-sev sev-high">
+                                        {{ toolSevCount(toolResult.items, 'CRITICAL') }} critical
+                                    </span>
+                                    <span v-if="toolSevCount(toolResult.items, 'MEDIUM') > 0" class="result-sev sev-med">
+                                        {{ toolSevCount(toolResult.items, 'MEDIUM') }} medium
+                                    </span>
+                                    <span v-if="toolSevCount(toolResult.items, 'LOW') > 0" class="result-sev sev-low">
+                                        {{ toolSevCount(toolResult.items, 'LOW') }} low
+                                    </span>
+                                </template>
+                            </div>
                         </div>
                     </template>
                 </el-card>
@@ -390,7 +443,7 @@
 import { ref, onMounted, computed } from 'vue'
 import {
     Plus, Loading, Document, Delete, Edit, VideoPlay,
-    Setting, Download, Upload, View, Promotion,
+    Setting, Download, Upload, View, Promotion, List,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadFile } from 'element-plus'
@@ -428,6 +481,7 @@ interface Report {
 
 const BASE = import.meta.env.VITE_API_BASE
 const auth = useAuthStore()
+const sidebarOpen = ref(false)
 
 // ─── Config list ─────────────────────────────────────────────
 interface Config {
@@ -737,6 +791,10 @@ function toolFindingsBadgeType(items: FindingItem[]): string {
     return 'info'
 }
 
+function toolSevCount(items: FindingItem[], sev: string): number {
+    return items.filter((i) => i.severity === sev).length
+}
+
 // ─── Manual scan ──────────────────────────────────────────────
 const showManualScan = ref(false)
 const tools = ref<Tool[]>([])
@@ -890,6 +948,114 @@ onMounted(() => {
     display: flex;
     height: 100%;
     overflow: hidden;
+}
+
+.narrow-only { display: none; }
+
+@media (max-width: 680px) {
+    /* sidebar */
+    .wide-sidebar { display: none !important; }
+    .narrow-only  { display: flex !important; }
+
+    /* content body — tighter padding */
+    .content-body {
+        padding: 12px 12px 16px;
+        gap: 12px;
+    }
+
+    /* card body padding */
+    .scan-card :deep(.el-card__body),
+    .deploy-card :deep(.el-card__body) {
+        padding: 14px 14px !important;
+    }
+
+    /* overview counters: 2x2 grid */
+    .sev-counters {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    /* overview card padding */
+    .report-overview {
+        padding: 14px 12px;
+    }
+
+    /* tool section header wrap */
+    .tool-header {
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 10px 12px;
+    }
+
+    .tool-header-left {
+        flex-wrap: wrap;
+    }
+
+    /* tool info grid: stack label + value */
+    .tool-info-grid {
+        padding: 10px 12px;
+    }
+
+    .tool-info-row {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .info-label {
+        width: auto;
+    }
+
+    /* cmd wraps instead of overflows */
+    .info-cmd {
+        word-break: break-all;
+        white-space: pre-wrap;
+    }
+
+    /* check rows: allow status badge to wrap below */
+    .check-list {
+        padding: 6px 12px 4px;
+    }
+
+    .check-row {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .check-status {
+        margin-left: 16px;
+    }
+
+    /* result line */
+    .tool-result-line {
+        padding: 6px 12px 10px;
+    }
+
+    /* scan action buttons stack */
+    .scan-actions {
+        flex-wrap: wrap;
+    }
+
+    /* header actions wrap */
+    .header-actions {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+}
+
+:deep(.sidebar-drawer .el-drawer__body) {
+    padding: 0;
+    background: #1a2233;
+}
+
+.drawer-sidebar {
+    width: 100% !important;
+    height: 100%;
+    border-right: none;
+}
+
+.sidebar-toggle {
+    padding: 4px 8px;
 }
 
 /* ── Sidebar ── */
@@ -1269,13 +1435,114 @@ onMounted(() => {
     word-break: break-all;
 }
 
-.tool-no-findings {
-    padding: 10px 16px;
-    font-size: 12px;
-    color: #a0aec0;
+/* ── Checklist ── */
+.check-list {
+    padding: 8px 16px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }
 
-.findings-table {
-    border-radius: 0;
+.check-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
+    line-height: 1.5;
 }
+
+.check-bullet {
+    flex-shrink: 0;
+    color: #a0aec0;
+    margin-top: 1px;
+}
+
+.check-desc {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    color: #2d3748;
+}
+
+.check-item-name {
+    font-weight: 700;
+    color: #2b6cb0;
+    background: #ebf8ff;
+    border: 1px solid #bee3f8;
+    border-radius: 3px;
+    padding: 0 5px;
+    font-size: 12px;
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+}
+
+.check-detail {
+    color: #1a202c;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.check-loc {
+    color: #718096;
+    font-size: 11px;
+}
+
+.check-status {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.2px;
+    margin-top: 2px;
+}
+
+.status-pass    { background: #f0fff4; color: #276749; border: 1px solid #c6f6d5; }
+.status-low     { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+.status-medium  { background: #fffaf0; color: #c05621; border: 1px solid #feebc8; }
+.status-high,
+.status-critical { background: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
+
+/* result line */
+.tool-result-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px 12px;
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
+    border-top: 1px dashed #e2e8f0;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.result-label {
+    color: #a0aec0;
+    font-weight: 600;
+}
+
+.result-clean {
+    color: #276749;
+    font-weight: 600;
+}
+
+.result-total {
+    color: #2d3748;
+    font-weight: 600;
+}
+
+.result-sev {
+    padding: 1px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.result-sev.sev-high { background: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
+.result-sev.sev-med  { background: #fffaf0; color: #c05621; border: 1px solid #feebc8; }
+.result-sev.sev-low  { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
 </style>

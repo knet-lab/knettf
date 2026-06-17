@@ -1,5 +1,6 @@
 class AppRouter:
     ROUTES = {
+        'kcore': 'default',
         'vigil': 'vigil',
         'autotf': 'autotf',
     }

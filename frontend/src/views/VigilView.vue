@@ -1,8 +1,8 @@
 <template>
   <div class="vigil-layout">
 
-    <!-- ── Sidebar ── -->
-    <aside class="sidebar">
+    <!-- ── Sidebar (wide) ── -->
+    <aside class="sidebar wide-sidebar">
       <div class="sidebar-header">
         <div class="sidebar-brand">
           <span class="brand-icon">⬡</span>
@@ -10,18 +10,13 @@
         </div>
         <span class="live-pill live">LIVE</span>
       </div>
-
       <div class="sidebar-group">
         <div class="sidebar-label">Detection model</div>
         <div class="model-list">
-          <div
-            v-for="m in models" :key="m"
-            class="model-item"
+          <div v-for="m in models" :key="m" class="model-item"
             :class="{ active: selectedModel === m }"
-            @click="selectedModel = selectedModel === m ? null : m; loadRecords(true)"
-          >
-            <span class="model-dot" />
-            {{ m }}
+            @click="selectedModel = selectedModel === m ? null : m; loadRecords(true)">
+            <span class="model-dot" />{{ m }}
           </div>
           <div v-if="!models.length" class="model-item-empty">No models registered</div>
         </div>
@@ -29,22 +24,20 @@
           Filtering: <span class="model-active-name">{{ selectedModel }}</span>
         </div>
       </div>
-
       <div class="sidebar-group">
         <div class="sidebar-label">Display</div>
         <label class="toggle-row">
           <span>Attacks only</span>
-          <div class="toggle-switch" :class="{ on: onlyAttacks }" @click="onlyAttacks = !onlyAttacks; loadRecords(true)">
+          <div class="toggle-switch" :class="{ on: onlyAttacks }"
+            @click="onlyAttacks = !onlyAttacks; loadRecords(true)">
             <div class="toggle-knob" />
           </div>
         </label>
       </div>
-
       <div class="sidebar-group" style="margin-top: auto;">
         <div class="sidebar-label">{{ tzOffset }} · {{ tz }}</div>
         <div class="last-updated clock">{{ nowClock }}</div>
       </div>
-
       <div class="sidebar-group">
         <div class="sidebar-label">Last updated</div>
         <div class="last-updated">{{ lastRefreshed }}</div>
@@ -52,14 +45,57 @@
       </div>
     </aside>
 
+    <!-- ── Sidebar drawer (narrow) ── -->
+    <el-drawer v-model="sidebarOpen" direction="ltr" size="80%"
+        :show-close="false" :with-header="false" class="sidebar-drawer">
+      <div class="sidebar drawer-sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-brand">
+            <span class="brand-icon">⬡</span>
+            <span class="sidebar-title">AI Vigil</span>
+          </div>
+          <span class="live-pill live">LIVE</span>
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-label">Detection model</div>
+          <div class="model-list">
+            <div v-for="m in models" :key="m" class="model-item"
+              :class="{ active: selectedModel === m }"
+              @click="selectedModel = selectedModel === m ? null : m; loadRecords(true); sidebarOpen = false">
+              <span class="model-dot" />{{ m }}
+            </div>
+            <div v-if="!models.length" class="model-item-empty">No models registered</div>
+          </div>
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-label">Display</div>
+          <label class="toggle-row">
+            <span>Attacks only</span>
+            <div class="toggle-switch" :class="{ on: onlyAttacks }"
+              @click="onlyAttacks = !onlyAttacks; loadRecords(true)">
+              <div class="toggle-knob" />
+            </div>
+          </label>
+        </div>
+        <div class="sidebar-group" style="margin-top: auto;">
+          <div class="sidebar-label">Last updated</div>
+          <div class="last-updated">{{ lastRefreshed }}</div>
+          <button class="refresh-btn" @click="loadAll; sidebarOpen = false">Refresh now</button>
+        </div>
+      </div>
+    </el-drawer>
+
     <!-- ── Content ── -->
     <main class="content">
 
       <!-- Page header -->
       <div class="page-header">
-        <div>
-          <h1 class="page-title">Network Anomaly Detection</h1>
-          <p class="page-subtitle">Real-time AI-powered traffic analysis via Cilium / Hubble</p>
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <button class="narrow-only sidebar-open-btn" @click="sidebarOpen = true">☰</button>
+          <div>
+            <h1 class="page-title">Network Anomaly Detection</h1>
+            <p class="page-subtitle">Real-time AI-powered traffic analysis via Cilium / Hubble</p>
+          </div>
         </div>
       </div>
 
@@ -371,6 +407,7 @@ import RollingNumber from '@/components/RollingNumber.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
+const sidebarOpen = ref(false)
 
 // ── State ──────────────────────────────────────────────────────────────────────
 const models = ref<string[]>([])
@@ -579,6 +616,64 @@ onUnmounted(() => {
   font-size: 15px;
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.narrow-only { display: none; }
+
+@media (max-width: 680px) {
+  .wide-sidebar { display: none !important; }
+  .narrow-only  { display: flex !important; }
+
+  .content {
+    overflow-x: hidden;
+  }
+
+  .page-header {
+    padding: 12px 12px 8px;
+  }
+
+  .page-title  { font-size: 16px; }
+  .page-subtitle { font-size: 12px; }
+
+  :deep(.el-table) { font-size: 12px; }
+
+  :deep(.el-table td),
+  :deep(.el-table th) { padding: 6px 4px; }
+
+  .stats-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .stat-card {
+    min-width: calc(50% - 4px);
+  }
+}
+
+:deep(.sidebar-drawer .el-drawer__body) {
+  padding: 0;
+  background: #1a2233;
+}
+
+.drawer-sidebar {
+  width: 100% !important;
+  height: 100%;
+  border-right: none;
+}
+
+.sidebar-open-btn {
+  flex-shrink: 0;
+  margin-top: 4px;
+  background: none;
+  border: 1px solid #2d3748;
+  color: #a0aec0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sidebar-open-btn:hover { background: #2d3748; color: #e2e8f0; }
 
 /* ───────────────────────── SIDEBAR ───────────────────────── */
 .sidebar {

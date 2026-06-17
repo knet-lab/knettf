@@ -11,7 +11,8 @@ class TerraformConfig(models.Model):
 
     id = models.AutoField(primary_key=True)
     owner = models.ForeignKey(
-        'kcore.User', on_delete=models.CASCADE, related_name='terraform_configs')
+        'kcore.User', on_delete=models.CASCADE, related_name='terraform_configs',
+        db_constraint=False)
     name = models.CharField(max_length=255)
     file = models.FileField(upload_to='terraform/')
     is_scanned = models.BooleanField(default=False)

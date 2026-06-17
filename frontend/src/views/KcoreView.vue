@@ -1,21 +1,16 @@
 <template>
   <div class="kcore-layout">
-    <!-- Left Sidebar -->
-    <aside class="sidebar">
+    <!-- Left Sidebar (wide) -->
+    <aside class="sidebar wide-sidebar">
       <div class="sidebar-header">
         <span class="sidebar-title">My Clusters</span>
         <el-button size="small" type="primary" @click="openAddCluster">
-          <el-icon>
-            <Plus />
-          </el-icon>
+          <el-icon><Plus /></el-icon>
           Add
         </el-button>
       </div>
-
       <div v-if="loadingClusters" class="sidebar-loading">
-        <el-icon class="is-loading">
-          <Loading />
-        </el-icon>
+        <el-icon class="is-loading"><Loading /></el-icon>
       </div>
       <div v-else-if="clusters.length === 0" class="sidebar-empty">No clusters yet</div>
       <div v-else class="cluster-list">
@@ -31,18 +26,55 @@
       </div>
     </aside>
 
+    <!-- Sidebar drawer (narrow) -->
+    <el-drawer v-model="sidebarOpen" direction="ltr" size="80%"
+        :show-close="false" :with-header="false" class="sidebar-drawer">
+      <div class="sidebar drawer-sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title">My Clusters</span>
+          <el-button size="small" type="primary" @click="openAddCluster(); sidebarOpen = false">
+            <el-icon><Plus /></el-icon>
+            Add
+          </el-button>
+        </div>
+        <div v-if="loadingClusters" class="sidebar-loading">
+          <el-icon class="is-loading"><Loading /></el-icon>
+        </div>
+        <div v-else-if="clusters.length === 0" class="sidebar-empty">No clusters yet</div>
+        <div v-else class="cluster-list">
+          <div v-for="cluster in clusters" :key="cluster.id" class="cluster-card"
+            :class="{ active: selectedCluster?.id === cluster.id }"
+            @click="selectCluster(cluster); sidebarOpen = false">
+            <div class="cluster-card-name">{{ cluster.name }}</div>
+            <el-tag :type="cluster.is_active ? 'success' : 'danger'" size="small" effect="dark">
+              {{ cluster.is_active ? 'Active' : 'Inactive' }}
+            </el-tag>
+            <el-tag style="margin-left: 0.2rem" size="small" type="danger" effect="dark"
+              @click.stop="deleteCluster(cluster.id)">Delete</el-tag>
+          </div>
+        </div>
+      </div>
+    </el-drawer>
+
     <!-- Right Content -->
     <main class="content">
       <div v-if="!selectedCluster" class="content-empty">
-        <el-icon size="48" color="#4a5568">
-          <Folder />
-        </el-icon>
+        <el-icon size="48" color="#4a5568"><Folder /></el-icon>
         <p>Select a cluster from the left</p>
+        <el-button class="narrow-only" type="primary" @click="sidebarOpen = true">
+          <el-icon><List /></el-icon>
+          My Clusters
+        </el-button>
       </div>
 
       <template v-else>
         <div class="content-header">
-          <span class="content-title">{{ selectedCluster.name }}</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <el-button class="narrow-only" size="small" plain @click="sidebarOpen = true">
+              <el-icon><List /></el-icon>
+            </el-button>
+            <span class="content-title">{{ selectedCluster.name }}</span>
+          </div>
           <el-tag :type="selectedCluster.is_active ? 'success' : 'danger'" effect="plain">
             {{ selectedCluster.is_active ? 'Active' : 'Inactive' }}
           </el-tag>
@@ -405,12 +437,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, onUnmounted } from 'vue'
-import { Plus, Loading, Folder, Refresh, Upload, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, Loading, Folder, Refresh, Upload, ArrowDown, List } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useKcoreStore } from '@/stores/kcore'
 
 const BASE = import.meta.env.VITE_API_BASE
+const sidebarOpen = ref(false)
 const WS_BASE = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`
 
 const auth = useAuthStore()
@@ -739,6 +772,43 @@ onUnmounted(disconnectWs)
   display: flex;
   height: 100%;
   overflow: hidden;
+}
+
+.narrow-only { display: none; }
+
+@media (max-width: 680px) {
+  .wide-sidebar { display: none !important; }
+  .narrow-only  { display: flex !important; }
+
+  .content-header {
+    padding: 10px 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .resource-tabs {
+    padding: 0 8px;
+  }
+
+  :deep(.el-table) {
+    font-size: 12px;
+  }
+
+  :deep(.el-table td),
+  :deep(.el-table th) {
+    padding: 6px 4px;
+  }
+}
+
+:deep(.sidebar-drawer .el-drawer__body) {
+  padding: 0;
+  background: #1a2233;
+}
+
+.drawer-sidebar {
+  width: 100% !important;
+  height: 100%;
+  border-right: none;
 }
 
 /* ── Sidebar ── */
