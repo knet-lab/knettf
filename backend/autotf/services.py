@@ -264,21 +264,29 @@ class ScanService:
         cmd_str = tool.cmd.format(target_dir=target_dir, target_file=target_file)
         cmd = cmd_str.split()
 
+        extra_path = '/home/soar009/terraform/.venv/bin'
+        env = os.environ.copy()
+        env['PATH'] = extra_path + ':' + env.get('PATH', '')
+
         # Run optional init command first (e.g. terraform init)
         if tool.init_cmd:
             init_str = tool.init_cmd.format(target_dir=target_dir, target_file=target_file)
             init_proc = subprocess.Popen(
                 init_str.split(),
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, cwd=target_dir,
+                text=True, cwd=target_dir, env=env,
             )
             init_proc.communicate()
 
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, cwd=target_dir,
-        )
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, cwd=target_dir, env=env,
+            )
+        except FileNotFoundError:
+            return {'items': [], 'error': f'tool not found: {cmd[0]}'}
+
         stdout, _ = proc.communicate()
 
         fmt = tool.output_format

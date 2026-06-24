@@ -10,24 +10,6 @@ from .ml.cilium import policy_for_result, apply_action
 from .models import DetectionRecord
 
 
-def _broadcast(record_dict: dict):
-    """Push to WebSocket clients in a background thread — never blocks the request."""
-    import threading
-
-    def _send():
-        try:
-            from asgiref.sync import async_to_sync
-            from channels.layers import get_channel_layer
-            layer = get_channel_layer()
-            async_to_sync(layer.group_send)(
-                "vigil_detections",
-                {"type": "detection_event", "data": record_dict},
-            )
-        except Exception:
-            pass
-
-    threading.Thread(target=_send, daemon=True).start()
-
 
 def detect_flow(flow_data: dict) -> list[dict]:
     """
@@ -91,7 +73,6 @@ def detect_flow(flow_data: dict) -> list[dict]:
             "aggregation_ms": aggregation_ms,
             "inference_ms": inference_ms,
         }
-        _broadcast(item)
         output.append(item)
     return output
 

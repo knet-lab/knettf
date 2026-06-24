@@ -12,10 +12,10 @@ PING_INTERVAL = 30  # seconds — well under Cloudflare's 100s idle timeout
 
 
 async def flow_queue_drainer():
-    """Async task: drain bridge.flow_queue → detect → save → broadcast.
-    detect_batch internally calls _broadcast() for each result via a daemon thread."""
+    """Async task: drain bridge.flow_queue → detect → save → broadcast."""
     from vigil.bridge import flow_queue
     from vigil import services
+    from channels.layers import get_channel_layer
 
     loop = asyncio.get_event_loop()
 
@@ -28,6 +28,12 @@ async def flow_queue_drainer():
                 results = await sync_to_async(services.detect_batch)(batch)
                 n_attacks = sum(1 for r in results if r.get("is_attack"))
                 logger.info("queue: %d flows → %d attack(s)", len(batch), n_attacks)
+                layer = get_channel_layer()
+                for item in results:
+                    await layer.group_send(
+                        "vigil_detections",
+                        {"type": "detection_event", "data": item},
+                    )
             except Exception as e:
                 logger.warning("drainer process error: %s", e)
         except asyncio.CancelledError:
