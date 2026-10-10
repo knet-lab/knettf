@@ -85,7 +85,7 @@ class RecordDetailView(APIView, ResponseMixin):
         try:
             record = DetectionRecord.objects.get(pk=pk)
         except DetectionRecord.DoesNotExist:
-            return self.error_response("not found", status_code=404)
+            return self.not_found_response("not found")
         return self.success_response(DetectionRecordSerializer(record).data)
 
 

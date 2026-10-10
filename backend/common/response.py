@@ -50,8 +50,8 @@ class ResponseMixin(Response):
     def not_found_response(self, message: str = 'Not Found', status: int = 404):
         return ResponseMixin(data=None, status=status, message=message, code=1)
 
-    def error_response(self, message: str, status: int = 400):
-        return ResponseMixin(data=None, status=status, message=message, code=1)
+    def error_response(self, message: str, status: int = 400, data: dict = None):
+        return ResponseMixin(data=data, status=status, message=message, code=1)
 
     def server_error_response(self, message: str = 'Internal Server Error', status: int = 500):
         return ResponseMixin(data=None, status=status, message=message, code=2)

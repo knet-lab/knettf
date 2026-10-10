@@ -37,7 +37,7 @@ def _mock_execute(config, tools):
 
 
 class BaseAutotfTest(APITestCase):
-    databases = {'default', 'autotf'}
+    databases = {'default'}
 
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
@@ -48,9 +48,6 @@ class BaseAutotfTest(APITestCase):
             username='alice', email='alice@test.com', password='pass')
         self.other = User.objects.create_user(
             username='bob', email='bob@test.com', password='pass')
-        # Mirror users into autotf DB to satisfy cross-DB FK constraints at teardown.
-        self.user.save(using='autotf')
-        self.other.save(using='autotf')
         self.tool = TerraformTool.objects.create(
             name='tfsec', version='1.0.0', is_enabled=True)
         self.tool_disabled = TerraformTool.objects.create(

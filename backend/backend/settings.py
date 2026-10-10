@@ -100,10 +100,6 @@ DATABASES = {
         'HOST': '127.0.0.1',
         'PORT': '5432',
     },
-    'autotf': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'autotf.sqlite3',
-    },
 }
 
 DATABASE_ROUTERS = ['backend.db_router.AppRouter']

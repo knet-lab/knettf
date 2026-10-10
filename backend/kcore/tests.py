@@ -89,7 +89,7 @@ class UserListTests(BaseKcoreTest):
     def test_list_unauthenticated(self):
         self.client.force_authenticate(user=None)
         resp = self.client.get(self.url)
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 # ── UserDetail ─────────────────────────────────────────────────────────────────
@@ -307,7 +307,7 @@ class KubeResourceListTests(BaseKcoreTest):
     def test_create_configmap(self, MockClient):
         MockClient.return_value.create_configmap.return_value = _fake_resource('cm')
         resp = self.client.post(self._url('configmaps'), {
-            'namespace': 'default', 'name': 'cm', 'data': {'key': 'val'}})
+            'namespace': 'default', 'name': 'cm', 'data': {'key': 'val'}}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
 
     @patch('kcore.services.KubeClient')

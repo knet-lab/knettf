@@ -2,7 +2,6 @@ class AppRouter:
     ROUTES = {
         'kcore': 'default',
         'vigil': 'vigil',
-        'autotf': 'autotf',
     }
 
     def db_for_read(self, model, **hints):

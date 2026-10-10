@@ -184,11 +184,16 @@ class RecordDetailViewTests(BaseVigilTest):
 
     @patch('vigil.views.DetectionRecord.objects')
     def test_get_record(self, mock_objs):
-        fake = MagicMock()
-        fake.pk = 1
+        from vigil.models import DetectionRecord
+        # 用真实（未保存）实例：裸 MagicMock 会被 JSON 编码器无限展开，耗尽内存
+        fake = DetectionRecord(
+            pk=1, src_ip='10.0.0.1', dst_ip='10.0.0.2', src_port=12345, dst_port=80,
+            protocol='TCP', flow_input=FLOW, model_name='ads_ml', is_attack=False,
+            confidence=0.9)
         mock_objs.get.return_value = fake
         resp = self.client.get(self._url(1))
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data['data']['id'], 1)
 
     @patch('vigil.views.DetectionRecord.objects')
     def test_get_record_not_found(self, mock_objs):
