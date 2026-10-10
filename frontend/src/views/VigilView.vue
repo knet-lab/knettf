@@ -517,55 +517,8 @@ const loadAll = async () => {
   lastRefreshed.value = formatLocalTime(new Date())
 }
 
-// ── WebSocket ─────────────────────────────────────────────────────────────────
-let ws: WebSocket | null = null
-let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null
-let wsReconnectDelay = 1000
-
-function wsConnect() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-  ws = new WebSocket(`${proto}://${location.host}/ws/vigil/`)
-
-  ws.onmessage = (e) => {
-    try {
-      const item = JSON.parse(e.data)
-      if (item.type === 'ping') return
-      // prepend new record, cap at 200
-      const knownIds = new Set(records.value.map((r: any) => r.id))
-      if (!knownIds.has(item.record_id)) {
-        const newRecord = {
-          id: item.record_id,
-          src_ip: item.src_ip, dst_ip: item.dst_ip,
-          src_port: item.src_port, dst_port: item.dst_port,
-          protocol: item.protocol,
-          model_name: item.model_name,
-          is_attack: item.is_attack,
-          confidence: item.confidence,
-          attack_type: item.attack_type,
-          explanation: item.explanation,
-          cilium_action: item.cilium_action,
-          cilium_reason: item.cilium_reason,
-          created_at: item.created_at,
-        }
-        records.value = [newRecord, ...records.value].slice(0, 200)
-      }
-    } catch { /* ignore */ }
-  }
-
-  ws.onopen = () => {
-    wsReconnectDelay = 1000
-  }
-
-  ws.onclose = () => {
-    ws = null
-    wsReconnectTimer = setTimeout(() => {
-      wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000)
-      wsConnect()
-    }, wsReconnectDelay)
-  }
-}
-
-// ── Polling (stats only) ───────────────────────────────────────────────────────
+// ── Polling ────────────────────────────────────────────────────────────────────
+const POLL_INTERVAL_MS = 30000
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -591,19 +544,13 @@ const modelBarWidth = (count: number) => {
 onMounted(async () => {
   await loadModels()
   await loadAll()
-  wsConnect()
-  pollTimer = setInterval(() => {
-    loadStats()
-    lastRefreshed.value = formatLocalTime(new Date())
-  }, 10000)
+  pollTimer = setInterval(loadAll, POLL_INTERVAL_MS)
   clockTimer = setInterval(updateClock, 1000)
 })
 
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
   if (clockTimer) clearInterval(clockTimer)
-  if (wsReconnectTimer) clearTimeout(wsReconnectTimer)
-  if (ws) ws.close()
 })
 </script>
 

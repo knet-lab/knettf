@@ -285,18 +285,39 @@ def run_bridge():
         logger.info("bridge shut down cleanly")
 
 
+# ── Drainer loop (flow_queue → detect → DB) ───────────────────────────────────
+def run_drainer():
+    """Consume flow_queue and persist detections. Runs in its own thread,
+    independent of any WebSocket client or the ASGI event loop."""
+    from django.db import close_old_connections
+    from vigil import services
+
+    logger.info("drainer starting")
+    while True:
+        batch = flow_queue.get()
+        close_old_connections()
+        try:
+            results = services.detect_batch(batch)
+            n_attacks = sum(1 for r in results if r.get("is_attack"))
+            logger.info("queue: %d flows → %d attack(s)", len(batch), n_attacks)
+        except Exception:
+            logger.exception("drainer failed on batch of %d flows", len(batch))
+        finally:
+            close_old_connections()
+
+
 # ── Thread launcher ────────────────────────────────────────────────────────────
 _started = False
 _lock    = threading.Lock()
 
 
 def start(base_url: str = "http://localhost:8080", token: str | None = None):
-    """Start bridge daemon thread. Idempotent."""
+    """Start bridge + drainer daemon threads. Idempotent."""
     global _started
     with _lock:
         if _started:
             return
         _started = True
-    t = threading.Thread(target=run_bridge, daemon=True, name="vigil-bridge")
-    t.start()
-    logger.info("vigil bridge thread started")
+    threading.Thread(target=run_drainer, daemon=True, name="vigil-drainer").start()
+    threading.Thread(target=run_bridge, daemon=True, name="vigil-bridge").start()
+    logger.info("vigil bridge + drainer threads started")
