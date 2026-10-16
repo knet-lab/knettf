@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>运维操作逐步骤 · 运维对照手册</title>
+  <link rel="stylesheet" href="ops.css" />
+</head>
+<body>
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <h1>运维操作逐步骤</h1>
+    <div class="meta">每一步给出命令、预期结果和失败时的处理。命令中的 <code>$N</code> 指 <code>~/github/NetSentinel</code>，<code>$K</code> 指 <code>~/knetsentinel</code>。<br>
+    建议先在 shell 中设置：<code>export N=~/github/NetSentinel K=~/knetsentinel; alias vsh='virsh -c qemu:///system'</code></div>
+
+    <section id="state">
+      <h2>1. 当前运行状态（2026-10-16 核对）</h2>
+      <div class="table-wrap"><table>
+        <tr><th>组件</th><th>状态</th><th>开机自动恢复</th><th>说明</th></tr>
+        <tr><td>后端 <code>netsentinel.service</code></td><td>运行，:8080</td><td>是（user 服务已 enable，<code>Linger=yes</code>）</td><td>入口 A 的 bridge 线程也在其中</td></tr>
+        <tr><td><code>cloudflared-knettf.service</code></td><td>运行</td><td>是</td><td>knettf.com</td></tr>
+        <tr><td>PostgreSQL 容器 <code>pg</code></td><td>运行 3 个月</td><td>是（<code>unless-stopped</code>）</td><td>手动 <code>docker stop</code> 后不会随开机启动</td></tr>
+        <tr><td>crontab <code>rotate_partitions</code></td><td>每日 00:00</td><td>是</td><td>日志 <code>/tmp/rotate_partitions.log</code>，重启后清空</td></tr>
+        <tr><td>libvirt 网络 <code>virbr-k8s</code></td><td>活动</td><td>是</td><td></td></tr>
+        <tr><td>VM <code>k8s-master</code>、<code>k8s-node1~4</code></td><td>运行</td><td><b>否</b></td><td>需手动启动</td></tr>
+        <tr><td>iptables NAT / FORWARD</td><td>—</td><td><b>否</b></td><td>02 脚本临时添加</td></tr>
+        <tr><td>Kafka（1 controller + 4 broker）</td><td>Running 114 天</td><td>随 VM</td><td><code>kafka-controller</code> 是<b>裸 Pod</b>（无控制器），删除后不会自动重建</td></tr>
+        <tr><td>Vector DaemonSet（5 个）</td><td>Running</td><td>随 VM</td><td></td></tr>
+        <tr><td>MetalLB IP</td><td>Kafka .200-.203、nginx .204、targets .210-.214</td><td>随 VM</td><td>与代码中写死的地址一致</td></tr>
+        <tr><td>hubble port-forward :4245</td><td><b>未运行</b></td><td>否</td><td>只影响宿主机上的 <code>hubble observe</code>；Vector 走集群内地址，不受影响</td></tr>
+        <tr><td>入口 B 检测器</td><td><b>未部署</b>（命名空间 <code>netsentinel</code> 存在但无 Deployment）</td><td>—</td><td></td></tr>
+      </table></div>
+    </section>
+
+    <section id="health">
+      <h2>2. 日常健康检查（约 2 分钟）</h2>
+      <div class="steps">
+        <div class="step"><div class="step-title">后端服务与端口</div>
+<pre><code>systemctl --user is-active netsentinel cloudflared-knettf
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/</code></pre>
+          <div class="expect">预期：两行 <code>active</code>；HTTP 码 <code>200</code>。</div></div>
+        <div class="step"><div class="step-title">模型是否加载</div>
+<pre><code>journalctl --user -u netsentinel --since today | grep -E 'AdsMLModel (loaded|not loaded)' | tail -1</code></pre>
+          <div class="expect">预期：<code>AdsMLModel loaded</code>。出现 <code>not loaded</code> 见 <a href="#trouble">排障</a>。</div></div>
+        <div class="step"><div class="step-title">入口 A 是否在消费</div>
+<pre><code>journalctl --user -u netsentinel --since '-10 min' | grep -E 'vigil.bridge' | tail -5</code></pre>
+          <div class="expect">预期：有流量时出现 <code>queue: N flows → M attack(s)</code>。出现 <code>bridge error</code> 或很久没有任何 bridge 日志 → bridge 线程已退出，执行 <code>systemctl --user restart netsentinel</code>。</div></div>
+        <div class="step"><div class="step-title">数据库与分区</div>
+<pre><code>docker ps --filter name=pg --format '{{.Status}}'
+docker exec pg psql -U vigil vigil -Atc "select max(created_at) from vigil_detectionrecord;"
+docker exec pg psql -U vigil vigil -Atc "select to_regclass('vigil_detectionrecord_'||to_char(now()+interval '1 day','YYYY_MM_DD'));"
+tail -2 /tmp/rotate_partitions.log</code></pre>
+          <div class="expect">预期：<code>Up ...</code>；最新记录时间接近现在（有流量时）；明天的分区名不为空；日志最后一行为 <code>rotate_partitions done: created &lt;明天&gt;</code>。</div></div>
+        <div class="step"><div class="step-title">集群</div>
+<pre><code>virsh -c qemu:///system list --all
+kubectl get nodes
+kubectl get pods -A | grep -vE 'Running|Completed'</code></pre>
+          <div class="expect">预期：5 台 VM <code>running</code>；5 个节点 <code>Ready</code>；第三条只输出表头。</div></div>
+        <div class="step"><div class="step-title">Kafka 有新数据</div>
+<pre><code>kubectl exec kafka-broker-0 -- /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server kafka-svc.default.svc.cluster.local:9092 --topic ebpf-net-logs --max-messages 2 --timeout-ms 15000</code></pre>
+          <div class="expect">预期：输出 2 行 Hubble JSON。超时无输出 → 查 Vector（<a href="#trouble">排障</a>）。</div></div>
+        <div class="step"><div class="step-title">磁盘</div>
+<pre><code>df -h / /home ~/vm-images /home/docker-data | sort -u
+du -sh $N/backend/vigil/ml/ads_ml/results</code></pre>
+          <div class="expect">VM 镜像分区需要保持充足空间；<code>results/</code> 下报告 CSV 每条推理追加一行，会持续增长。</div></div>
+      </div>
+    </section>
+
+    <section id="shutdown">
+      <h2>3. 计划停机（宿主机关机 / 重启前）</h2>
+      <div class="note">目的：VM 正常关机，避免 etcd、Kafka 数据损坏；后端在 VM 之前停，避免 bridge 报错刷屏。</div>
+      <div class="steps">
+        <div class="step"><div class="step-title">停止所有前台实验脚本</div>
+          <p>在各终端 Ctrl+C：<code>simulation/run.sh</code>、<code>kafka/vigil_bridge.py</code>、数据集采集、<code>traffic_request</code> 脚本。确认无残留：</p>
+<pre><code>pgrep -af 'simulate_|vigil_bridge|dataset_collector|start_send|start_read|monitor.py'</code></pre>
+          <div class="expect">预期：无输出。若有，<code>sudo kill &lt;pid&gt;</code>。</div></div>
+        <div class="step"><div class="step-title">清理伪造源 IP</div>
+<pre><code>cd $K && sudo .venv/bin/python3 traffic/handle_addr.py --action delete
+ip -4 addr show virbr-k8s | grep inet</code></pre>
+          <div class="expect">预期：只剩 <code>192.168.100.1/24</code>。</div></div>
+        <div class="step"><div class="step-title">（可选）备份</div>
+          <p>重大变更或长时间停机前执行 <a href="#backup">第 7 节</a> 的备份。</p></div>
+        <div class="step"><div class="step-title">停后端（可选）</div>
+<pre><code>systemctl --user stop netsentinel</code></pre>
+          <div class="expect">宿主机关机时 systemd 会自动停止，这一步只在只关集群、不关宿主机时需要。不要 <code>docker stop pg</code>，否则开机后不会自启。</div></div>
+        <div class="step"><div class="step-title">先关 worker</div>
+<pre><code>for v in k8s-node1 k8s-node2 k8s-node3 k8s-node4; do virsh -c qemu:///system shutdown $v; done
+watch -n 5 "virsh -c qemu:///system list --all"</code></pre>
+          <div class="expect">预期：1~2 分钟内 4 台变为 <code>shut off</code>。超过 5 分钟仍在运行，再执行一次 shutdown；仍不行才用 <code>virsh destroy</code>（相当于拔电源）。</div></div>
+        <div class="step"><div class="step-title">再关 master</div>
+<pre><code>virsh -c qemu:///system shutdown k8s-master</code></pre>
+          <div class="expect">预期：<code>k8s-master</code> 变为 <code>shut off</code>。</div></div>
+        <div class="step"><div class="step-title">关停 / 重启宿主机</div>
+<pre><code>sudo reboot     # 或 sudo poweroff</code></pre></div>
+      </div>
+    </section>
+
+    <section id="startup">
+      <h2>4. 开机恢复（宿主机重启后）</h2>
+      <div class="steps">
+        <div class="step"><div class="step-title">确认自动恢复的部分</div>
+<pre><code>systemctl --user is-active netsentinel cloudflared-knettf
+docker ps --filter name=pg --format '{{.Names}} {{.Status}}'
+virsh -c qemu:///system net-list --all | grep virbr-k8s
+sysctl net.ipv4.ip_forward</code></pre>
+          <div class="expect">预期：<code>active active</code>；<code>pg Up</code>；<code>virbr-k8s active yes</code>；<code>ip_forward = 1</code>。<br>后端这时已启动，但集群还没起来，bridge 线程会因连不上 Kafka 退出，第 8 步会重启后端。</div></div>
+        <div class="step"><div class="step-title">恢复 VM 出网的 iptables 规则</div>
+<pre><code>sudo iptables -t nat -C POSTROUTING -s 192.168.100.0/24 ! -d 192.168.100.0/24 -o enp6s0 -j MASQUERADE 2&gt;/dev/null \
+  || sudo iptables -t nat -A POSTROUTING -s 192.168.100.0/24 ! -d 192.168.100.0/24 -o enp6s0 -j MASQUERADE
+sudo iptables -C FORWARD -s 192.168.100.0/24 -j ACCEPT 2&gt;/dev/null || sudo iptables -A FORWARD -s 192.168.100.0/24 -j ACCEPT
+sudo iptables -C FORWARD -d 192.168.100.0/24 -j ACCEPT 2&gt;/dev/null || sudo iptables -A FORWARD -d 192.168.100.0/24 -j ACCEPT</code></pre>
+          <div class="expect">命令幂等，可以重复执行。出口网卡若不是 <code>enp6s0</code>，用 <code>ip route get 1.1.1.1</code> 查实际网卡。libvirt 自带的 NAT 规则通常已足够，这一步主要保证 VM 能拉镜像。</div></div>
+        <div class="step"><div class="step-title">启动 master</div>
+<pre><code>virsh -c qemu:///system start k8s-master
+until kubectl get --raw=/readyz &gt;/dev/null 2&gt;&amp;1; do sleep 5; done; echo apiserver ready</code></pre>
+          <div class="expect">预期：1~3 分钟后输出 <code>apiserver ready</code>。</div></div>
+        <div class="step"><div class="step-title">启动 worker</div>
+<pre><code>for v in k8s-node1 k8s-node2 k8s-node3 k8s-node4; do virsh -c qemu:///system start $v; done
+kubectl wait --for=condition=Ready node --all --timeout=600s</code></pre>
+          <div class="expect">预期：5 个 <code>condition met</code>。超时 → <code>virsh net-dhcp-leases virbr-k8s</code> 看 VM 是否拿到 .10-.14 的 IP。</div></div>
+        <div class="step"><div class="step-title">等待核心组件就绪</div>
+<pre><code>kubectl -n kube-system rollout status ds/cilium --timeout=300s
+kubectl -n kube-system rollout status deploy/hubble-relay --timeout=300s
+kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s
+kubectl get pod kafka-controller
+kubectl rollout status sts/kafka-broker --timeout=600s
+kubectl -n kube-system rollout status ds/vector --timeout=300s</code></pre>
+          <div class="expect">预期：全部 successfully rolled out；<code>kafka-controller 1/1 Running</code>。<br><code>kafka-controller</code> 不存在 → Kafka 需重建（<a href="#rebuild">第 6.2 节</a>）。</div></div>
+        <div class="step"><div class="step-title">核对 MetalLB 地址未变</div>
+<pre><code>kubectl get svc -A | grep LoadBalancer</code></pre>
+          <div class="expect">预期：kafka-0~3-external = 192.168.100.200~203；my-nginx = .204；targets = .210~.214。<br>若 Kafka 地址变了：重跑 <code>$K/kubeadm-cluster/03-deploy-5nodes.sh</code>，并修改 <code>$N/backend/vigil/bridge.py</code> 中的 <code>KAFKA_BOOTSTRAP</code>。</div></div>
+        <div class="step"><div class="step-title">确认 Kafka 有数据</div>
+<pre><code>kubectl exec kafka-broker-0 -- /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server kafka-svc.default.svc.cluster.local:9092 --topic ebpf-net-logs --max-messages 2 --timeout-ms 20000</code></pre>
+          <div class="expect">预期：2 行 JSON。</div></div>
+        <div class="step"><div class="step-title">重启后端，让 bridge 重新连上 Kafka</div>
+<pre><code>systemctl --user restart netsentinel
+sleep 20; journalctl --user -u netsentinel --since '-1 min' | grep -E 'AdsMLModel|bridge|drainer'</code></pre>
+          <div class="expect">预期：<code>AdsMLModel loaded</code>、<code>vigil bridge + drainer threads started</code>、<code>bridge starting → bootstrap=...</code>，且没有 <code>bridge error</code>。</div></div>
+        <div class="step"><div class="step-title">（需要时）宿主机 Hubble 观察</div>
+<pre><code>nohup kubectl -n kube-system port-forward svc/hubble-relay 4245:4245 &gt; /tmp/hubble-pf.log 2&gt;&amp;1 &amp;
+hubble observe --server localhost:4245 --last 5</code></pre></div>
+        <div class="step"><div class="step-title">端到端验证</div>
+<pre><code>cd $K && sudo .venv/bin/python3 traffic/spoof_attack.py --packets 200
+sleep 15
+docker exec pg psql -U vigil vigil -c "select created_at, src_ip, is_attack, attack_type from vigil_detectionrecord order by created_at desc limit 5;"</code></pre>
+          <div class="expect">预期：出现源 IP 为 192.168.100.20~29、刚刚写入的记录；前端 <code>/vigil/log</code> 15 秒内刷新出来。</div></div>
+      </div>
+      <div class="ok">一次性改进（可选）：<code>for v in k8s-master k8s-node{1..4}; do virsh -c qemu:///system autostart $v; done</code> 让 VM 开机自启；<code>sudo apt install iptables-persistent &amp;&amp; sudo netfilter-persistent save</code> 持久化 iptables。设置后第 2~4 步可省略，但第 8 步（重启后端）仍需执行。</div>
+    </section>
+
+    <section id="restart">
+      <h2>5. 局部重启 / 变更生效</h2>
+
+      <h3>5.1 改了后端 Python 代码</h3>
+      <div class="steps">
+        <div class="step"><div class="step-title">检查</div>
+<pre><code>cd $N/backend && ../.venv/bin/python manage.py check</code></pre>
+          <div class="expect">预期：<code>System check identified no issues</code>。</div></div>
+        <div class="step"><div class="step-title">重启</div>
+<pre><code>systemctl --user restart netsentinel
+journalctl --user -u netsentinel -n 30 --no-pager</code></pre>
+          <div class="expect">影响：所有 WebSocket（Pod 日志、入口 B 检测器）断开，检测器会自动重连；bridge 从 Kafka 已提交的 offset 继续；<code>flow_queue</code> 中未处理的批次丢失；进程内存上限 3G，超出会被 systemd 杀掉并自动重启。</div></div>
+      </div>
+
+      <h3>5.2 改了 models.py（数据库结构）</h3>
+      <div class="steps">
+        <div class="step"><div class="step-title">先备份</div><p>见 <a href="#backup">第 7 节</a>。</p></div>
+        <div class="step"><div class="step-title">生成并检查迁移</div>
+<pre><code>cd $N/backend
+../.venv/bin/python manage.py makemigrations
+../.venv/bin/python manage.py showmigrations
+../.venv/bin/python manage.py sqlmigrate &lt;app&gt; &lt;编号&gt;</code></pre>
+          <div class="expect">vigil 的 <code>DetectionRecord</code> 是 <code>managed=False</code>，改字段不会生成迁移；必须手写 <code>RunSQL</code>（<code>ALTER TABLE vigil_detectionrecord ...</code>，会自动作用于所有分区）。</div></div>
+        <div class="step"><div class="step-title">执行</div>
+<pre><code>../.venv/bin/python manage.py migrate                    # default（kcore / autotf / auth）
+../.venv/bin/python manage.py migrate --database=vigil   # vigil
+systemctl --user restart netsentinel</code></pre></div>
+      </div>
+
+      <h3>5.3 改了前端</h3>
+<pre><code>cd $N/frontend && pnpm install &amp;&amp; pnpm build</code></pre>
+      <p>不需要重启后端：WhiteNoise 直接读取 <code>frontend/dist</code>。浏览器按 Ctrl+F5 强制刷新。<code>public/</code> 下的静态页（本手册）同样需要 build 才会进入 dist。</p>
+
+      <h3>5.4 改了 Python 依赖</h3>
+<pre><code>cd $N && uv add &lt;包&gt;    # 或编辑 pyproject.toml 后 uv sync
+systemctl --user restart netsentinel</code></pre>
+      <p>重建整个 <code>.venv</code> 期间服务会不断重启失败（<code>Restart=always</code>，3 秒一次），建议先 <code>systemctl --user stop netsentinel</code>。</p>
+
+      <h3>5.5 更新模型文件（ads_ml）</h3>
+      <div class="steps">
+        <div class="step"><div class="step-title">替换文件</div><p>把新的 joblib / CSV 放到 <code>$N/backend/vigil/ml/ads_ml/trained/</code>，文件名不同时同步修改 <code>config.yaml</code>。先保留旧文件备份。</p></div>
+        <div class="step"><div class="step-title">离线自测</div>
+<pre><code>cd $N/backend && ../.venv/bin/python -c "
+import django,os;os.environ['DJANGO_SETTINGS_MODULE']='backend.settings';django.setup()
+from vigil.ml.models import registry;print(registry.list_models())"</code></pre>
+          <div class="expect">预期：<code>['ads_ml_ocsvm']</code>（这一步会启动 bridge 以外的全部初始化，不写库）。</div></div>
+        <div class="step"><div class="step-title">入口 A 生效</div><pre><code>systemctl --user restart netsentinel</code></pre></div>
+        <div class="step"><div class="step-title">入口 B 生效（如已部署）</div>
+<pre><code>cd $N/detector && bash build.sh      # rsync ads_ml → docker build → docker push
+kubectl -n netsentinel rollout restart deploy/netsentinel-detector
+kubectl -n netsentinel rollout status deploy/netsentinel-detector</code></pre></div>
+      </div>
+
+      <h3>5.6 集群组件</h3>
+      <div class="table-wrap"><table>
+        <tr><th>对象</th><th>命令</th><th>影响 / 注意</th></tr>
+        <tr><td>Vector 配置</td><td><code>kubectl apply -f $K/cilium-vector/vector-5nodes.yaml</code><br><code>kubectl -n kube-system rollout restart ds/vector</code></td><td>重启期间 Hubble 事件丢失（exec source 不补发）</td></tr>
+        <tr><td>单个 Kafka broker</td><td><code>kubectl delete pod kafka-broker-N</code>，等它 Running 后再处理下一个</td><td>有 PVC，数据保留；min.insync.replicas=2，同时停两个以上会导致写入失败</td></tr>
+        <tr><td>Kafka controller</td><td><b>不要直接删除</b></td><td>裸 Pod + emptyDir：删除后不会重建，元数据丢失 → 只能按 6.2 重建 Kafka</td></tr>
+        <tr><td>hubble-relay</td><td><code>kubectl -n kube-system rollout restart deploy/hubble-relay</code></td><td>Vector 的 hubble observe 退出后 5 秒自动重连</td></tr>
+        <tr><td>Cilium</td><td><code>kubectl -n kube-system rollout restart ds/cilium</code></td><td>短暂网络抖动</td></tr>
+        <tr><td>my-nginx / targets</td><td><code>kubectl rollout restart deploy/my-nginx</code>；<code>kubectl -n targets rollout restart ds</code></td><td>MetalLB IP 不变</td></tr>
+        <tr><td>单台 VM</td><td><code>kubectl drain k8s-nodeN --ignore-daemonsets --delete-emptydir-data</code> → <code>virsh reboot</code> → <code>kubectl uncordon k8s-nodeN</code></td><td>该节点上的 broker 会等待节点回来（PVC 绑定节点）</td></tr>
+        <tr><td>cloudflared</td><td><code>systemctl --user restart cloudflared-knettf</code></td><td>公网短暂中断</td></tr>
+        <tr><td>PostgreSQL</td><td><code>docker restart pg</code></td><td>重启期间写库失败，drainer 记录异常并丢弃该批次；之后自动恢复（Django 每批重新建连）</td></tr>
+      </table></div>
+    </section>
+
+    <section id="rebuild">
+      <h2>6. 重建</h2>
+      <div class="danger">重建前必须完成 <a href="#backup">第 7 节</a> 的备份。knetsentinel 的脚本和数据<b>不在 Git 中</b>，删除后无法找回。</div>
+
+      <h3>6.1 重建级别对照</h3>
+      <div class="table-wrap"><table>
+        <tr><th>级别</th><th>会丢失</th><th>耗时</th><th>做法</th></tr>
+        <tr><td>Kafka / Vector</td><td>topic 中所有未消费的事件</td><td>10 分钟</td><td>6.2</td></tr>
+        <tr><td>整个 K8s 集群</td><td>全部 VM、集群状态、Kafka、kubeconfig、/etc/hosts 条目、SSH known_hosts</td><td>1~2 小时</td><td>6.3</td></tr>
+        <tr><td>NetSentinel default 库</td><td>用户、集群、Terraform 配置与报告</td><td>5 分钟</td><td>6.4</td></tr>
+        <tr><td>NetSentinel vigil 库</td><td>全部检测记录</td><td>5 分钟</td><td>6.5</td></tr>
+        <tr><td>NetSentinel 运行环境</td><td>无数据（只是 .venv / dist）</td><td>5 分钟</td><td>6.6</td></tr>
+      </table></div>
+
+      <h3>6.2 重建 Kafka（与 Vector）</h3>
+      <div class="steps">
+        <div class="step"><div class="step-title">导出需要保留的数据</div>
+<pre><code>cd $K && uv run python kafka/kafka_read_csv.py --output backup_$(date +%F).csv --max-attack 1000000 --max-normal 1000000</code></pre></div>
+        <div class="step"><div class="step-title">删除 Kafka 资源与 PVC</div>
+<pre><code>kubectl delete -f $K/kafka-svc/kafka-5nodes.yaml --ignore-not-found
+kubectl delete pvc -l app=kafka-broker --ignore-not-found     # 或逐个 kafka-data-kafka-broker-0..3
+kubectl get pods,pvc | grep kafka</code></pre>
+          <div class="expect">预期：最后一条无输出。controller 的 cluster id 是固定的，不删 PVC 也可以试着恢复，但 controller 元数据已丢时 broker 往往注册失败，删 PVC 最稳妥。</div></div>
+        <div class="step"><div class="step-title">重新部署</div>
+<pre><code>cd $K/kubeadm-cluster && bash 03-deploy-5nodes.sh</code></pre>
+          <div class="expect">脚本幂等：先建 Service 拿 MetalLB IP → 写 ConfigMap <code>kafka-node-ips</code> → 部署 controller 与 broker → Secret + Vector → my-nginx → port-forward → /etc/hosts → 重写 <code>$K/.env</code>。</div></div>
+        <div class="step"><div class="step-title">核对地址并重启后端</div>
+<pre><code>kubectl get svc | grep kafka-.-external
+systemctl --user restart netsentinel</code></pre>
+          <div class="expect">地址不是 .200-.203 时，先改 <code>$N/backend/vigil/bridge.py</code> 的 <code>KAFKA_BOOTSTRAP</code> 再重启。</div></div>
+      </div>
+
+      <h3>6.3 重建整个集群</h3>
+      <div class="steps">
+        <div class="step"><div class="step-title">备份 knetsentinel 与集群相关信息</div>
+<pre><code>tar czf ~/knetsentinel_backup_$(date +%F).tgz -C ~ --exclude='knetsentinel/.venv' knetsentinel
+kubectl get svc -A -o wide &gt; ~/svc_before_rebuild.txt
+cp ~/.kube/config ~/kubeconfig_before_rebuild</code></pre></div>
+        <div class="step"><div class="step-title">停后端（避免 bridge 报错）</div><pre><code>systemctl --user stop netsentinel</code></pre></div>
+        <div class="step"><div class="step-title">清理</div>
+<pre><code>cd $K/kubeadm-cluster && bash 00-clear.sh</code></pre>
+          <div class="expect">依次：杀 port-forward → 删 5 台 VM → 删网桥 → 删 <code>~/vm-images</code> 下磁盘 → 删 cloud image → 删 cloud-init 临时文件 → 删 <code>~/.kube/config</code> → 清 <code>/etc/hosts</code> → 清 known_hosts。</div></div>
+        <div class="step"><div class="step-title">建 VM</div>
+<pre><code>bash 01-setup-vms.sh</code></pre>
+          <div class="expect">预期：5 台 VM SSH 就绪（用户 <code>k8s</code>）。需要 ≥ 420GB 空闲磁盘并能访问外网。</div></div>
+        <div class="step"><div class="step-title">装集群</div>
+<pre><code>bash 02-setup-cluster.sh</code></pre>
+          <div class="expect">预期：kubeadm v1.28、Cilium + Hubble、MetalLB（池 .200-.250）、local-path 就绪。MetalLB webhook 偶尔拒绝 IP 池，重跑即可。</div></div>
+        <div class="step"><div class="step-title">部署数据管道</div><pre><code>bash 03-deploy-5nodes.sh</code></pre></div>
+        <div class="step"><div class="step-title">可选组件</div>
+<pre><code>kubectl apply -f $K/cluster-setup/targets.yaml
+kubectl apply -f $K/cluster-setup/host-firewall-ccnp.yaml</code></pre></div>
+        <div class="step"><div class="step-title">对齐 NetSentinel</div>
+          <ol>
+            <li>核对 Kafka 地址（同 6.2 第 4 步），启动后端：<code>systemctl --user start netsentinel</code>。</li>
+            <li>集群 CA 和证书已变：登录前端 → <code>/kcore</code> 或 <code>/admin/clusters</code> → 编辑集群 → 粘贴新的 <code>~/.kube/config</code>；或调用 <code>PUT /api/kcore/clusters/&lt;id&gt;/</code>。</li>
+            <li>如需入口 B：<code>kubectl create ns netsentinel</code>；<code>kubectl -n netsentinel create secret generic detector-secret --from-literal=django-token="$(grep ^VIGIL_BRIDGE_TOKEN= $N/backend/backend/.env | cut -d= -f2-)"</code>；<code>kubectl apply -f $K/detector/detector-deployment.yaml</code>。</li>
+            <li>执行 <a href="#startup">第 4 节</a> 最后一步的端到端验证。</li>
+          </ol></div>
+      </div>
+
+      <h3>6.4 重置 default 库（用户 / 集群 / Terraform）</h3>
+<pre><code>systemctl --user stop netsentinel
+cd $N/backend
+cp db.sqlite3 db.sqlite3.bak_$(date +%F_%H%M)
+<span class="c"># 方式一：只清业务数据</span>
+../.venv/bin/python manage.py autotf_clear &amp;&amp; ../.venv/bin/python manage.py users_clear
+<span class="c"># 方式二：整库重建</span>
+rm db.sqlite3 &amp;&amp; ../.venv/bin/python manage.py migrate
+<span class="c"># 初始化</span>
+../.venv/bin/python manage.py users_init           # admin / alice / bob
+../.venv/bin/python manage.py autotf_init          # 注册 5 个扫描工具
+../.venv/bin/python manage.py generate_bridge_token --write-env   # 重建 vigil-bridge 服务账号与 token
+systemctl --user start netsentinel</code></pre>
+      <p><code>autotf_clear</code> 会删除整个 <code>backend/terraform/</code> 目录。重新生成 token 后，若部署了入口 B，要同步更新 Secret <code>detector-secret</code> 并 rollout 检测器。</p>
+
+      <h3>6.5 重置 vigil 库（检测记录）</h3>
+      <div class="danger">会清空全部检测记录，先执行 7.2 的备份。</div>
+<pre><code>systemctl --user stop netsentinel
+cd $N/backend
+../.venv/bin/python manage.py migrate vigil zero --database=vigil   # DROP TABLE ... CASCADE
+../.venv/bin/python manage.py migrate vigil --database=vigil        # 重建父表 + 91 个分区
+systemctl --user start netsentinel</code></pre>
+      <p>只想清数据不想动结构：<code>docker exec pg psql -U vigil vigil -c "TRUNCATE vigil_detectionrecord;"</code>。</p>
+
+      <h3>6.6 重建运行环境</h3>
+<pre><code>systemctl --user stop netsentinel
+cd $N &amp;&amp; rm -rf .venv &amp;&amp; uv sync
+cd frontend &amp;&amp; rm -rf node_modules dist &amp;&amp; pnpm install &amp;&amp; pnpm build
+systemctl --user start netsentinel</code></pre>
+    </section>
+
+    <section id="backup">
+      <h2>7. 备份与恢复</h2>
+      <h3>7.1 备份清单</h3>
+      <div class="table-wrap"><table>
+        <tr><th>对象</th><th>备份命令</th><th>恢复</th></tr>
+        <tr><td>default 库</td><td><code>sqlite3 $N/backend/db.sqlite3 ".backup '$N/backend/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"</code></td><td>停服务 → 覆盖 <code>db.sqlite3</code> → 启服务</td></tr>
+        <tr><td>上传的 .tf 文件</td><td><code>tar czf tf_$(date +%F).tgz -C $N/backend terraform</code></td><td>解压回 <code>backend/</code></td></tr>
+        <tr><td>vigil 库</td><td>见 7.2</td><td>见 7.3</td></tr>
+        <tr><td>后端 .env</td><td><code>cp $N/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td><td>复制回去</td></tr>
+        <tr><td>模型文件</td><td><code>tar czf ads_ml_$(date +%F).tgz -C $N/backend/vigil/ml ads_ml/trained ads_ml/config.yaml</code></td><td>解压回去，重启后端</td></tr>
+        <tr><td>knetsentinel 全部</td><td><code>tar czf ~/knetsentinel_$(date +%F).tgz -C ~ --exclude='knetsentinel/.venv' knetsentinel</code></td><td>解压，<code>uv sync</code></td></tr>
+        <tr><td>kubeconfig</td><td><code>cp ~/.kube/config ~/kubeconfig_$(date +%F)</code></td><td>集群未重建时复制回去</td></tr>
+        <tr><td>systemd / cloudflared 配置</td><td><code>tar czf sys_$(date +%F).tgz -C ~ .config/systemd/user .cloudflared</code></td><td>解压后 <code>systemctl --user daemon-reload</code></td></tr>
+        <tr><td>crontab</td><td><code>crontab -l &gt; ~/crontab_$(date +%F)</code></td><td><code>crontab ~/crontab_xxx</code></td></tr>
+      </table></div>
+
+      <h3>7.2 备份 vigil 库</h3>
+<pre><code><span class="c"># 全库（自定义格式，可选择性恢复）</span>
+docker exec pg pg_dump -U vigil -Fc vigil &gt; ~/vigil_$(date +%F).dump
+<span class="c"># 只导出某天数据为 CSV</span>
+docker exec pg psql -U vigil vigil -c "\copy (select * from vigil_detectionrecord_2026_10_16) to stdout csv header" &gt; ~/vigil_2026_10_16.csv</code></pre>
+
+      <h3>7.3 恢复 vigil 库</h3>
+<pre><code>systemctl --user stop netsentinel
+docker exec -i pg pg_restore -U vigil -d vigil --clean --if-exists &lt; ~/vigil_2026-10-16.dump
+systemctl --user start netsentinel
+docker exec pg psql -U vigil vigil -Atc "select count(*) from vigil_detectionrecord;"</code></pre>
+      <p>恢复后检查明天的分区是否存在（第 2 节第 4 步），没有就手动执行 <code>manage.py rotate_partitions</code>。</p>
+    </section>
+
+    <section id="account">
+      <h2>8. 账号与令牌</h2>
+      <div class="table-wrap"><table>
+        <tr><th>操作</th><th>命令</th></tr>
+        <tr><td>改用户密码</td><td><code>cd $N/backend &amp;&amp; ../.venv/bin/python manage.py changepassword admin</code></td></tr>
+        <tr><td>新建超级管理员</td><td><code>../.venv/bin/python manage.py createsuperuser</code></td></tr>
+        <tr><td>把用户设为管理员</td><td><code>../.venv/bin/python manage.py shell -c "from kcore.models import User;u=User.objects.get(username='alice');u.is_staff=True;u.save()"</code></td></tr>
+        <tr><td>禁用用户</td><td>同上，设 <code>is_active=False</code></td></tr>
+        <tr><td>生成长期服务 token</td><td><code>../.venv/bin/python manage.py generate_bridge_token [--username vigil-bridge] [--years 10] --write-env</code> → 写入 <code>backend/backend/.env</code>，重启后端生效</td></tr>
+        <tr><td>入口 B Secret 同步</td><td><code>kubectl -n netsentinel create secret generic detector-secret --from-literal=django-token="&lt;token&gt;" --dry-run=client -o yaml | kubectl apply -f -</code>，再 rollout 检测器</td></tr>
+      </table></div>
+      <p>注意：<code>VIGIL_BRIDGE_TOKEN</code> 同时是一个合法 JWT（可调 REST）和 WebSocket 推送的共享密钥。泄露后应重新生成，并更新所有使用方。</p>
+    </section>
+
+    <section id="experiments">
+      <h2>9. 跑实验</h2>
+      <h3>9.1 发包（需要 root）</h3>
+      <div class="table-wrap"><table>
+        <tr><th>目的</th><th>命令</th><th>源 IP / 标签</th></tr>
+        <tr><td>SYN flood 攻击</td><td><code>sudo .venv/bin/python3 traffic/spoof_attack.py --packets 1000</code></td><td>.20-.29 / 1</td></tr>
+        <tr><td>混合协议正常流量</td><td><code>sudo .venv/bin/python3 traffic/send_normal_scapy.py --packets 1000</code></td><td>.50-.64 / 0</td></tr>
+        <tr><td>curl 访问 nginx</td><td><code>sudo .venv/bin/python3 traffic/send_request.py --repeat 10 --delay 0.5</code></td><td>.50-.64 / 0</td></tr>
+        <tr><td>正常 + 攻击</td><td><code>sudo bash traffic/run_traffic_only.sh --normal-repeat 5 --attack-packets 2000</code></td><td>两者</td></tr>
+        <tr><td>端到端模式 1/2/3</td><td><code>sudo bash simulation/run.sh 1|2|3</code></td><td>正常 .50-.59；攻击 .170-.184（label 为空）</td></tr>
+      </table></div>
+      <p>所有命令在 <code>$K</code> 下执行。发包脚本会临时把源 IP 加到 <code>virbr-k8s</code>，结束时删除；中途被 kill 会残留，用 <code>traffic/handle_addr.py --action delete</code> 清理。</p>
+      <div class="note"><code>simulation/run.sh</code> 的 monitor 连接 <code>ws://localhost:8080/ws/vigil/</code>，<b>后端没有这个路由</b>，monitor 拿不到结果。评估时改用 SQL（<a href="db.html#vigil">数据库页常用查询</a>）或 <code>GET /api/vigil/records/?time_from=...</code>。</div>
+
+      <h3>9.2 采集数据集</h3>
+<pre><code>cd $K
+sudo bash dataset/run_dataset_collection.sh dataset/new.csv     # 默认 16 万攻击 + 5 万正常
+uv run python dataset/aggregate_flows.py -i dataset/new.csv -o flows_new.csv -t 5</code></pre>
+
+      <h3>9.3 离线批量评估（不经过 Kafka）</h3>
+<pre><code>cd $K/simulation && $N/.venv/bin/python simulate_4.py</code></pre>
+      <p>用 NetSentinel 的 venv 运行，因为需要导入 Django 和模型。结果写入 vigil 库。</p>
+
+      <h3>9.4 只用一条检测入口</h3>
+      <ul>
+        <li>入口 A 默认开启；要改用入口 C（<code>kafka/vigil_bridge.py</code>）时，需注释 <code>vigil/apps.py</code> 中的 <code>bridge.start()</code> 并重启后端，否则重复入库。</li>
+        <li>部署入口 B 时同理。</li>
+      </ul>
+    </section>
+
+    <section id="trouble">
+      <h2>10. 故障排查</h2>
+      <div class="table-wrap"><table>
+        <tr><th>现象</th><th>检查</th><th>处理</th></tr>
+        <tr><td>网页打不开</td><td><code>systemctl --user status netsentinel</code>；<code>journalctl --user -u netsentinel -n 100</code></td><td>启动失败多为 <code>.venv</code> 损坏、PostgreSQL 不可用或 settings 语法错误</td></tr>
+        <tr><td>公网打不开、本机正常</td><td><code>systemctl --user status cloudflared-knettf</code>；<code>journalctl --user -u cloudflared-knettf -n 50</code></td><td>重启隧道；检查 <code>~/.cloudflared/netsentinel.yml</code></td></tr>
+        <tr><td>网页白屏 / 404</td><td><code>ls $N/frontend/dist/index.html</code></td><td><code>pnpm build</code></td></tr>
+        <tr><td>登录后马上掉线</td><td>浏览器开发者工具看 <code>/api/auth/token/refresh/</code></td><td>refresh 过期（7 天）→ 重新登录；清 localStorage</td></tr>
+        <tr><td>/vigil 无新数据</td><td>按顺序：Kafka 有数据？→ 后端 bridge 日志？→ 明天 / 今天的分区存在？</td><td>多数情况是 bridge 线程已退出 → 重启后端</td></tr>
+        <tr><td>日志 <code>bridge error: ...</code></td><td>Kafka 外部地址能否连通：<code>nc -zv 192.168.100.200 9094</code></td><td>恢复 Kafka 后重启后端</td></tr>
+        <tr><td>日志 <code>drainer failed</code> + <code>no partition of relation</code></td><td>分区缺失</td><td><code>manage.py rotate_partitions</code>；当天分区缺失则用 SQL 手动建</td></tr>
+        <tr><td><code>/api/vigil/models/</code> 返回空</td><td><code>journalctl ... | grep 'AdsMLModel not loaded'</code></td><td>常见原因：<code>trained/</code> 文件缺失、scikit-learn 版本与训练时不一致（当前固定 1.7.2）</td></tr>
+        <tr><td>推理很慢</td><td><code>raw_output.inference_ms</code></td><td>每条流都会重新加载模型（见数据库页第 7 节），属已知问题</td></tr>
+        <tr><td>Kafka 无数据</td><td><code>kubectl -n kube-system logs -l app=vector --tail=50</code>；<code>kubectl -n kube-system get svc hubble-relay</code></td><td>hubble-relay 端口须为 4245；必要时 rollout restart Vector</td></tr>
+        <tr><td>Hubble 看不到伪造源 IP</td><td><code>ip addr show virbr-k8s</code></td><td>源 IP 未绑定；apply <code>host-firewall-ccnp.yaml</code></td></tr>
+        <tr><td>broker CrashLoop</td><td><code>kubectl logs kafka-broker-N</code>；<code>kubectl logs kafka-controller</code>；<code>kubectl get cm kafka-node-ips -o yaml</code></td><td>controller 元数据丢失 → 6.2 重建</td></tr>
+        <tr><td>节点 NotReady</td><td><code>virsh list</code>；<code>ssh k8s@192.168.100.1X 'systemctl status kubelet containerd'</code></td><td>swap 被打开、磁盘满、containerd 挂了</td></tr>
+        <tr><td>VM 拿不到 IP / SSH 超时</td><td><code>virsh net-dhcp-leases virbr-k8s</code></td><td><code>virsh net-destroy virbr-k8s &amp;&amp; virsh net-start virbr-k8s</code>，再重启 VM</td></tr>
+        <tr><td>VM 无法出网</td><td><code>sudo iptables -t nat -S | grep 192.168.100</code></td><td>补 iptables 规则（第 4 节第 2 步）</td></tr>
+        <tr><td>kcore 页面所有操作报 502</td><td>集群 kubeconfig 是否过期</td><td>集群重建后要更新集群的 kubeconfig</td></tr>
+        <tr><td>Terraform 扫描某工具结果为空</td><td>报告中 <code>error: tool not found</code></td><td>确认 <code>tflint</code>、<code>tfsec</code>、<code>trivy</code>、checkov 都在服务进程的 PATH 中（<code>/usr/local/bin</code>、<code>/usr/bin</code>、<code>~/terraform/.venv/bin</code>）</td></tr>
+        <tr><td>Terraform apply 被拒</td><td>报告 <code>summary.high</code></td><td>有 HIGH 问题时禁止 apply，先修复</td></tr>
+        <tr><td>后端被 OOM 重启</td><td><code>journalctl --user -u netsentinel | grep -i memory</code></td><td>MemoryMax=3G；flow_queue 积压或大查询所致</td></tr>
+      </table></div>
+    </section>
+
+    <section id="logs">
+      <h2>11. 日志位置</h2>
+      <div class="table-wrap"><table>
+        <tr><th>来源</th><th>查看</th></tr>
+        <tr><td>后端（含 bridge、drainer、模型、Cilium stub）</td><td><code>journalctl --user -u netsentinel -f</code></td></tr>
+        <tr><td>cloudflared</td><td><code>journalctl --user -u cloudflared-knettf -f</code></td></tr>
+        <tr><td>分区轮转</td><td><code>/tmp/rotate_partitions.log</code></td></tr>
+        <tr><td>PostgreSQL</td><td><code>docker logs --tail 100 pg</code></td></tr>
+        <tr><td>模型推理明细</td><td><code>$N/backend/vigil/ml/ads_ml/results/Anomaly_Detection_Report.csv</code></td></tr>
+        <tr><td>Vector / Kafka / hubble-relay</td><td><code>kubectl -n kube-system logs -l app=vector</code>；<code>kubectl logs kafka-broker-0</code>；<code>kubectl -n kube-system logs deploy/hubble-relay</code></td></tr>
+        <tr><td>入口 B 检测器</td><td><code>kubectl -n netsentinel logs deploy/netsentinel-detector -f</code></td></tr>
+        <tr><td>hubble port-forward</td><td><code>/tmp/hubble-pf.log</code></td></tr>
+        <tr><td>knetsentinel 脚本</td><td><code>$K/logs/</code>、<code>$K/kafka/*.log</code>、<code>$K/traffic_request/*.log</code>、<code>$K/simulation/monitor/send.log</code></td></tr>
+      </table></div>
+    </section>
+  </main>
+  <script src="ops.js"></script>
+</body>
+</html>
