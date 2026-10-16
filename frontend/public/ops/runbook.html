@@ -222,6 +222,7 @@ kubectl -n netsentinel rollout status deploy/netsentinel-detector</code></pre></
       <h2>6. 重建</h2>
       <div class="danger">重建前必须完成 <a href="#backup">第 7 节</a> 的备份。knetsentinel 的脚本和数据<b>不在 Git 中</b>，删除后无法找回。</div>
 
+      <p>重建时各步骤的先后依赖见 <a href="index.html#order">总览页：整体构建顺序</a>。</p>
       <h3>6.1 重建级别对照</h3>
       <div class="table-wrap"><table>
         <tr><th>级别</th><th>会丢失</th><th>耗时</th><th>做法</th></tr>
