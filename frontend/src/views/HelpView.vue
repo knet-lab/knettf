@@ -3,6 +3,7 @@ import { ref } from 'vue'
 
 const manuals = [
   { key: 'user', label: 'User Manual', src: '/manual_en.html' },
+  { key: 'admin', label: '管理员教程', src: '/ops/admin.html' },
   { key: 'ops', label: '运维对照手册', src: '/ops/index.html' },
 ]
 const current = ref(manuals[0]!)
