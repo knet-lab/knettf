@@ -4,16 +4,19 @@
 #   -frontend  pnpm install + pnpm build（不用重启服务）
 #   -backend   装依赖 → manage.py check → migrate(default) → 重启 netsentinel → 检查 8080
 #   -all       两者都做（先后端，再前端）
+# 生产目录是 ~/netsentinel-prod（本仓库的 clone），只部署已提交的 main：
+# 先在开发目录 git commit，脚本会在生产目录 git pull 后再构建/重启。
 # vigil 库（PostgreSQL）不会自动 migrate：大表 ALTER 可能很慢，有未应用的迁移时只提示。
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="${NETSENTINEL_PROD:-$HOME/netsentinel-prod}"
 PY="$ROOT/.venv/bin/python"
 SERVICE=netsentinel
 PORT=8080
 
 usage() {
-  sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -33,6 +36,16 @@ for arg in "$@"; do
   esac
 done
 
+sync_code() {
+  log "同步代码：$DEV_ROOT (main) → $ROOT"
+  [ -d "$ROOT/.git" ] || die "找不到生产目录 $ROOT"
+  if [ -n "$(git -C "$DEV_ROOT" status --porcelain)" ]; then
+    printf '\033[1;33m! 开发目录有未提交的改动，它们不会被部署\033[0m\n'
+  fi
+  git -C "$ROOT" pull --ff-only -q origin main
+  git -C "$ROOT" log --oneline -1
+}
+
 deploy_backend() {
   log "后端：安装依赖"
   [ -x "$PY" ] || die "找不到 $PY，先按手册创建 .venv"
@@ -41,6 +54,9 @@ deploy_backend() {
   cd "$ROOT/backend"
   log "后端：manage.py check"
   "$PY" manage.py check
+
+  log "后端：collectstatic"
+  "$PY" manage.py collectstatic --noinput -v 0
 
   log "后端：migrate（default）"
   "$PY" manage.py migrate --noinput
@@ -76,6 +92,7 @@ deploy_frontend() {
   echo "✓ 前端已构建到 frontend/dist，浏览器强制刷新即可看到"
 }
 
+sync_code
 [ $DO_BACKEND -eq 1 ] && deploy_backend
 [ $DO_FRONTEND -eq 1 ] && deploy_frontend
 log "完成"

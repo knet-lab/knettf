@@ -24,12 +24,13 @@ env.read_env(Path(__file__).resolve().parent / '.env')
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-wyu1ejh8&6i7q*ra*&bd^)5__gd#7tm!29gn%*!wq!6v(ml+sf'
+# 开发默认值；生产在 netsentinel-prod/backend/backend/.env 里覆盖
+SECRET_KEY = env.str('SECRET_KEY', default='django-insecure-wyu1ejh8&6i7q*ra*&bd^)5__gd#7tm!29gn%*!wq!6v(ml+sf')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env.bool('DEBUG', default=True)
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['*'])
 
 
 # Application definition
@@ -94,11 +95,11 @@ DATABASES = {
     },
     'vigil': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'vigil',
-        'USER': 'vigil',
-        'PASSWORD': 'vigil123',
-        'HOST': '127.0.0.1',
-        'PORT': '5432',
+        'NAME': env.str('VIGIL_DB_NAME', default='vigil_dev'),
+        'USER': env.str('VIGIL_DB_USER', default='vigil'),
+        'PASSWORD': env.str('VIGIL_DB_PASSWORD', default='vigil123'),
+        'HOST': env.str('VIGIL_DB_HOST', default='127.0.0.1'),
+        'PORT': env.str('VIGIL_DB_PORT', default='5432'),
     },
 }
 
@@ -177,7 +178,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.trycloudflare.com',
     'http://localhost:8080',
     'http://127.0.0.1:8080',
-]
+] + env.list('CSRF_EXTRA_ORIGINS', default=[])
 
 
 # Channels
