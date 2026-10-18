@@ -1,6 +1,7 @@
 // 使用管理手册：共用侧栏（章节列表 + 当前页目录），滚动时高亮
 (function () {
   const PAGES = [
+    { href: 'prepare.html', title: '准备工作：账户与 Git' },
     { href: 'index.html', title: '0. 开始之前' },
     { href: 'use.html', title: '1. 网页使用全流程' },
     { href: 'frontend.html', title: '2. 前端代码' },

@@ -14,6 +14,8 @@
     <div class="meta">写给要接手整个项目的人：从网页怎么用，到前端、后端、检测模型、集群脚本、实验脚本，逐层讲到代码和命令。读完后你应该能独立使用、修改、部署和排查这套系统。<br>
       依据 2026-10-18 本机代码核对。<span class="tag tag-k">K</span> = knetsentinel（<code>~/knetsentinel</code>），<span class="tag tag-n">N</span> = NetSentinel（<code>~/github/NetSentinel</code>）。<br>
       手册里的命令约定：<code>$N=~/github/NetSentinel</code>，<code>$K=~/knetsentinel</code>。先执行 <code>export N=~/github/NetSentinel K=~/knetsentinel</code>。</div>
+    <div class="note"><b>第一次接手？先做 <a href="prepare.html">准备工作：账户与 Git</a></b>：创建自己的 Linux 账户并授权、接受 GitHub 邀请、配置自己的提交身份。<br>
+      注意：用自己的账户登录时 <code>~</code> 是你自己的家目录。项目还在原作者目录下时请执行 <code>export N=/home/soar009/github/NetSentinel K=/home/soar009/knetsentinel</code>；迁移到共享目录后改为 <code>/srv/netsentinel/NetSentinel</code>、<code>/srv/netsentinel/knetsentinel</code>。</div>
 
     <section id="what">
       <h2>0.1 这个系统做什么</h2>
