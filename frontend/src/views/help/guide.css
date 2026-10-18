@@ -1,0 +1,125 @@
+/* 手册样式：全部限定在 .guide 容器内，不影响应用其他页面 */
+.guide *, .guide *::before, .guide *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.guide {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #f0f4f8; color: #2d3748; display: flex; flex: 1; min-height: 0; overflow: hidden;
+}
+.guide-body { flex: 1; min-width: 0; overflow-y: auto; }
+.guide h1, .guide h2, .guide h3, .guide h4 { font-weight: 700; }
+.guide .sidebar {
+  width: 250px; flex-shrink: 0; background: #1d2535; color: #a0aec0;
+  height: 100%; overflow-y: auto;
+}
+.guide .sidebar-logo { padding: 22px 20px 14px; font-size: 16px; font-weight: 700; color: #fff; border-bottom: 1px solid #2d3748; }
+.guide .sidebar-logo span { font-size: 11px; font-weight: 400; color: #718096; display: block; margin-top: 4px; }
+.guide .nav-section { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #4a5568; padding: 16px 20px 6px; }
+.guide .nav-page {
+  display: block; padding: 9px 20px; font-size: 13.5px; color: #cbd5e0; text-decoration: none;
+  border-left: 3px solid transparent;
+}
+.guide .nav-page:hover { background: #2d3748; color: #fff; }
+.guide .nav-page.current { background: #1e3a5f; color: #fff; border-left-color: #3b82f6; font-weight: 600; }
+.guide .nav-item {
+  display: block; padding: 6px 20px 6px 34px; font-size: 12.5px; color: #a0aec0; text-decoration: none;
+  border-left: 3px solid transparent;
+}
+.guide .nav-item:hover { background: #2d3748; color: #e2e8f0; }
+.guide .nav-item.active { color: #fff; border-left-color: #60a5fa; }
+.guide .main { flex: 1; min-width: 0; padding: 32px 40px 80px; max-width: 1240px; }
+.guide h1 { font-size: 25px; margin-bottom: 6px; color: #1a202c; }
+.guide .meta { font-size: 13px; color: #718096; margin-bottom: 26px; line-height: 1.7; }
+.guide section { background: #fff; border-radius: 10px; padding: 24px 28px; margin-bottom: 22px; box-shadow: 0 1px 3px rgba(0,0,0,.06); scroll-margin-top: 16px; }
+.guide h2 { font-size: 19px; color: #1a202c; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
+.guide h3 { font-size: 15px; color: #2b6cb0; margin: 22px 0 10px; }
+.guide h4 { font-size: 14px; color: #2d3748; margin: 16px 0 8px; }
+.guide p { font-size: 14px; line-height: 1.75; margin-bottom: 10px; }
+.guide ul, .guide ol { font-size: 14px; line-height: 1.8; margin: 0 0 12px 22px; }
+.guide li > ul, .guide li > ol { margin-bottom: 4px; }
+.guide .table-wrap { overflow-x: auto; margin: 8px 0 14px; }
+.guide table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.guide th, .guide td { border: 1px solid #e2e8f0; padding: 7px 10px; text-align: left; vertical-align: top; line-height: 1.6; }
+.guide th { background: #f7fafc; color: #4a5568; font-weight: 600; white-space: nowrap; }
+.guide tr:nth-child(even) td { background: #fbfcfd; }
+.guide code { font-family: 'JetBrains Mono', Menlo, Consolas, monospace; font-size: 12px; background: #edf2f7; color: #c53030; padding: 1px 5px; border-radius: 4px; word-break: break-word; }
+.guide pre { background: #1a202c; color: #e2e8f0; padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; line-height: 1.6; margin: 8px 0 14px; }
+.guide pre code { background: none; color: inherit; padding: 0; word-break: normal; }
+.guide pre .c { color: #718096; }
+.guide .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+.guide .tag-k { background: #e6fffa; color: #2c7a7b; }
+.guide .tag-n { background: #ebf4ff; color: #2b6cb0; }
+.guide .tag-b { background: #faf5ff; color: #6b46c1; }
+.guide .m { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; color: #fff; min-width: 54px; text-align: center; font-family: Menlo, Consolas, monospace; }
+.guide .m-get { background: #3182ce; }
+.guide .m-post { background: #38a169; }
+.guide .m-put { background: #d69e2e; }
+.guide .m-patch { background: #805ad5; }
+.guide .m-delete { background: #e53e3e; }
+.guide .m-ws { background: #4a5568; }
+.guide .endpoint { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin: 12px 0; }
+.guide .endpoint-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.guide .endpoint-head code { font-size: 13px; color: #1a202c; background: #f7fafc; }
+.guide .endpoint-head .perm { font-size: 12px; color: #718096; }
+.guide .endpoint p, .guide .endpoint li { font-size: 13px; }
+.guide .note { background: #fffbeb; border-left: 4px solid #f6ad55; padding: 10px 14px; font-size: 13.5px; border-radius: 4px; margin: 10px 0; line-height: 1.7; }
+.guide .danger { background: #fff5f5; border-left: 4px solid #e53e3e; padding: 10px 14px; font-size: 13.5px; border-radius: 4px; margin: 10px 0; line-height: 1.7; }
+.guide .ok { background: #f0fff4; border-left: 4px solid #48bb78; padding: 10px 14px; font-size: 13.5px; border-radius: 4px; margin: 10px 0; line-height: 1.7; }
+.guide .step { counter-increment: step; position: relative; padding-left: 38px; margin: 14px 0; }
+.guide .step::before {
+  content: counter(step); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%;
+  background: #3b82f6; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.guide .steps { counter-reset: step; }
+.guide .step-title { font-weight: 600; font-size: 14px; margin-bottom: 6px; color: #1a202c; }
+.guide .expect { font-size: 12.5px; color: #276749; }
+.guide .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin: 10px 0; }
+.guide .card { display: block; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; text-decoration: none; color: inherit; background: #fff; }
+.guide .card:hover { border-color: #3b82f6; box-shadow: 0 2px 8px rgba(59,130,246,.15); }
+.guide .card b { display: block; font-size: 14.5px; color: #1a202c; margin-bottom: 4px; }
+.guide .card span { font-size: 12.5px; color: #718096; line-height: 1.6; }
+@media (max-width: 800px) {
+.guide { display: block; overflow-y: auto; }
+.guide .guide-body { overflow: visible; }
+.guide .sidebar { position: static; width: 100%; height: auto; }
+.guide .nav-item { display: none; }
+.guide .main { padding: 16px; }
+.guide section { padding: 16px; }
+}
+.guide .pager { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.guide .pager a { flex: 1; max-width: 48%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; font-size: 14px; color: #2b6cb0; text-decoration: none; }
+.guide .pager a:last-child { text-align: right; }
+.guide .pager a:hover { border-color: #3b82f6; }
+.guide .learn { background: #ebf8ff; border-left: 4px solid #3182ce; padding: 10px 14px; font-size: 13.5px; border-radius: 4px; margin: 10px 0; line-height: 1.7; }
+.guide .file { font-family: 'JetBrains Mono', Menlo, Consolas, monospace; font-size: 12.5px; color: #2b6cb0; font-weight: 600; }
+.guide .kbd { display: inline-block; border: 1px solid #cbd5e0; border-bottom-width: 2px; border-radius: 4px; padding: 0 6px; font-size: 12px; background: #f7fafc; }
+.guide .ui { font-weight: 600; color: #1a202c; background: #edf2f7; padding: 0 5px; border-radius: 3px; font-size: 13px; }
+.guide dl.terms { display: grid; grid-template-columns: 170px 1fr; gap: 6px 16px; font-size: 13.5px; line-height: 1.7; margin: 8px 0 14px; }
+.guide dl.terms dt { font-weight: 600; color: #1a202c; }
+.guide dl.terms dd { color: #4a5568; }
+.guide details { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+.guide details summary { cursor: pointer; font-weight: 600; font-size: 14px; color: #2b6cb0; }
+.guide details[open] summary { margin-bottom: 8px; }
+@media (max-width: 800px) {
+.guide dl.terms { grid-template-columns: 1fr; }
+.guide .pager { flex-direction: column; }
+.guide .pager a { max-width: 100%; text-align: left !important; }
+}
+.guide .task { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
+.guide .task > h4 { margin: 0 0 10px; font-size: 15px; color: #1a202c; }
+.guide .task > h4 .n { display: inline-block; min-width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 11px; background: #3182ce; color: #fff; font-size: 12px; margin-right: 8px; }
+.guide .task .do, .guide .task .why, .guide .task .res { display: grid; grid-template-columns: 64px 1fr; gap: 10px; font-size: 13.5px; line-height: 1.7; margin-top: 8px; }
+.guide .task .do::before, .guide .task .why::before, .guide .task .res::before { font-weight: 700; font-size: 12px; padding: 2px 0; text-align: center; border-radius: 4px; height: fit-content; }
+.guide .task .do::before { content: '怎么做'; background: #ebf4ff; color: #2b6cb0; }
+.guide .task .why::before { content: '为什么'; background: #fffbeb; color: #b7791f; }
+.guide .task .res::before { content: '结果'; background: #f0fff4; color: #2f855a; }
+.guide .task .do > div, .guide .task .why > div, .guide .task .res > div { min-width: 0; }
+.guide .task pre { margin: 4px 0; }
+.guide .task .bad { color: #c53030; }
+@media (max-width: 800px) {
+.guide .task .do, .guide .task .why, .guide .task .res { grid-template-columns: 1fr; gap: 2px; }
+.guide .task .do::before, .guide .task .why::before, .guide .task .res::before { width: 64px; }
+}
+.guide [lang="en"] .task .do::before { content: 'Do'; }
+.guide [lang="en"] .task .why::before { content: 'Why'; }
+.guide [lang="en"] .task .res::before { content: 'Result'; }
+.guide .phase { display: flex; gap: 14px; align-items: center; background: #1e3a5f; color: #fff; border-radius: 10px; padding: 14px 18px; margin: 36px 0 8px; font-size: 14px; line-height: 1.6; }
+.guide .phase-n { font-size: 18px; font-weight: 700; white-space: nowrap; padding-right: 14px; border-right: 1px solid rgba(255,255,255,.35); }

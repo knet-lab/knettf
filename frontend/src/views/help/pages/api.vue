@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>API 逐接口说明 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>API 逐接口说明</h1>
+<template>
+  <div v-pre>
+        <h1>API 逐接口说明</h1>
     <div class="meta">基址：本机 <code>http://localhost:8080</code>，公网 <code>https://knettf.com</code>（cloudflared）。全部路由定义在 <code>backend/backend/urls.py</code> 及各 app 的 <code>urls.py</code>；WebSocket 路由在 <code>backend/asgi.py</code>。</div>
 
     <section id="conv">
@@ -210,7 +200,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
       <h3>扫描工具</h3>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-get">GET</span><span class="m m-post">POST</span><code>/api/autotf/tf-tools/</code><span class="perm">GET 登录（普通用户只看启用的）；POST 管理员</span></div>
-        <p>工具字段：<code>name, version, is_enabled, cmd, init_cmd, output_format(json|sarif), items_path, severity_field, severity_map, rule_id_field, description_field, location_file_field, location_line_field</code>（含义见 <a href="db.html#autotf">数据库页</a>）。</p>
+        <p>工具字段：<code>name, version, is_enabled, cmd, init_cmd, output_format(json|sarif), items_path, severity_field, severity_map, rule_id_field, description_field, location_file_field, location_line_field</code>（含义见 <a href="/help/db#autotf">数据库页</a>）。</p>
       </div>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-patch">PATCH</span><span class="m m-delete">DELETE</span><code>/api/autotf/tf-tools/&lt;id&gt;/</code><span class="perm">管理员</span></div>
@@ -223,7 +213,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
       <p>代码：<code>backend/vigil/views.py</code> → <code>services.py</code> → <code>ml/models/runner.py</code>（模型推理）→ <code>ml/cilium/policy.py</code>（动作建议）→ <code>models.DetectionRecord</code>（写 PostgreSQL）。</p>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-post">POST</span><code>/api/vigil/detect/</code><span class="perm">登录</span></div>
-        <p>请求体是一条流的 35 个特征（<code>FlowInputSerializer</code>，必填只有 <code>src_ip</code>、<code>dst_ip</code>、<code>protocol</code>，其余缺省为 0），可选 <code>label</code>（"0"/"1"/""）、<code>model</code>（指定模型名，不填则跑全部已注册模型）。字段列表见 <a href="db.html#features">特征表</a>。</p>
+        <p>请求体是一条流的 35 个特征（<code>FlowInputSerializer</code>，必填只有 <code>src_ip</code>、<code>dst_ip</code>、<code>protocol</code>，其余缺省为 0），可选 <code>label</code>（"0"/"1"/""）、<code>model</code>（指定模型名，不填则跑全部已注册模型）。字段列表见 <a href="/help/db#features">特征表</a>。</p>
         <pre><code>curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   http://localhost:8080/api/vigil/detect/ -d '{
   "src_ip":"192.168.100.21","dst_ip":"192.168.100.11","protocol":"TCP",
@@ -308,7 +298,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
         <tr><td><code>/autotf</code></td><td><code>AutoTFView.vue</code></td><td><code>autotf/users/&lt;me&gt;/tf-configs/…</code>、<code>tf-configs/&lt;id&gt;/scan|apply|report…</code>、<code>tf-tools/</code></td><td>登录</td></tr>
         <tr><td><code>/vigil</code></td><td><code>VigilView.vue</code></td><td><code>vigil/models/</code>、<code>stats/</code>、<code>records/</code>、<code>records/&lt;id&gt;/</code></td><td>登录</td></tr>
         <tr><td><code>/vigil/log</code></td><td><code>VigilLogView.vue</code></td><td><code>vigil/records/</code>（15 秒轮询）、<code>records/&lt;id&gt;/</code></td><td>登录</td></tr>
-        <tr><td><code>/help</code></td><td><code>HelpView.vue</code></td><td>静态 <code>/manual_en.html</code>、<code>/guide/index.html</code>、<code>/ops/index.html</code></td><td>登录</td></tr>
+        <tr><td><code>/help</code></td><td><code>HelpView.vue</code></td><td>无（手册页面在 <code>src/views/help/pages/</code>，路由 <code>/help/:page</code>）</td><td>登录</td></tr>
         <tr><td><code>/admin/dashboard</code></td><td><code>admin/DashboardView.vue</code></td><td>用户、集群、配置汇总</td><td>管理员（否则跳 <code>/kcore</code>）</td></tr>
         <tr><td><code>/admin/users</code></td><td><code>admin/UsersView.vue</code></td><td><code>kcore/users/</code>、<code>users/&lt;pk&gt;/</code></td><td>管理员</td></tr>
         <tr><td><code>/admin/clusters</code></td><td><code>admin/ClustersView.vue</code></td><td><code>kcore/users/&lt;pk&gt;/clusters/</code>、<code>clusters/&lt;pk&gt;/</code></td><td>管理员</td></tr>
@@ -317,7 +307,5 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
       </table></div>
       <p>开发模式 <code>pnpm dev</code> 时，Vite 把 <code>/api</code>、<code>/ws</code> 代理到 <code>127.0.0.1:8080</code>（<code>vite.config.ts</code>）。生产由后端直接提供 <code>frontend/dist</code>。</p>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

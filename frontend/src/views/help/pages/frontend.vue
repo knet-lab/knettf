@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>前端代码 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>前端代码</h1>
+<template>
+  <div v-pre>
+        <h1>前端代码</h1>
     <div class="meta">读完你能：在本机跑起前端开发环境，读懂每个页面的代码，知道一个按钮点下去调了哪个接口，会改页面、加页面、构建上线。<br>
       代码根目录 <code>$N/frontend/</code>。前置知识：会一点 HTML / JavaScript；Vue 不熟也没关系，本章按需讲。</div>
 
@@ -42,8 +32,7 @@
 ├── eslint.config.ts · .oxlintrc.json · .prettierrc.json · .editorconfig
 ├── public/              原样复制进 dist/ 的静态文件（不经过打包）
 │   ├── favicon.ico / favicon.png
-│   ├── manual_en.html   英文用户手册
-│   ├── guide/           本手册
+│   └── (手册在 src/views/help/pages/)
 ├── src/
 │   ├── main.ts          入口：创建 app，装 Pinia、Router、ElementPlus，注册全部图标
 │   ├── App.vue          根组件：决定显不显示顶部导航 + &lt;RouterView/&gt;
@@ -80,7 +69,7 @@
       </table></div>
       <div class="note"><b>新机器上的坑</b>：Git 里只有 <code>.env.production</code>；本机的 <code>frontend/.env</code>（<code>VITE_API_BASE=/api</code>、<code>VITE_WS_BASE=</code>）没有提交。在新克隆的仓库里 <code>pnpm dev</code> 时 <code>VITE_API_BASE</code> 是 <code>undefined</code>，URL 会变成 <code>undefined/kcore/...</code>。先创建同样内容的 <code>frontend/.env</code>。（VigilView / VigilLogView 写死了 <code>/api/vigil/...</code>，不受影响。）</div>
       <h3>路径 <code>/kcore</code> 刷新为什么不 404</h3>
-      <p>浏览器直接请求 <code>/kcore</code> 时，<code>dist/</code> 里没有这个文件。后端 <code>backend/urls.py</code> 最后一条路由 <code>re_path(r'^(?!api/|admin/|static/|ws/).*$', spa_view)</code> 把所有非 API 路径都返回 <code>dist/index.html</code>，然后 Vue Router 根据地址显示对应页面。<code>/guide/index.html</code> 这种真实文件则被 WhiteNoise 先一步返回。</p>
+      <p>浏览器直接请求 <code>/kcore</code> 时，<code>dist/</code> 里没有这个文件。后端 <code>backend/urls.py</code> 最后一条路由 <code>re_path(r'^(?!api/|admin/|static/|ws/).*$', spa_view)</code> 把所有非 API 路径都返回 <code>dist/index.html</code>，然后 Vue Router 根据地址显示对应页面。<code>favicon.ico</code>、<code>/assets/*</code> 这种真实文件则被 WhiteNoise 先一步返回。</p>
       <h3>常用命令</h3>
 <pre><code>cd $N/frontend
 pnpm install        <span class="c"># 装依赖（第一次或 package.json 变了）</span>
@@ -185,7 +174,7 @@ app.mount('#app')</code></pre>
 socket = new WebSocket(`${WS_BASE}/ws/clusters/${clusterId}/pods/${ns}/${name}/logs/`)
 socket.onmessage = (e) =&gt; { logContent.value += JSON.parse(e.data).log; 滚动到底 }
 socket.onclose = () =&gt; { wsConnected.value = false }</code></pre>
-      <p>后端每读到一行日志就发一条 <code>{"log": "..."}</code>。注意 URL 里<b>没有 token</b>，后端也不校验（<a href="issues.html">《已知问题与练习》</a>已知问题）。页面卸载（<code>onUnmounted</code>）或关闭窗口时 <code>socket.close()</code>。</p>
+      <p>后端每读到一行日志就发一条 <code>{"log": "..."}</code>。注意 URL 里<b>没有 token</b>，后端也不校验（<a href="/help/issues">《已知问题与练习》</a>已知问题）。页面卸载（<code>onUnmounted</code>）或关闭窗口时 <code>socket.close()</code>。</p>
       <h3><span class="file">stores/kcore.ts</span></h3>
       <p>只缓存“每个集群有哪些 namespace”，供下拉框用。<code>fetchNamespaces(clusterId)</code> 用一个 <code>Map&lt;clusterId, Promise&gt;</code> 去重并发请求；更新时用 <code>{...old, [id]: names}</code> 生成新对象，保证 Vue 能侦测到变化。</p>
     </section>
@@ -220,7 +209,7 @@ socket.onclose = () =&gt; { wsConnected.value = false }</code></pre>
       <h3>VigilLogView（日志）</h3>
       <ul>
         <li>筛选状态 <code>verdict</code>、<code>filterAttackType</code>、<code>timeFrom</code>、<code>timeTo</code>；分页 <code>limit</code>、<code>offset</code>、<code>total</code>。</li>
-        <li><code>ATTACK_TYPES</code> 是写死的 9 个类型名，必须与模型原型里的名字一致（<a href="detect.html">《检测链路与模型》</a> 4.6）。换模型后若类型名变了，这里要同步改。</li>
+        <li><code>ATTACK_TYPES</code> 是写死的 9 个类型名，必须与模型原型里的名字一致（<a href="/help/detect">《检测链路与模型》</a> 4.6）。换模型后若类型名变了，这里要同步改。</li>
         <li><code>reload()</code> 回到第一页；<code>prevPage()</code> / <code>nextPage()</code> 改 offset；<code>setInterval(loadRecords, 15000)</code>。</li>
       </ul>
       <h3><span class="file">components/RollingNumber.vue</span></h3>
@@ -291,7 +280,5 @@ onMounted(async () =&gt; {
           <p><code>pnpm build</code>（类型检查必须通过）→ 浏览器强刷 <code>https://knettf.com/status</code>。不用重启后端，因为后端的 SPA 兜底会把 <code>/status</code> 交给前端路由。</p></div>
       </div>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

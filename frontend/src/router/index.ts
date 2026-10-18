@@ -41,11 +41,15 @@ const router = createRouter({
       meta: { requiresAuth: true, title: 'NetSentinel - Detection Log' },
     },
     {
-      path: '/help',
+      path: '/help/:page?',
       name: 'help',
       component: () => import('../views/HelpView.vue'),
       meta: { requiresAuth: true, title: 'NetSentinel - Help' },
     },
+
+    // 旧的静态手册地址 → /help/<页>
+    { path: '/guide/:file', redirect: (to) => ({ path: `/help/${String(to.params.file).replace(/\.html$/, '')}`, hash: to.hash }) },
+    { path: '/manual_en.html', redirect: (to) => ({ path: '/help/en', hash: to.hash }) },
 
     // ── 管理员区 ─────────────────────────────────────
     {

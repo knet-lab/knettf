@@ -1,18 +1,8 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>后端代码 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>后端代码</h1>
+<template>
+  <div v-pre>
+        <h1>后端代码</h1>
     <div class="meta">读完你能：说出一个 HTTP 请求在后端经过的每一步，读懂三个应用的每个文件，会跑管理命令、加接口、改数据库结构。<br>
-      代码根目录 <code>$N/backend/</code>，所有 <code>manage.py</code> 命令都在这里用 <code>../.venv/bin/python manage.py ...</code> 执行。逐个接口的参数与响应示例见 <a href="api.html">API 逐接口</a>，表字段见 <a href="db.html">数据库与模型字段</a>。</div>
+      代码根目录 <code>$N/backend/</code>，所有 <code>manage.py</code> 命令都在这里用 <code>../.venv/bin/python manage.py ...</code> 执行。逐个接口的参数与响应示例见 <a href="/help/api">API 逐接口</a>，表字段见 <a href="/help/db">数据库与模型字段</a>。</div>
 
     <section id="django">
       <h2>3.1 Django 五分钟入门（只讲本项目用到的）</h2>
@@ -45,7 +35,7 @@ uvicorn 导入 backend/asgi.py
   │    ├─ 读 settings.py（读 backend/backend/.env）
   │    ├─ 加载 INSTALLED_APPS，逐个调用 AppConfig.ready()
   │    │    └─ vigil/apps.py ready()：_should_start_bridge() 判断 argv[0] 含 uvicorn → True
-  │    │         └─ bridge.start()：起两个守护线程 vigil-drainer、vigil-bridge（<a href="detect.html">《检测链路与模型》</a>）
+  │    │         └─ bridge.start()：起两个守护线程 vigil-drainer、vigil-bridge（<a href="/help/detect">《检测链路与模型》</a>）
   │    └─ 导入 vigil 时 ml/models/registry.py 加载 AdsMLModel → 日志 “AdsMLModel loaded”
   └─ application = ProtocolTypeRouter({
          "http":      get_asgi_application(),          → 普通 Django 请求
@@ -220,7 +210,7 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
 
     <section id="vigil">
       <h2>3.9 vigil：文件地图</h2>
-      <p>检测的原理和数据流在<a href="detect.html">《检测链路与模型》</a>细讲，这里只给文件地图：</p>
+      <p>检测的原理和数据流在<a href="/help/detect">《检测链路与模型》</a>细讲，这里只给文件地图：</p>
       <div class="table-wrap"><table>
         <tr><th>文件</th><th>作用</th></tr>
         <tr><td><code>apps.py</code></td><td><code>ready()</code> 中按条件启动 bridge</td></tr>
@@ -298,7 +288,5 @@ curl -s "localhost:8080/api/vigil/top-sources/?limit=3" -H "Authorization: Beare
         <li><b>vigil</b>（<code>managed=False</code>）：改 models.py <b>不会</b>生成迁移。要手写一个新迁移，用 <code>migrations.RunSQL("ALTER TABLE vigil_detectionrecord ADD COLUMN ...", reverse_sql=...)</code>；对父表的 ALTER 自动作用于所有分区。然后 <code>migrate --database=vigil</code>。</li>
       </ul>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

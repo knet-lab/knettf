@@ -1,32 +1,115 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch, type Component } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import './help/guide.css'
 
-interface Manual {
-  key: string
-  label: string
-  src: string
+// 手册页面：src/views/help/pages/<key>.vue，路由 /help/<key>
+const loaders = import.meta.glob<{ default: Component }>('./help/pages/*.vue')
+const load = (key: string) => loaders[`./help/pages/${key}.vue`]
+
+const GROUPS = [
+  { name: '使用网站', pages: [
+    { key: 'use', title: '网页使用' },
+    { key: 'en', title: 'User Manual (English)' },
+  ] },
+  { name: '运维', pages: [
+    { key: 'prepare', title: '接手准备：账户与 Git' },
+    { key: 'health', title: '每日健康检查' },
+    { key: 'deploy', title: '改动上线' },
+    { key: 'power', title: '开关机 · 重建 · 备份' },
+    { key: 'account', title: '账号与令牌' },
+    { key: 'trouble', title: '排障与日志' },
+  ] },
+  { name: '开发参考', pages: [
+    { key: 'index', title: '系统总览' },
+    { key: 'frontend', title: '前端代码' },
+    { key: 'backend', title: '后端代码' },
+    { key: 'detect', title: '检测链路与模型' },
+    { key: 'infra', title: '集群与 Shell 脚本' },
+    { key: 'lab', title: '实验脚本' },
+    { key: 'api', title: 'API 逐接口' },
+    { key: 'db', title: '数据库与字段' },
+    { key: 'issues', title: '已知问题与练习' },
+  ] },
+]
+
+const route = useRoute()
+const router = useRouter()
+const pageKey = computed(() => (route.params.page as string | undefined) ?? '')
+const page = shallowRef<Component | null>(null)
+const body = ref<HTMLElement | null>(null)
+const toc = ref<{ id: string; text: string }[]>([])
+const activeId = ref('')
+
+const tabs = [
+  { key: '', label: '从这里开始', to: '/help' },
+  { key: 'guide', label: '中文手册', to: '/help/use' },
+  { key: 'en', label: 'User Manual (English)', to: '/help/en' },
+]
+const activeTab = computed(() => (!pageKey.value ? '' : pageKey.value === 'en' ? 'en' : 'guide'))
+
+// 页底：同组内的上一页 / 下一页（英文版不参与）
+const pager = computed(() => {
+  const g = GROUPS.find((x) => x.pages.some((p) => p.key === pageKey.value))
+  const list = g ? g.pages.filter((p) => p.key !== 'en') : []
+  const i = list.findIndex((p) => p.key === pageKey.value)
+  return i < 0 ? { prev: undefined, next: undefined } : { prev: list[i - 1], next: list[i + 1] }
+})
+
+function scrollToHash(hash: string) {
+  const el = hash ? body.value?.querySelector<HTMLElement>(`[id="${CSS.escape(hash.slice(1))}"]`) : null
+  if (el) el.scrollIntoView()
+  else body.value?.scrollTo(0, 0)
 }
 
-const manuals: Manual[] = [
-  { key: 'home', label: '从这里开始', src: '' },
-  { key: 'guide', label: '中文手册', src: '/guide/use.html' },
-  { key: 'user', label: 'User Manual (English)', src: '/manual_en.html' },
-]
-const current = ref<Manual>(manuals[0]!)
-const frameSrc = ref('')
+watch(
+  () => route.params.page,
+  async (key) => {
+    if (!key) { page.value = null; return }
+    const loader = load(key as string)
+    if (!loader) { router.replace('/help'); return }
+    page.value = (await loader()).default
+    await nextTick()
+    toc.value = [...(body.value?.querySelectorAll<HTMLElement>('section[id] > h2') ?? [])]
+      .map((h) => ({ id: h.parentElement!.id, text: h.textContent ?? '' }))
+    scrollToHash(route.hash)
+    onScroll()
+  },
+  { immediate: true },
+)
+watch(() => route.hash, (h) => { if (page.value) scrollToHash(h) })
 
-function open(key: string, page?: string) {
-  const m = manuals.find((x) => x.key === key)!
-  current.value = m
-  frameSrc.value = page ?? m.src
+function onScroll() {
+  let id = toc.value[0]?.id ?? ''
+  for (const t of toc.value) {
+    const el = document.getElementById(t.id)
+    if (el && el.getBoundingClientRect().top - (body.value?.getBoundingClientRect().top ?? 0) < 120) id = t.id
+  }
+  activeId.value = id
+}
+
+// 页面正文里的 <a href="/help/..."> 和 <a href="#..."> 走路由，不整页刷新
+function onClick(e: MouseEvent) {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return
+  const a = (e.target as HTMLElement).closest('a')
+  const href = a?.getAttribute('href')
+  if (!href || a!.target) return
+  if (href.startsWith('#')) {
+    e.preventDefault()
+    if (href === route.hash) scrollToHash(href)
+    else router.replace({ hash: href })
+  } else if (href.startsWith('/help')) {
+    e.preventDefault()
+    router.push(href)
+  }
 }
 
 // 最常做的几件事，一键直达
 const quick = [
-  { text: '每日健康检查', desc: '确认系统在跑、检测有数据', page: '/guide/health.html' },
-  { text: '改动上线', desc: 'scripts/deploy.sh 怎么用', page: '/guide/deploy.html' },
-  { text: '开机恢复', desc: '宿主机重启后让检测恢复', page: '/guide/power.html#startup' },
-  { text: '出问题了', desc: '按症状找原因和处理', page: '/guide/trouble.html' },
+  { text: '每日健康检查', desc: '确认系统在跑、检测有数据', page: '/help/health' },
+  { text: '改动上线', desc: 'scripts/deploy.sh 怎么用', page: '/help/deploy' },
+  { text: '开机恢复', desc: '宿主机重启后让检测恢复', page: '/help/power#startup' },
+  { text: '出问题了', desc: '按症状找原因和处理', page: '/help/trouble' },
 ]
 
 // 手册的三块，对应侧栏的三组
@@ -35,30 +118,30 @@ const parts = [
     who: '使用网站',
     desc: '登录、管理用户、操作集群、扫描 Terraform、看检测结果。不需要碰服务器。',
     links: [
-      { text: '网页使用', page: '/guide/use.html' },
-      { text: 'User Manual (English)', page: '/manual_en.html', key: 'user' },
+      { text: '网页使用', page: '/help/use' },
+      { text: 'User Manual (English)', page: '/help/en' },
     ],
   },
   {
     who: '运维',
     desc: '接手、巡检、上线、开关机、排障。每一步都写了怎么做、为什么、结果应该是什么。',
     links: [
-      { text: '接手准备：账户与 Git', page: '/guide/prepare.html' },
-      { text: '每日健康检查', page: '/guide/health.html' },
-      { text: '改动上线', page: '/guide/deploy.html' },
-      { text: '开关机 · 重建 · 备份', page: '/guide/power.html' },
-      { text: '账号与令牌', page: '/guide/account.html' },
-      { text: '排障与日志', page: '/guide/trouble.html' },
+      { text: '接手准备：账户与 Git', page: '/help/prepare' },
+      { text: '每日健康检查', page: '/help/health' },
+      { text: '改动上线', page: '/help/deploy' },
+      { text: '开关机 · 重建 · 备份', page: '/help/power' },
+      { text: '账号与令牌', page: '/help/account' },
+      { text: '排障与日志', page: '/help/trouble' },
     ],
   },
   {
     who: '开发参考',
     desc: '改代码前读：系统怎么组成、代码在哪、接口和表字段。',
     links: [
-      { text: '系统总览', page: '/guide/index.html' },
-      { text: '前端 / 后端 / 检测 / 集群代码', page: '/guide/frontend.html' },
-      { text: 'API 逐接口', page: '/guide/api.html' },
-      { text: '数据库与字段', page: '/guide/db.html' },
+      { text: '系统总览', page: '/help/index' },
+      { text: '前端 / 后端 / 检测 / 集群代码', page: '/help/frontend' },
+      { text: 'API 逐接口', page: '/help/api' },
+      { text: '数据库与字段', page: '/help/db' },
     ],
   },
 ]
@@ -67,26 +150,25 @@ const parts = [
 <template>
   <div class="help-wrapper">
     <div class="help-tabs">
-      <button
-        v-for="m in manuals"
-        :key="m.key"
-        :class="['help-tab', { active: current.key === m.key }]"
-        @click="open(m.key)"
+      <RouterLink
+        v-for="t in tabs"
+        :key="t.key"
+        :to="t.to"
+        :class="['help-tab', { active: activeTab === t.key }]"
       >
-        {{ m.label }}
-      </button>
-      <a v-if="frameSrc" class="help-newwin" :href="frameSrc" target="_blank" rel="noopener">新窗口打开 ↗</a>
+        {{ t.label }}
+      </RouterLink>
     </div>
 
-    <div v-if="current.key === 'home'" class="help-home">
+    <div v-if="!pageKey" class="help-home">
       <h1>帮助中心</h1>
       <p class="lead">只有一本手册，分三块。先看下面最常用的四项，找不到再按身份进对应的那一块。</p>
 
       <div class="quick-grid">
-        <a v-for="q in quick" :key="q.page" href="#" class="quick" @click.prevent="open('guide', q.page)">
+        <RouterLink v-for="q in quick" :key="q.page" :to="q.page" class="quick">
           <strong>{{ q.text }} →</strong>
           <span>{{ q.desc }}</span>
-        </a>
+        </RouterLink>
       </div>
 
       <div class="route-grid">
@@ -95,14 +177,48 @@ const parts = [
           <p>{{ p.desc }}</p>
           <ul>
             <li v-for="l in p.links" :key="l.page">
-              <a href="#" @click.prevent="open(l.key ?? 'guide', l.page)">{{ l.text }} →</a>
+              <RouterLink :to="l.page">{{ l.text }} →</RouterLink>
             </li>
           </ul>
         </div>
       </div>
     </div>
 
-    <iframe v-else :src="frameSrc" class="help-frame" :title="current.label" />
+    <div v-else class="guide">
+      <aside class="sidebar">
+        <div class="sidebar-logo">NetSentinel 手册<span>使用 · 运维 · 开发</span></div>
+        <template v-for="g in GROUPS" :key="g.name">
+          <div class="nav-section">{{ g.name }}</div>
+          <template v-for="p in g.pages" :key="p.key">
+            <RouterLink :to="`/help/${p.key}`" :class="['nav-page', { current: p.key === pageKey }]">
+              {{ p.title }}
+            </RouterLink>
+            <template v-if="p.key === pageKey">
+              <RouterLink
+                v-for="t in toc"
+                :key="t.id"
+                :to="{ hash: `#${t.id}` }"
+                replace
+                :class="['nav-item', { active: t.id === activeId }]"
+              >
+                {{ t.text }}
+              </RouterLink>
+            </template>
+          </template>
+        </template>
+      </aside>
+      <div ref="body" class="guide-body" @scroll.passive="onScroll" @click="onClick">
+        <main class="main">
+          <component :is="page" v-if="page" />
+          <div class="pager">
+            <RouterLink v-if="pager.prev" :to="`/help/${pager.prev.key}`">← {{ pager.prev.title }}</RouterLink>
+            <span v-else />
+            <RouterLink v-if="pager.next" :to="`/help/${pager.next.key}`">{{ pager.next.title }} →</RouterLink>
+            <span v-else />
+          </div>
+        </main>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -130,6 +246,7 @@ const parts = [
   border: none;
   border-radius: 6px 6px 0 0;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .help-tab:hover {
@@ -142,23 +259,6 @@ const parts = [
   font-weight: 600;
 }
 
-.help-newwin {
-  margin-left: auto;
-  padding: 8px 4px;
-  font-size: 12px;
-  color: #a0aec0;
-  text-decoration: none;
-}
-
-.help-newwin:hover {
-  color: #e2e8f0;
-}
-
-.help-frame {
-  flex: 1;
-  width: 100%;
-  border: none;
-}
 
 .help-home {
   flex: 1;

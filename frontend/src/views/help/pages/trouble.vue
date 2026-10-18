@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>排障与日志 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>排障与日志</h1>
+<template>
+  <div v-pre>
+        <h1>排障与日志</h1>
     <div class="meta">先用“排查顺序”定位是哪一层出了问题，再到“现象对照表”里找对应的处理办法。</div>
 
     <section id="order">
@@ -51,13 +41,13 @@
         <tr><td>日志 <code>bridge error</code></td><td><code>nc -zv 192.168.100.200 9094</code></td><td>Kafka 连不上 → 恢复 Kafka 后重启后端</td></tr>
         <tr><td>日志 <code>drainer failed</code> + <code>no partition of relation</code></td><td>分区缺失</td><td><code>manage.py rotate_partitions --database vigil</code>；当天的分区缺失就用 SQL 手动建</td></tr>
         <tr><td>Detection model 为空</td><td><code>journalctl ... | grep 'AdsMLModel not loaded'</code></td><td><code>trained/</code> 文件缺失，或 scikit-learn 版本和训练时不一致（固定 1.7.2）</td></tr>
-        <tr><td>推理很慢</td><td>记录里的 <code>raw_output.inference_ms</code></td><td>每条流都会重新加载模型，属已知问题（<a href="issues.html">已知问题</a>）</td></tr>
+        <tr><td>推理很慢</td><td>记录里的 <code>raw_output.inference_ms</code></td><td>每条流都会重新加载模型，属已知问题（<a href="/help/issues">已知问题</a>）</td></tr>
         <tr><td>Kafka 无数据</td><td><code>kubectl -n kube-system logs -l app=vector --tail=50</code>；<code>kubectl -n kube-system get svc hubble-relay</code></td><td>hubble-relay 端口必须是 4245；必要时 <code>rollout restart ds/vector</code></td></tr>
         <tr><td>Hubble 看不到伪造源 IP</td><td><code>ip addr show virbr-k8s</code></td><td>源 IP 没绑上；apply <code>host-firewall-ccnp.yaml</code></td></tr>
-        <tr><td>broker CrashLoop</td><td><code>kubectl logs kafka-broker-N</code>；<code>kubectl logs kafka-controller</code></td><td>controller 元数据丢失 → <a href="power.html#rebuild-kafka">重建 Kafka</a></td></tr>
+        <tr><td>broker CrashLoop</td><td><code>kubectl logs kafka-broker-N</code>；<code>kubectl logs kafka-controller</code></td><td>controller 元数据丢失 → <a href="/help/power#rebuild-kafka">重建 Kafka</a></td></tr>
         <tr><td>节点 NotReady</td><td><code>ssh k8s@192.168.100.1X 'systemctl status kubelet containerd'</code></td><td>swap 被打开、磁盘满、containerd 挂了</td></tr>
         <tr><td>VM 拿不到 IP / SSH 超时</td><td><code>vsh net-dhcp-leases virbr-k8s</code></td><td><code>vsh net-destroy virbr-k8s &amp;&amp; vsh net-start virbr-k8s</code>，再重启 VM</td></tr>
-        <tr><td>VM 无法出网</td><td><code>sudo iptables -t nat -S | grep 192.168.100</code></td><td>规则丢了 → <a href="power.html#startup">开机恢复</a> 第 2 步</td></tr>
+        <tr><td>VM 无法出网</td><td><code>sudo iptables -t nat -S | grep 192.168.100</code></td><td>规则丢了 → <a href="/help/power#startup">开机恢复</a> 第 2 步</td></tr>
         <tr><td>Kubernetes 页全部 502</td><td>集群是否重建过</td><td>kubeconfig 过期 → 网页上重新添加集群</td></tr>
         <tr><td>某个扫描工具结果为空</td><td>报告里有 <code>tool not found</code></td><td>服务进程的 PATH 里找不到这个工具 → 安装，或在 TF Tools 里停用</td></tr>
         <tr><td>Terraform Apply 按钮灰色</td><td>鼠标悬停看提示</td><td>没扫描 / 扫描没完成 / 有 HIGH 问题 → 先修复再扫描</td></tr>
@@ -94,7 +84,5 @@
         <tr><td>删 <code>~/vm-images/ubuntu-22.04-cloudimg.qcow2</code></td><td>5 台 VM 的基础镜像</td></tr>
       </table></div>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

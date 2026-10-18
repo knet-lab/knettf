@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>实验脚本 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>实验脚本</h1>
+<template>
+  <div v-pre>
+        <h1>实验脚本</h1>
     <div class="meta">读完你能：发正常 / 攻击流量并在网页上看到检测结果；采集带标签的数据集并聚合成特征；直接从 Kafka 读事件；跑端到端仿真和离线评估。<br>
       全部在 <span class="tag tag-k">K</span> <code>$K</code> 下执行，Python 环境是 <code>$K/.venv</code>（<code>cd $K &amp;&amp; uv sync</code> 生成，依赖 scapy、confluent-kafka、aiohttp、websockets、python-dotenv）。</div>
 
@@ -21,7 +11,7 @@
         <li>需要 root（加地址、原始套接字），所以用 <code>sudo .venv/bin/python3 ...</code>（不能 <code>sudo uv run</code>，root 环境里通常没有 uv）。</li>
         <li>脚本被 <span class="kbd">Ctrl</span>+<span class="kbd">C</span> 或 kill 中断时可能来不及删地址。检查：<code>ip -4 addr show virbr-k8s</code>，应只有 <code>.1/24</code>。</li>
         <li>清理 .16-.29：<code>sudo .venv/bin/python3 traffic/handle_addr.py --action delete</code>。<b>它不管 .50-.64 和 .170-.184</b>，这些要手动：<code>for i in $(seq 50 64); do sudo ip addr del 192.168.100.$i/24 dev virbr-k8s 2&gt;/dev/null; done</code>。</li>
-        <li>要让 Hubble 看到发往节点本身（而不是 Pod）的包，集群里需有 <code>host-firewall-ccnp.yaml</code>（<a href="infra.html">《集群与 Shell 脚本》</a> 5.9）。</li>
+        <li>要让 Hubble 看到发往节点本身（而不是 Pod）的包，集群里需有 <code>host-firewall-ccnp.yaml</code>（<a href="/help/infra">《集群与 Shell 脚本》</a> 5.9）。</li>
       </ul>
     </section>
 
@@ -48,7 +38,7 @@ sudo bash traffic/run_traffic_only.sh --normal-repeat 5 --attack-packets 200</co
         <tr><th>脚本</th><th>用途</th><th>常用参数</th></tr>
         <tr><td><code>kafka_read.py</code></td><td>实时打印 Hubble 事件（人读的格式），带过滤</td><td><code>--src</code>/<code>--dst</code> IP 前缀、<code>--protocol</code>、<code>--verdict</code>、<code>--direction</code>、<code>--src-ns</code>/<code>--dst-ns</code>/<code>--src-pod</code>/<code>--dst-pod</code>、<code>--node</code>、<code>--drop-only</code>、<code>--from-beginning</code>、<code>-n N</code></td></tr>
         <tr><td><code>kafka_read_csv.py</code></td><td>把事件写成带标签 CSV（按源 IP 打标签）</td><td><code>-o 文件</code>、<code>--max-attack</code>、<code>--max-normal</code>、<code>--from-beginning</code>、<code>-n</code></td></tr>
-        <tr><td><code>vigil_bridge.py</code></td><td>入口 C（<a href="detect.html">《检测链路与模型》</a> 4.10）</td><td><code>--backend</code>、<code>--token</code>、<code>--window</code>、<code>--batch-size</code>、<code>--from-beginning</code></td></tr>
+        <tr><td><code>vigil_bridge.py</code></td><td>入口 C（<a href="/help/detect">《检测链路与模型》</a> 4.10）</td><td><code>--backend</code>、<code>--token</code>、<code>--window</code>、<code>--batch-size</code>、<code>--from-beginning</code></td></tr>
         <tr><td><code>run_kafka_read.sh</code></td><td>跑 <code>kafka_read.py</code> 并追加日志到 <code>kafka_read_result.log</code></td><td></td></tr>
         <tr><td><code>run_spoof_capture.sh</code></td><td>边发攻击边抓，输出 <code>spoof_attack_captured.log</code></td><td></td></tr>
       </table></div>
@@ -128,7 +118,5 @@ select avg((raw_output-&gt;&gt;'inference_ms')::float), max((raw_output-&gt;&gt;
 \copy (select * from vigil_detectionrecord_2026_10_18) to '/tmp/d.csv' csv header</code></pre>
       <p>（最后一条在容器里写 <code>/tmp</code>，取出：<code>docker cp pg:/tmp/d.csv .</code>。）</p>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

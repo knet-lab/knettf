@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>准备工作：账户与 Git · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>接手准备：Linux 账户、权限与 Git</h1>
+<template>
+  <div v-pre>
+        <h1>接手准备：Linux 账户、权限与 Git</h1>
     <div class="meta">分三个阶段：<b>一 准备工作</b>（申请账户、权限、Git，止于“准备完成验收”）→ <b>二 正式接手</b>（从验收通过开始）→ <b>三 后续</b>（可选）。先看 <a href="#roadmap">全流程一览</a>。<br>
       本页所有命令、路径、IP 都是按这台机器实际情况写的（2026-10 核对）。命令里的 <code>NEWUSER</code> 指接手人<b>自己新建的</b>账户，执行时替换成你的用户名。</div>
 
@@ -54,7 +44,7 @@
       <div class="table-wrap"><table>
         <tr><th>阶段</th><th>内容</th><th>做完的标志</th></tr>
         <tr><td><b>一 准备工作</b><br>（只做一次，必做）</td><td>1.1 申请 Linux 账户 → 1.2 加入 GitHub 仓库 → 1.3 配置 Git → 1.4 验收</td><td><a href="#ready">准备完成验收</a> 6 项全部通过</td></tr>
-        <tr><td><b>二 正式接手</b><br>（验收通过后开始）</td><td>2.1 学会操作服务 → 2.2 接手第一天 → 之后每天 <a href="health.html">健康检查</a></td><td>第一天清单做完，之后进入日常</td></tr>
+        <tr><td><b>二 正式接手</b><br>（验收通过后开始）</td><td>2.1 学会操作服务 → 2.2 接手第一天 → 之后每天 <a href="/help/health">健康检查</a></td><td>第一天清单做完，之后进入日常</td></tr>
         <tr><td><b>三 后续</b><br>（可选，择机）</td><td>3.1 迁出 soar009 家目录 → 3.2 原作者离开时收尾</td><td>原作者账户可以安全锁定</td></tr>
       </table></div>
       <div class="note">验收没通过之前<b>不要</b>开始阶段二：账户、权限、Git 身份没配好就操作服务，容易出现权限错误或提交记到别人名下。</div>
@@ -85,7 +75,7 @@ id NEWUSER</code></pre>
         <tr><td><code>docker</code></td><td>管理 <code>pg</code> 容器；注意也能看到/停掉 pnu-notice、emotion-talk 等别人的容器</td><td>要操作数据库时</td></tr>
         <tr><td><code>libvirt</code></td><td><code>virsh -c qemu:///system list</code> 管理 5 台 k8s 虚拟机</td><td>要开关/重建集群时</td></tr>
       </table></div>
-      <div class="note">组变更要<b>重新登录</b>才生效。只看网页、不运维的人不需要 Linux 账户，在网站上建普通账号即可（<a href="account.html">账号与令牌</a>）。</div>
+      <div class="note">组变更要<b>重新登录</b>才生效。只看网页、不运维的人不需要 Linux 账户，在网站上建普通账号即可（<a href="/help/account">账号与令牌</a>）。</div>
 
       <h3>SSH 登录（这台机器只认密钥）</h3>
       <p>因为禁止了密码登录，<code>ssh-copy-id</code> 用不了，要由已能登录的人帮你放公钥：</p>
@@ -215,12 +205,12 @@ exit</code></pre>
 
     <section id="day1">
       <h2>2.2 接手第一天</h2>
-      <p>按顺序做一次，之后转入每天的 <a href="health.html">健康检查</a>。</p>
+      <p>按顺序做一次，之后转入每天的 <a href="/help/health">健康检查</a>。</p>
       <ol>
-        <li>完整做一遍 <a href="health.html">每日健康检查</a>，记下各项的正常值，作为以后对比的基线。</li>
-        <li>改掉网站默认账号 admin / alice / bob 的密码（<a href="account.html">账号与令牌</a>）——它们写在代码里，等于公开。</li>
+        <li>完整做一遍 <a href="/help/health">每日健康检查</a>，记下各项的正常值，作为以后对比的基线。</li>
+        <li>改掉网站默认账号 admin / alice / bob 的密码（<a href="/help/account">账号与令牌</a>）——它们写在代码里，等于公开。</li>
         <li>在网站管理后台 Users 里核对账号，删掉或停用陌生账号。</li>
-        <li>读一遍 <a href="trouble.html#dont">不要做的事</a> 和 <a href="power.html">开关机与恢复</a>，知道宿主机重启后要做什么。</li>
+        <li>读一遍 <a href="/help/trouble#dont">不要做的事</a> 和 <a href="/help/power">开关机与恢复</a>，知道宿主机重启后要做什么。</li>
         <li>确认已经从原作者那里当面拿到：网页管理员账号、<code>.env</code> 里的 token、PostgreSQL 密码（见 3.2 第 5 条）。</li>
       </ol>
       <div class="learn">做到这里，你已经正式接手。阶段三不着急，等系统稳定、有停机窗口时再做。</div>
@@ -343,7 +333,5 @@ sudo -iu soar009 systemctl --user is-active cloudflared-my-code        # 确认 
 sudo gpasswd -d soar009 sudo</code></pre></li>
       </ol>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

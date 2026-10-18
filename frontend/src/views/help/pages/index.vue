@@ -1,18 +1,8 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>系统总览 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>系统总览</h1>
+<template>
+  <div v-pre>
+        <h1>系统总览</h1>
     <div class="meta">开发参考的第一页：系统由哪两个项目组成、数据怎么流动、东西放在哪、从零搭起来的顺序、两个项目之间的契约。改代码之前先读这一页。<br>
-      <span class="tag tag-k">K</span> = knetsentinel（<code>$K=~/knetsentinel</code>），<span class="tag tag-n">N</span> = NetSentinel（<code>$N=~/github/NetSentinel</code>），<span class="tag tag-b">K+N</span> = 两边都涉及。先执行 <code>export N=~/github/NetSentinel K=~/knetsentinel</code>。用自己的账户登录时 <code>~</code> 是你自己的家目录，路径见 <a href="prepare.html">接手准备</a>。</div>
+      <span class="tag tag-k">K</span> = knetsentinel（<code>$K=~/knetsentinel</code>），<span class="tag tag-n">N</span> = NetSentinel（<code>$N=~/github/NetSentinel</code>），<span class="tag tag-b">K+N</span> = 两边都涉及。先执行 <code>export N=~/github/NetSentinel K=~/knetsentinel</code>。用自己的账户登录时 <code>~</code> 是你自己的家目录，路径见 <a href="/help/prepare">接手准备</a>。</div>
 
     <section id="what">
       <h2>0.1 这个系统做什么</h2>
@@ -104,7 +94,7 @@
         <tr><td>后端源码</td><td><code>$N/backend/</code></td><td>Django 项目，<code>manage.py</code> 在这里</td></tr>
         <tr><td>前端源码</td><td><code>$N/frontend/src/</code></td><td>Vue 3 + TypeScript + Element Plus</td></tr>
         <tr><td>前端构建产物</td><td><code>$N/frontend/dist/</code></td><td><code>pnpm build</code> 生成；后端直接从这里提供页面</td></tr>
-        <tr><td>手册源文件</td><td><code>$N/frontend/public/guide/</code></td><td>构建时原样复制到 <code>dist/guide/</code></td></tr>
+        <tr><td>手册源文件</td><td><code>$N/frontend/src/views/help/pages/</code></td><td>每页一个 Vue 组件，由 <code>HelpView.vue</code> 按 <code>/help/&lt;页&gt;</code> 加载</td></tr>
         <tr><td>Python 环境</td><td><code>$N/.venv/</code></td><td>用 <code>uv sync</code> 生成，Python 3.12</td></tr>
         <tr><td>default 数据库</td><td><code>$N/backend/db.sqlite3</code></td><td>SQLite：用户、集群、Terraform 配置、扫描报告</td></tr>
         <tr><td>vigil 数据库</td><td>Docker 容器 <code>pg</code>，<code>127.0.0.1:5432</code>，库 / 用户 <code>vigil</code></td><td>PostgreSQL：检测记录（按天分区）</td></tr>
@@ -133,7 +123,7 @@
 
     <section id="order">
       <h2>0.5 整体构建顺序（从零到可用）</h2>
-      <p>整套系统有严格的先后依赖：<b>后一步依赖前一步的产物</b>，顺序错了会出现拿不到 IP、broker 起不来、bridge 连不上 Kafka、token 不一致等问题。下图为依赖关系，表格为逐步顺序。日常开机恢复只是其中一部分，见 <a href="power.html#startup">开机恢复</a>。</p>
+      <p>整套系统有严格的先后依赖：<b>后一步依赖前一步的产物</b>，顺序错了会出现拿不到 IP、broker 起不来、bridge 连不上 Kafka、token 不一致等问题。下图为依赖关系，表格为逐步顺序。日常开机恢复只是其中一部分，见 <a href="/help/power#startup">开机恢复</a>。</p>
       <pre><code> 阶段 0 宿主机准备
    │
    ▼
@@ -183,7 +173,7 @@
         <tr><td>11</td><td>验证与实验</td><td><span class="tag tag-k">K</span></td><td><code>uv sync</code> → <code>sudo .venv/bin/python3 traffic/spoof_attack.py --packets 200</code> → 查 <code>/vigil/log</code> 或 SQL</td><td>9（或 10）</td><td>检测记录、数据集、评估报告</td><td>—</td></tr>
       </table></div>
 
-      <p>改了某一层之后怎么让它生效，见 <a href="deploy.html">改动上线</a>。</p>
+      <p>改了某一层之后怎么让它生效，见 <a href="/help/deploy">改动上线</a>。</p>
     </section>
 
     <section id="contract">
@@ -192,7 +182,7 @@
         <tr><th>契约</th><th>knetsentinel 侧</th><th>NetSentinel 侧</th><th>改动时注意</th></tr>
         <tr><td>Kafka topic 名与地址</td><td><code>cilium-vector/vector-5nodes.yaml</code>（sink topic）、<code>.env</code></td><td><code>vigil/bridge.py</code> 常量 <code>KAFKA_BOOTSTRAP</code>、<code>KAFKA_TOPIC</code>（写死）；<code>detector.py</code> 环境变量</td><td>MetalLB 分配的 .200-.203 若变化，入口 A 必须改代码并重启</td></tr>
         <tr><td>Hubble 流事件 JSON 结构</td><td>Vector <code>exec hubble observe --output=json</code></td><td><code>bridge.py</code> 读取 <code>flow.IP / l4 / traffic_direction / verdict / is_reply / time</code></td><td>升级 Hubble 版本后需验证字段</td></tr>
-        <tr><td>35 个流特征</td><td><code>dataset/aggregate_flows.py</code>、<code>kafka/vigil_bridge.py</code>、<code>docs/features.md</code></td><td><code>vigil/serializers.py FlowInputSerializer</code>、<code>ml/models/base.py DetectionInput</code>、<code>runner.py flow_from_dict</code>、<code>bridge.py compute_flow</code></td><td>五处必须同名同义；见 <a href="db.html#features">特征表</a></td></tr>
+        <tr><td>35 个流特征</td><td><code>dataset/aggregate_flows.py</code>、<code>kafka/vigil_bridge.py</code>、<code>docs/features.md</code></td><td><code>vigil/serializers.py FlowInputSerializer</code>、<code>ml/models/base.py DetectionInput</code>、<code>runner.py flow_from_dict</code>、<code>bridge.py compute_flow</code></td><td>五处必须同名同义；见 <a href="/help/db#features">特征表</a></td></tr>
         <tr><td>标签规则</td><td>攻击源 .20-.29 → 1、正常源 .50-.64 → 0</td><td><code>bridge.py _hubble_to_packet()</code> 同样规则</td><td><code>simulation/</code> 用的 .170-.184 不在规则内，label 为空</td></tr>
         <tr><td>检测器推送</td><td>Secret <code>detector-secret</code>（key <code>django-token</code>）→ 环境变量 <code>DJANGO_TOKEN</code></td><td><code>DetectorPushConsumer._auth()</code> 与 <code>settings.VIGIL_BRIDGE_TOKEN</code> 做<b>字符串全等</b>比较</td><td>两边必须是同一个字符串；不是校验 JWT 签名</td></tr>
         <tr><td>REST 批量检测</td><td><code>kafka/vigil_bridge.py --token &lt;JWT&gt;</code></td><td><code>POST /api/vigil/detect/batch/</code></td><td>JWT access 默认 2 小时过期；长期运行用 <code>generate_bridge_token</code> 生成 10 年 token</td></tr>
@@ -257,7 +247,7 @@
 ├── frontend/
 │   ├── package.json · pnpm-lock.yaml · vite.config.ts（dev 代理 /api、/ws → 127.0.0.1:8080）
 │   ├── .env.production
-│   ├── public/                  manual_en.html · guide/（本手册）· favicon
+│   ├── public/                  favicon
 │   ├── src/
 │   │   ├── main.ts · App.vue · router/index.ts（路由 + 登录 / 管理员守卫）
 │   │   ├── stores/auth.ts       token / refreshToken / user 存 localStorage，401 自动刷新
@@ -316,7 +306,7 @@
         <dt>MetalLB</dt><dd>在没有云厂商的集群里给 <code>type: LoadBalancer</code> 的 Service 分配真实 IP。本项目地址池 <code>192.168.100.200-250</code>。</dd>
         <dt>local-path</dt><dd>把节点本地目录当磁盘用的 StorageClass，Kafka broker 的 PVC 依赖它。</dd>
         <dt>flow（流）</dt><dd>同一个 5 元组（源 IP、目的 IP、源端口、目的端口、协议）的一组包。模型的输入单位是“流”，不是单个包。</dd>
-        <dt>35 个特征</dt><dd>从一条流算出来的数字和字符串，例如持续时间、包数、SYN 比例、包间隔均值等，详见 <a href="detect.html">检测链路与模型</a>。</dd>
+        <dt>35 个特征</dt><dd>从一条流算出来的数字和字符串，例如持续时间、包数、SYN 比例、包间隔均值等，详见 <a href="/help/detect">检测链路与模型</a>。</dd>
         <dt>OCSVM</dt><dd>One-Class SVM，只用正常数据训练的异常检测模型，偏离“正常”的样本判为攻击。</dd>
         <dt>ZSL（零样本学习）</dt><dd>判为攻击后，拿样本和各攻击类型的“原型向量”算余弦相似度，猜它是哪种攻击；都不像就是 <code>Unknown_Attack</code>。</dd>
         <dt>Django / DRF</dt><dd>Python Web 框架和它的 REST 扩展（Django REST Framework）。</dd>
@@ -329,7 +319,5 @@
         <dt>SARIF</dt><dd>静态分析工具通用的 JSON 结果格式，checkov / tfsec / trivy 都输出它。</dd>
       </dl>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

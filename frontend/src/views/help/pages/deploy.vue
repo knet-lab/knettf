@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>改动上线 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>改动上线</h1>
+<template>
+  <div v-pre>
+        <h1>改动上线</h1>
     <div class="meta">改了代码或配置之后，怎么让它在线上生效、会影响谁、怎么确认成功。<br>
       最常见的前端、后端改动用 <code>scripts/deploy.sh</code> 一条命令完成；其他改动按后面几节逐项做。</div>
 
@@ -107,7 +97,7 @@ from vigil.ml.models import registry;print(registry.list_models())"</code></pre>
 cd $N/detector && bash build.sh
 kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code></pre></div></div>
         <div class="why"><div>模型在进程启动时加载一次。入口 B 的模型打包在镜像里，要重新 build 镜像。</div></div>
-        <div class="res"><div>日志出现 <code>AdsMLModel loaded</code>；发一次测试流量（<a href="power.html#verify">端到端验证</a>）能看到新记录。</div></div>
+        <div class="res"><div>日志出现 <code>AdsMLModel loaded</code>；发一次测试流量（<a href="/help/power#verify">端到端验证</a>）能看到新记录。</div></div>
       </div>
     </section>
 
@@ -115,19 +105,17 @@ kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code></pre><
       <h2>其他改动对照表</h2>
       <div class="table-wrap"><table>
         <tr><th>改了什么</th><th>怎么做</th><th>为什么 / 结果</th></tr>
-        <tr><td><code>backend/backend/.env</code></td><td><code>systemctl --user restart netsentinel</code></td><td>环境变量只在进程启动时读一次；重启后用 <a href="health.html">健康检查</a> 第 1 步确认</td></tr>
+        <tr><td><code>backend/backend/.env</code></td><td><code>systemctl --user restart netsentinel</code></td><td>环境变量只在进程启动时读一次；重启后用 <a href="/help/health">健康检查</a> 第 1 步确认</td></tr>
         <tr><td>systemd unit 文件</td><td><code>systemctl --user daemon-reload</code> → restart</td><td>不 reload 的话 systemd 还在用旧定义；<code>systemctl --user cat netsentinel</code> 可确认</td></tr>
         <tr><td>cloudflared 配置</td><td><code>systemctl --user restart cloudflared-knettf</code></td><td>公网会中断几秒</td></tr>
         <tr><td>Kafka 地址变了</td><td>改 <code>vigil/bridge.py</code> 的 <code>KAFKA_BOOTSTRAP</code>（入口 B 改 ConfigMap）→ <code>deploy.sh -backend</code></td><td>地址是写死在代码里的；成功后日志有 <code>bridge starting</code> 且没有 <code>bridge error</code></td></tr>
         <tr><td>Vector 配置</td><td><code>kubectl apply -f $K/cilium-vector/vector-5nodes.yaml</code> → <code>kubectl -n kube-system rollout restart ds/vector</code></td><td>重启期间的 Hubble 事件丢失，不会补发</td></tr>
         <tr><td>单个 Kafka broker</td><td><code>kubectl delete pod kafka-broker-N</code>，等它 Running 了再处理下一个</td><td>min.insync.replicas=2，同时停两个以上会导致写入失败；数据在 PVC 上，不会丢</td></tr>
-        <tr><td>Kafka controller</td><td><b>不要删</b></td><td>它是裸 Pod + emptyDir，删了不会重建，元数据丢失，只能 <a href="power.html#rebuild-kafka">重建 Kafka</a></td></tr>
+        <tr><td>Kafka controller</td><td><b>不要删</b></td><td>它是裸 Pod + emptyDir，删了不会重建，元数据丢失，只能 <a href="/help/power#rebuild-kafka">重建 Kafka</a></td></tr>
         <tr><td>hubble-relay / Cilium</td><td><code>kubectl -n kube-system rollout restart deploy/hubble-relay</code>（或 <code>ds/cilium</code>）</td><td>Vector 5 秒后自动重连；重启 Cilium 网络会短暂抖动</td></tr>
         <tr><td>单台 VM</td><td><code>kubectl drain k8s-nodeN --ignore-daemonsets --delete-emptydir-data</code> → <code>virsh reboot</code> → <code>kubectl uncordon k8s-nodeN</code></td><td>先 drain 让 Pod 正常迁走；该节点上的 broker 会等节点回来（PVC 绑定在节点上）</td></tr>
         <tr><td>PostgreSQL</td><td><code>docker restart pg</code></td><td>重启期间写库失败，那一批记录丢弃，之后自动恢复</td></tr>
       </table></div>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

@@ -1,17 +1,7 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>账号与令牌 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>账号与令牌</h1>
-    <div class="meta">网页上只能新建和删除用户（见 <a href="use.html#users">网页使用 · 用户管理</a>），其余操作都要用命令行。<br>
+<template>
+  <div v-pre>
+        <h1>账号与令牌</h1>
+    <div class="meta">网页上只能新建和删除用户（见 <a href="/help/use#users">网页使用 · 用户管理</a>），其余操作都要用命令行。<br>
       下面的命令都在后端目录里执行：<code>cd $N/backend; PY=../.venv/bin/python</code></div>
 
     <section id="users">
@@ -46,7 +36,5 @@ kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code></pre><
       <div class="danger"><b>泄露之后光重新生成是不够的</b>：JWT 是无状态的，旧 token 只要签名对、没过期就一直有效。要真正作废，只能停用 <code>vigil-bridge</code> 账号后重建，或者改 <code>SECRET_KEY</code>（所有人都要重新登录）。<br>
         不要删除 <code>vigil-bridge</code> 账号（除非马上重建），不要把 token、kubeconfig、<code>.env</code> 发到群聊或截图里。</div>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

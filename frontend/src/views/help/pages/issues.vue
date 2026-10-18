@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>已知问题与练习 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>已知问题与练习</h1>
+<template>
+  <div v-pre>
+        <h1>已知问题与练习</h1>
     <div class="meta">第一部分列出 2026-10-18 核对代码时发现的问题，接手后可按优先级逐个解决。第二部分是一组由浅入深的练习，做完说明你已经掌握了整个项目。</div>
 
     <section id="security">
@@ -102,16 +92,14 @@
     <section id="ex3">
       <h2>8.6 练习三：动手改</h2>
       <ol>
-        <li>按<a href="backend.html">《后端代码》</a> 3.11 加 <code>/api/vigil/top-sources/</code>，再按<a href="frontend.html">《前端代码》</a> 2.11 的方式在看板上展示它。</li>
+        <li>按<a href="/help/backend">《后端代码》</a> 3.11 加 <code>/api/vigil/top-sources/</code>，再按<a href="/help/frontend">《前端代码》</a> 2.11 的方式在看板上展示它。</li>
         <li>修复 Dashboard 恒为 0 的问题（8.3 第一条），写一个后端测试。</li>
         <li>给 <code>run_bridge()</code> 加自动重连：停掉一个 Kafka broker 再恢复，确认无需重启后端就能继续入库。</li>
         <li>把模型资源缓存到 <code>AdsMLModel</code> 实例里，用 <code>raw_output.inference_ms</code> 对比改前改后的平均耗时（6.7 的 SQL）。</li>
-        <li>完整做一次计划停机和开机恢复（<a href="power.html">开关机 · 重建 · 备份</a>），记录每一步花的时间。</li>
-        <li>在一个不影响他人的时间窗口，按 <a href="power.html#rebuild-kafka">重建 Kafka</a>，并确认端到端恢复。</li>
+        <li>完整做一次计划停机和开机恢复（<a href="/help/power">开关机 · 重建 · 备份</a>），记录每一步花的时间。</li>
+        <li>在一个不影响他人的时间窗口，按 <a href="/help/power#rebuild-kafka">重建 Kafka</a>，并确认端到端恢复。</li>
       </ol>
-      <div class="ok">全部做完，你就能独立负责这个项目了。遇到手册与代码不一致的地方，以代码为准，并更新本手册（<code>frontend/public/guide/</code>，改完 <code>pnpm build</code>）。</div>
+      <div class="ok">全部做完，你就能独立负责这个项目了。遇到手册与代码不一致的地方，以代码为准，并更新本手册（<code>frontend/src/views/help/pages/</code>，改完 <code>scripts/deploy.sh -frontend</code>）。</div>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

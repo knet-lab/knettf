@@ -1,18 +1,8 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>每日健康检查 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>每日健康检查</h1>
-    <div class="meta">每天一次，约 5 分钟：命令行 2 分钟 + 网页 3 分钟。每一步写明怎么做、为什么查它、正常应该看到什么；结果对不上就按该步的处理办法走，处理不了再去 <a href="trouble.html">排障与日志</a>。<br>
-      先设好路径变量：<code>export N=~/github/NetSentinel K=~/knetsentinel</code>。前提：已通过 <a href="prepare.html#ready">准备完成验收</a>。服务还在 soar009 名下时，先 <code>sudo -iu soar009</code>（见 <a href="prepare.html#transition">接手准备 2.1</a>）。</div>
+<template>
+  <div v-pre>
+        <h1>每日健康检查</h1>
+    <div class="meta">每天一次，约 5 分钟：命令行 2 分钟 + 网页 3 分钟。每一步写明怎么做、为什么查它、正常应该看到什么；结果对不上就按该步的处理办法走，处理不了再去 <a href="/help/trouble">排障与日志</a>。<br>
+      先设好路径变量：<code>export N=~/github/NetSentinel K=~/knetsentinel</code>。前提：已通过 <a href="/help/prepare#ready">准备完成验收</a>。服务还在 soar009 名下时，先 <code>sudo -iu soar009</code>（见 <a href="/help/prepare#transition">接手准备 2.1</a>）。</div>
 
     <section id="cli">
       <h2>命令行检查（按顺序，从外到内）</h2>
@@ -45,14 +35,14 @@ tail -1 /tmp/rotate_partitions.log</code></pre></div></div>
 kubectl get nodes
 kubectl get pods -A | grep -vE 'Running|Completed'</code></pre></div></div>
         <div class="why"><div>流量数据来自 5 台 VM 组成的 K8s 集群（Cilium → Vector → Kafka），任何一环不在，后端就收不到数据。VM <b>不会</b>随宿主机开机自启。</div></div>
-        <div class="res"><div>5 台 VM <code>running</code>，5 个节点 <code>Ready</code>，最后一条只输出表头。<br><span class="bad">VM shut off</span>：宿主机重启过，按 <a href="power.html#startup">开机恢复</a> 做。<span class="bad">有 Pending / CrashLoopBackOff</span>：<code>kubectl describe pod</code> 看原因，再查 <a href="trouble.html">排障表</a>。</div></div>
+        <div class="res"><div>5 台 VM <code>running</code>，5 个节点 <code>Ready</code>，最后一条只输出表头。<br><span class="bad">VM shut off</span>：宿主机重启过，按 <a href="/help/power#startup">开机恢复</a> 做。<span class="bad">有 Pending / CrashLoopBackOff</span>：<code>kubectl describe pod</code> 看原因，再查 <a href="/help/trouble">排障表</a>。</div></div>
       </div>
 
       <div class="task"><h4><span class="n">5</span>Kafka 里有新数据</h4>
         <div class="do"><div><pre><code>kubectl exec kafka-broker-0 -- /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server kafka-svc.default.svc.cluster.local:9092 --topic ebpf-net-logs --max-messages 2 --timeout-ms 15000</code></pre></div></div>
         <div class="why"><div>第 2 步看到 bridge 没数据时，用这一步判断问题在集群这边（Vector / Hubble 没写进 Kafka）还是在后端这边。</div></div>
-        <div class="res"><div>输出 2 行 Hubble JSON。<br><span class="bad">超时无输出</span>：问题在集群侧，查 Vector 日志（<a href="trouble.html">排障表</a>“Kafka 无数据”一行）。</div></div>
+        <div class="res"><div>输出 2 行 Hubble JSON。<br><span class="bad">超时无输出</span>：问题在集群侧，查 Vector 日志（<a href="/help/trouble">排障表</a>“Kafka 无数据”一行）。</div></div>
       </div>
 
       <div class="task"><h4><span class="n">6</span>磁盘空间</h4>
@@ -77,7 +67,5 @@ du -sh $N/backend/vigil/ml/ads_ml/results</code></pre></div></div>
         <tr><td>管理后台 <span class="ui">TF Tools</span></td><td>5 个都 Enabled</td><td>被停用的工具扫描时会被跳过 → 问清原因后恢复</td></tr>
       </table></div>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

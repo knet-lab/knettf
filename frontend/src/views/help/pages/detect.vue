@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>检测链路与模型 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>检测链路与模型</h1>
+<template>
+  <div v-pre>
+        <h1>检测链路与模型</h1>
     <div class="meta">读完你能：讲清楚一条 Hubble 事件怎样变成数据库里的一条检测记录；知道 35 个特征各是什么、怎么算的；读懂模型的四个步骤；会换模型、加模型、排查“没有新数据”。<br>
       涉及文件：<span class="tag tag-n">N</span> <code>backend/vigil/</code>、<code>detector/</code>；<span class="tag tag-k">K</span> <code>cilium-vector/vector-5nodes.yaml</code>、<code>kafka/vigil_bridge.py</code>、<code>dataset/aggregate_flows.py</code>。</div>
 
@@ -30,7 +20,7 @@
     "is_reply": false
   }
 }</code></pre>
-      <p>Hubble 版本升级后要先确认这些字段名没变（<a href="index.html#contract">系统总览 · 跨项目契约</a>）。</p>
+      <p>Hubble 版本升级后要先确认这些字段名没变（<a href="/help/index#contract">系统总览 · 跨项目契约</a>）。</p>
     </section>
 
     <section id="entries">
@@ -161,7 +151,7 @@ def detect_batch(flows, model_name=None):
       </div>
       <h3>适配器 <code>ml/models/ads_ml_model.py</code></h3>
       <p><code>AdsMLModel.__init__</code> 调一次 <code>_load_resources()</code> 只为确认文件能加载（失败则注册表跳过它，日志 <code>AdsMLModel not loaded</code>）。<code>predict()</code> 去掉 <code>label</code>、<code>extra</code> 后调 <code>main(**data)</code>，结果包装成 <code>DetectionResult</code>：<code>is_attack</code>、<code>confidence</code>=ZSL 相似度、<code>attack_type</code>、<code>explanation</code>、<code>raw_output</code>。</p>
-      <div class="note"><b>性能问题</b>：<code>main()</code> 每次调用都会重新 <code>_load_resources()</code>——每条流都重新读两个 joblib 和训练集 CSV，并重写一次报告 CSV。流量大时 drainer 跟不上、<code>flow_queue</code> 堆积。看 <code>raw_output.inference_ms</code> 能确认。改法：在 <code>AdsMLModel.__init__</code> 里把资源存成成员，<code>predict</code> 直接调用四个 utils 函数（<a href="issues.html">《已知问题与练习》</a>）。</div>
+      <div class="note"><b>性能问题</b>：<code>main()</code> 每次调用都会重新 <code>_load_resources()</code>——每条流都重新读两个 joblib 和训练集 CSV，并重写一次报告 CSV。流量大时 drainer 跟不上、<code>flow_queue</code> 堆积。看 <code>raw_output.inference_ms</code> 能确认。改法：在 <code>AdsMLModel.__init__</code> 里把资源存成成员，<code>predict</code> 直接调用四个 utils 函数（<a href="/help/issues">《已知问题与练习》</a>）。</div>
     </section>
 
     <section id="policy">
@@ -260,7 +250,5 @@ from .my_model import MyModel
 registry.register(MyModel())</code></pre>
       <p>重启后端后 <code>/api/vigil/models/</code> 返回两个名字；<code>POST /api/vigil/detect/</code> 带 <code>"model": "my_rule"</code> 可单独测试。注意记录数会翻倍。</p>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

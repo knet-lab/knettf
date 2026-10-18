@@ -1,30 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>User Manual · NetSentinel</title>
-  <link rel="stylesheet" href="guide/base.css" />
-  <link rel="stylesheet" href="guide/guide.css" />
-</head>
-<body>
-  <aside class="sidebar">
-    <div class="sidebar-logo">NetSentinel<span>User Manual</span></div>
-    <div class="nav-section">SECTIONS</div>
-    <a class="nav-page" href="#login">Sign in</a>
-    <a class="nav-page" href="#layout">Where things are</a>
-    <a class="nav-page" href="#clusters">Kubernetes clusters</a>
-    <a class="nav-page" href="#tf">Terraform scan &amp; apply</a>
-    <a class="nav-page" href="#vigil">AI Vigil</a>
-    <a class="nav-page" href="#admin">Admin console</a>
-    <a class="nav-page" href="#daily">Daily check</a>
-    <div class="nav-section">中文</div>
-    <a class="nav-page" href="guide/use.html">网页使用（中文） →</a>
-  </aside>
-  <main class="main">
-    <h1>User Manual</h1>
+<template>
+  <div v-pre lang="en">
+        <h1>User Manual</h1>
     <div class="meta">How to use the NetSentinel website: what to click, why, and what you should see. No server access is needed for anything on this page.<br>
-      This page covers the same ground as the Chinese <a href="guide/use.html">网页使用</a> page, minus the code and API details.</div>
+      This page covers the same ground as the Chinese <a href="/help/use">网页使用</a> page, minus the code and API details.</div>
 
     <section id="login">
       <h2>Sign in</h2>
@@ -129,7 +107,7 @@
         <tr><td><span class="ui">TF Configs</span></td><td>View everyone's, delete</td><td></td></tr>
         <tr><td><span class="ui">TF Tools</span></td><td>Create, edit, enable / disable, delete</td><td>Prefer disabling to deleting; standard users only see enabled tools</td></tr>
       </table></div>
-      <p>Password changes, disabling an account and granting admin are done on the server — see <a href="guide/account.html">账号与令牌</a>.</p>
+      <p>Password changes, disabling an account and granting admin are done on the server — see <a href="/help/account">账号与令牌</a>.</p>
     </section>
 
     <section id="daily">
@@ -144,6 +122,5 @@
         <tr><td>Admin → TF Tools</td><td>All 5 enabled</td><td>Find out why before re-enabling</td></tr>
       </table></div>
     </section>
-  </main>
-</body>
-</html>
+  </div>
+</template>

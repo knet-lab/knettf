@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>开关机与重建 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>开关机 · 重建 · 备份</h1>
+<template>
+  <div v-pre>
+        <h1>开关机 · 重建 · 备份</h1>
     <div class="meta">宿主机关机前、开机后、组件坏到只能重建时，按本页逐步做。每一步都写了为什么要这么做、做完应该看到什么。<br>
       <code>export N=~/github/NetSentinel K=~/knetsentinel; alias vsh='virsh -c qemu:///system'</code></div>
 
@@ -165,14 +155,14 @@ bash 02-setup-cluster.sh    # kubeadm + Cilium/Hubble + MetalLB + local-path
 bash 03-deploy-5nodes.sh    # Kafka + Vector + my-nginx
 kubectl apply -f $K/cluster-setup/targets.yaml
 kubectl apply -f $K/cluster-setup/host-firewall-ccnp.yaml</code></pre>以普通用户运行，<b>不要</b> <code>sudo bash</code>（kubeconfig 会写到 root 的家目录）。</div></div>
-        <div class="why"><div>每一步都依赖上一步的产物（详见 <a href="index.html#order">系统总览 · 构建顺序</a>）。01 需要 ≥ 420GB 空闲磁盘和外网。</div></div>
+        <div class="why"><div>每一步都依赖上一步的产物（详见 <a href="/help/index#order">系统总览 · 构建顺序</a>）。01 需要 ≥ 420GB 空闲磁盘和外网。</div></div>
         <div class="res"><div>5 个节点 Ready，Kafka 地址 .200-.203。MetalLB webhook 偶尔会拒绝 IP 池，重跑 02 即可。</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>让 NetSentinel 对上新集群</h4>
         <div class="do"><div><ol>
           <li><code>systemctl --user start netsentinel</code></li>
           <li>登录网页 → 删掉旧的集群记录 → 用同样的名字重新添加，粘贴新的 <code>~/.kube/config</code>。</li>
-          <li>用了入口 B 的话，重建 Secret <code>detector-secret</code> 并部署检测器（<a href="detect.html">检测链路</a> 入口 B 一节）。</li>
+          <li>用了入口 B 的话，重建 Secret <code>detector-secret</code> 并部署检测器（<a href="/help/detect">检测链路</a> 入口 B 一节）。</li>
           <li>做一次 <a href="#verify">端到端验证</a>。</li>
         </ol></div></div>
         <div class="why"><div>集群的 CA 和证书全部换新，网页上存的旧 kubeconfig 已经失效，Kubernetes 页会全部报错。</div></div>
@@ -228,9 +218,7 @@ scripts/deploy.sh -all</code></pre>
 docker exec -i pg pg_restore -U vigil -d vigil --clean --if-exists &lt; ~/vigil_2026-10-16.dump
 systemctl --user start netsentinel
 docker exec pg psql -U vigil vigil -Atc "select count(*) from vigil_detectionrecord;"</code></pre>
-      <p>恢复之后检查明天的分区还在不在（<a href="health.html">健康检查</a> 第 3 步）：备份里可能没有新日期的分区。</p>
+      <p>恢复之后检查明天的分区还在不在（<a href="/help/health">健康检查</a> 第 3 步）：备份里可能没有新日期的分区。</p>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>

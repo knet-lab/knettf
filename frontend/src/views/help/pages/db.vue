@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>数据库与模型字段 · NetSentinel 手册</title>
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="guide.css" />
-</head>
-<body>
-  <aside class="sidebar"></aside>
-  <main class="main">
-    <h1>数据库与模型字段</h1>
+<template>
+  <div v-pre>
+        <h1>数据库与模型字段</h1>
     <div class="meta">表结构依据 <code>models.py</code> 与迁移文件，数量依据 2026-10-16 实际查询。</div>
 
     <section id="dbs">
@@ -286,7 +276,5 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
         <tr><td><code>simulation/monitor/monitor_report_&lt;mode&gt;.txt</code>、<code>monitor_detail_&lt;mode&gt;.csv</code></td><td>—</td><td>混淆矩阵、Accuracy / Precision / Recall / F1</td><td><code>simulation/run.sh</code></td></tr>
       </table></div>
     </section>
-  </main>
-  <script src="guide.js"></script>
-</body>
-</html>
+  </div>
+</template>
