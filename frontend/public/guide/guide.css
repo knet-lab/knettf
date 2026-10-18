@@ -18,3 +18,22 @@ details[open] summary { margin-bottom: 8px; }
   .pager { flex-direction: column; }
   .pager a { max-width: 100%; text-align: left !important; }
 }
+/* 步骤卡：怎么做 / 为什么 / 结果 */
+.task { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
+.task > h4 { margin: 0 0 10px; font-size: 15px; color: #1a202c; }
+.task > h4 .n { display: inline-block; min-width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 11px; background: #3182ce; color: #fff; font-size: 12px; margin-right: 8px; }
+.task .do, .task .why, .task .res { display: grid; grid-template-columns: 64px 1fr; gap: 10px; font-size: 13.5px; line-height: 1.7; margin-top: 8px; }
+.task .do::before, .task .why::before, .task .res::before { font-weight: 700; font-size: 12px; padding: 2px 0; text-align: center; border-radius: 4px; height: fit-content; }
+.task .do::before { content: '怎么做'; background: #ebf4ff; color: #2b6cb0; }
+.task .why::before { content: '为什么'; background: #fffbeb; color: #b7791f; }
+.task .res::before { content: '结果'; background: #f0fff4; color: #2f855a; }
+.task .do > div, .task .why > div, .task .res > div { min-width: 0; }
+.task pre { margin: 4px 0; }
+.task .bad { color: #c53030; }
+@media (max-width: 800px) {
+  .task .do, .task .why, .task .res { grid-template-columns: 1fr; gap: 2px; }
+  .task .do::before, .task .why::before, .task .res::before { width: 64px; }
+}
+html[lang="en"] .task .do::before { content: 'Do'; }
+html[lang="en"] .task .why::before { content: 'Why'; }
+html[lang="en"] .task .res::before { content: 'Result'; }

@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>前端代码 · 使用管理手册</title>
-  <link rel="stylesheet" href="../ops/ops.css" />
+  <title>前端代码 · NetSentinel 手册</title>
+  <link rel="stylesheet" href="base.css" />
   <link rel="stylesheet" href="guide.css" />
 </head>
 <body>
   <aside class="sidebar"></aside>
   <main class="main">
-    <h1>2. 前端代码</h1>
+    <h1>前端代码</h1>
     <div class="meta">读完你能：在本机跑起前端开发环境，读懂每个页面的代码，知道一个按钮点下去调了哪个接口，会改页面、加页面、构建上线。<br>
       代码根目录 <code>$N/frontend/</code>。前置知识：会一点 HTML / JavaScript；Vue 不熟也没关系，本章按需讲。</div>
 
@@ -44,7 +44,6 @@
 │   ├── favicon.ico / favicon.png
 │   ├── manual_en.html   英文用户手册
 │   ├── guide/           本手册
-│   └── ops/             运维对照手册
 ├── src/
 │   ├── main.ts          入口：创建 app，装 Pinia、Router、ElementPlus，注册全部图标
 │   ├── App.vue          根组件：决定显不显示顶部导航 + &lt;RouterView/&gt;
@@ -186,7 +185,7 @@ app.mount('#app')</code></pre>
 socket = new WebSocket(`${WS_BASE}/ws/clusters/${clusterId}/pods/${ns}/${name}/logs/`)
 socket.onmessage = (e) =&gt; { logContent.value += JSON.parse(e.data).log; 滚动到底 }
 socket.onclose = () =&gt; { wsConnected.value = false }</code></pre>
-      <p>后端每读到一行日志就发一条 <code>{"log": "..."}</code>。注意 URL 里<b>没有 token</b>，后端也不校验（第 8 章已知问题）。页面卸载（<code>onUnmounted</code>）或关闭窗口时 <code>socket.close()</code>。</p>
+      <p>后端每读到一行日志就发一条 <code>{"log": "..."}</code>。注意 URL 里<b>没有 token</b>，后端也不校验（<a href="issues.html">《已知问题与练习》</a>已知问题）。页面卸载（<code>onUnmounted</code>）或关闭窗口时 <code>socket.close()</code>。</p>
       <h3><span class="file">stores/kcore.ts</span></h3>
       <p>只缓存“每个集群有哪些 namespace”，供下拉框用。<code>fetchNamespaces(clusterId)</code> 用一个 <code>Map&lt;clusterId, Promise&gt;</code> 去重并发请求；更新时用 <code>{...old, [id]: names}</code> 生成新对象，保证 Vue 能侦测到变化。</p>
     </section>
@@ -221,7 +220,7 @@ socket.onclose = () =&gt; { wsConnected.value = false }</code></pre>
       <h3>VigilLogView（日志）</h3>
       <ul>
         <li>筛选状态 <code>verdict</code>、<code>filterAttackType</code>、<code>timeFrom</code>、<code>timeTo</code>；分页 <code>limit</code>、<code>offset</code>、<code>total</code>。</li>
-        <li><code>ATTACK_TYPES</code> 是写死的 9 个类型名，必须与模型原型里的名字一致（第 4 章 4.6）。换模型后若类型名变了，这里要同步改。</li>
+        <li><code>ATTACK_TYPES</code> 是写死的 9 个类型名，必须与模型原型里的名字一致（<a href="detect.html">《检测链路与模型》</a> 4.6）。换模型后若类型名变了，这里要同步改。</li>
         <li><code>reload()</code> 回到第一页；<code>prevPage()</code> / <code>nextPage()</code> 改 offset；<code>setInterval(loadRecords, 15000)</code>。</li>
       </ul>
       <h3><span class="file">components/RollingNumber.vue</span></h3>

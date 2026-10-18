@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>网页使用全流程 · 使用管理手册</title>
-  <link rel="stylesheet" href="../ops/ops.css" />
+  <title>网页使用全流程 · NetSentinel 手册</title>
+  <link rel="stylesheet" href="base.css" />
   <link rel="stylesheet" href="guide.css" />
 </head>
 <body>
   <aside class="sidebar"></aside>
   <main class="main">
-    <h1>1. 网页使用全流程</h1>
-    <div class="meta">读完你能：登录、管理用户、登记并操作 K8s 集群、扫描和部署 Terraform、读懂检测结果、做每日巡检。<br>
+    <h1>网页使用</h1>
+    <div class="meta">读完你能：登录、管理用户、登记并操作 K8s 集群、扫描和部署 Terraform、读懂检测结果。每天的网页检查清单在 <a href="health.html#web">每日健康检查</a>。<br>
       界面是英文的，按钮名按界面原样写出（如 <span class="ui">New User</span>）。每个操作后面注明它调用的后端接口，方便你在第 2、3 章对照代码。</div>
 
     <section id="login">
@@ -28,7 +28,7 @@
         <li>前端 <code>POST /api/auth/token/</code>，body <code>{"username","password"}</code>，后端返回 <code>{"access","refresh"}</code> 两个 JWT。</li>
         <li>前端再 <code>GET /api/kcore/users/me/</code> 拿到 <code>{id, username, email, is_staff}</code>。</li>
         <li>三样东西存进浏览器 <code>localStorage</code>：<code>token</code>、<code>refreshToken</code>、<code>user</code>。</li>
-        <li>之后每个请求都带 <code>Authorization: Bearer &lt;access&gt;</code>。access 2 小时过期，过期时前端自动用 refresh 换新的（第 2 章 2.5）；refresh 7 天过期，过期后被送回登录页。</li>
+        <li>之后每个请求都带 <code>Authorization: Bearer &lt;access&gt;</code>。access 2 小时过期，过期时前端自动用 refresh 换新的（<a href="frontend.html">《前端代码》</a> 2.5）；refresh 7 天过期，过期后被送回登录页。</li>
       </ol>
       <h3>常用</h3>
       <ul>
@@ -49,12 +49,12 @@
         <tr><td><span class="ui">Terraform Scan</span></td><td><code>/autotf</code></td><td><code>AutoTFView.vue</code></td><td>你自己的 Terraform 配置：编写、扫描、部署</td></tr>
         <tr><td><span class="ui">AI Vigil</span></td><td><code>/vigil</code></td><td><code>VigilView.vue</code></td><td>检测看板（所有登录用户看到的是同一份全局数据）</td></tr>
         <tr><td>（看板里的 <span class="ui">View log →</span>）</td><td><code>/vigil/log</code></td><td><code>VigilLogView.vue</code></td><td>检测日志：筛选、分页、详情</td></tr>
-        <tr><td><span class="ui">Help</span></td><td><code>/help</code></td><td><code>HelpView.vue</code></td><td>三个手册的标签页（iframe 嵌入 <code>public/</code> 下的静态 HTML）</td></tr>
+        <tr><td><span class="ui">Help</span></td><td><code>/help</code></td><td><code>HelpView.vue</code></td><td>本手册（<code>frontend/public/guide/</code> 下的静态 HTML，改完要 <code>scripts/deploy.sh -frontend</code>）</td></tr>
       </table></div>
       <h3>管理后台（<code>AdminLayout.vue</code>，左侧菜单）</h3>
       <div class="table-wrap"><table>
         <tr><th>菜单</th><th>地址</th><th>能看到</th><th>能做</th></tr>
-        <tr><td><span class="ui">Dashboard</span></td><td><code>/admin/dashboard</code></td><td>Total Users、Total Clusters、Total TF Configs</td><td>—（后两个数字目前恒为 0，见第 8 章）</td></tr>
+        <tr><td><span class="ui">Dashboard</span></td><td><code>/admin/dashboard</code></td><td>Total Users、Total Clusters、Total TF Configs</td><td>—（后两个数字目前恒为 0，见<a href="issues.html">《已知问题与练习》</a>）</td></tr>
         <tr><td><span class="ui">Users</span></td><td><code>/admin/users</code></td><td>全部用户：ID、Username、Email、Role</td><td>新建、删除</td></tr>
         <tr><td><span class="ui">Clusters</span></td><td><code>/admin/clusters</code></td><td>所有人的集群：名称、所有者、状态、创建时间</td><td>删除</td></tr>
         <tr><td><span class="ui">TF Configs</span></td><td><code>/admin/tf-configs</code></td><td>所有人的 Terraform 配置</td><td>删除</td></tr>
@@ -79,7 +79,7 @@
           <div class="expect">提示 <code>User created</code>，列表多一行，Role 为 User。失败提示 <code>Failed to create user</code>，多是用户名或邮箱已存在。</div></div>
       </div>
       <p>接口：<code>POST /api/kcore/users/</code>，body <code>{username, email, password, is_staff}</code>。</p>
-      <div class="note"><b>Admin 开关为什么不生效</b>：<code>UserCreateSerializer</code> 的 <code>fields</code> 只有 <code>username / email / password</code>，<code>is_staff</code> 被丢弃。要设管理员用命令行（第 7 章 7.2）：<br>
+      <div class="note"><b>Admin 开关为什么不生效</b>：<code>UserCreateSerializer</code> 的 <code>fields</code> 只有 <code>username / email / password</code>，<code>is_staff</code> 被丢弃。要设管理员用命令行（<a href="account.html">账号与令牌</a>）：<br>
         <code>cd $N/backend &amp;&amp; ../.venv/bin/python manage.py shell -c "from kcore.models import User;u=User.objects.get(username='alice');u.is_staff=True;u.save()"</code></div>
       <h3>删除用户</h3>
       <p>行尾 <span class="ui">Delete</span> → 确认。接口 <code>DELETE /api/kcore/users/&lt;id&gt;/</code>。</p>
@@ -137,7 +137,7 @@
         <tr><td><code>targets</code></td><td>靶机 .210-.214（<code>$K/cluster-setup/targets.yaml</code>）</td><td>可以重启</td></tr>
         <tr><td><code>netsentinel</code></td><td>检测器（入口 B，目前未部署）</td><td>可以</td></tr>
       </table></div>
-      <div class="danger"><b>绝对不要</b>在网页上删除 <code>kafka-controller</code>：它是裸 Pod + emptyDir，删了不会重建，KRaft 元数据丢失，只能重建 Kafka（运维手册 6.2）。也不要删除任何 Namespace。</div>
+      <div class="danger"><b>绝对不要</b>在网页上删除 <code>kafka-controller</code>：它是裸 Pod + emptyDir，删了不会重建，KRaft 元数据丢失，只能 <a href="power.html#rebuild-kafka">重建 Kafka</a>。也不要删除任何 Namespace。</div>
     </section>
 
     <section id="tf">
@@ -179,7 +179,7 @@
         <tr><th>操作</th><th>步骤</th><th>接口</th></tr>
         <tr><td>停用 / 启用</td><td><span class="ui">Edit</span> → 切 <span class="ui">Enabled</span> → Save</td><td><code>PATCH /api/autotf/tf-tools/&lt;id&gt;/</code></td></tr>
         <tr><td>删除</td><td><span class="ui">Delete</span>。建议用停用代替；删了可以用 <code>manage.py autotf_init</code> 重新生成</td><td><code>DELETE</code> 同上</td></tr>
-        <tr><td>新增</td><td><span class="ui">New Tool</span>，字段含义见第 3 章 3.7</td><td><code>POST /api/autotf/tf-tools/</code></td></tr>
+        <tr><td>新增</td><td><span class="ui">New Tool</span>，字段含义见<a href="backend.html">《后端代码》</a> 3.7</td><td><code>POST /api/autotf/tf-tools/</code></td></tr>
       </table></div>
       <p>默认 5 个工具：<code>terraform_validate</code>、<code>tflint</code>、<code>checkov</code>、<code>tfsec</code>、<code>trivy</code>。普通用户的工具列表只返回 Enabled 的。</p>
     </section>
@@ -215,36 +215,11 @@
         <tr><td>raw_output</td><td>模型 + 服务</td><td><code>zsl_similarity</code>、<code>zsl_attack</code>、<code>zsl_seen_status</code>、<code>aggregation_ms</code>（从流第一个包到聚合完成的毫秒数）、<code>inference_ms</code>（推理耗时）</td></tr>
         <tr><td>Cilium action / reason</td><td><code>ml/cilium/policy.py</code></td><td><code>ignore</code>（正常或置信度 &lt; 0.6）/ <code>alert</code> / <code>drop</code> / <code>rate_limit</code>。<b>只是建议，不会真的封禁</b></td></tr>
         <tr><td>Label / Ground Truth</td><td>bridge 按源 IP 打的标签</td><td>源 IP 末段 20-29 → 1（攻击）；50-64 → 0（正常）；其他 → 空</td></tr>
-        <tr><td>Flow Features</td><td><code>flow_input</code> JSON</td><td>送进模型的特征（第 4 章 4.3 有逐个解释）</td></tr>
+        <tr><td>Flow Features</td><td><code>flow_input</code> JSON</td><td>送进模型的特征（<a href="detect.html">《检测链路与模型》</a> 4.3 有逐个解释）</td></tr>
       </table></div>
       <p>来源 <code>192.168.100.20-29</code>、<code>.170-.184</code> 一般是实验脚本发出的模拟攻击，属预期内。</p>
     </section>
 
-    <section id="help">
-      <h2>1.8 Help 页</h2>
-      <p><code>/help</code> 顶部三个标签，每个是一个 iframe：</p>
-      <ul>
-        <li><b>User Manual</b> → <code>/manual_en.html</code>（英文最终用户手册）</li>
-        <li><b>使用管理手册</b> → <code>/guide/index.html</code>（本手册）</li>
-        <li><b>运维对照手册</b> → <code>/ops/index.html</code></li>
-      </ul>
-      <p>这些都是 <code>frontend/public/</code> 下的纯 HTML，构建时原样拷贝进 <code>dist/</code>。修改后要 <code>pnpm build</code> 才生效。</p>
-    </section>
-
-    <section id="daily">
-      <h2>1.9 每日巡检（网页部分，约 5 分钟）</h2>
-      <div class="table-wrap"><table>
-        <tr><th>✓</th><th>检查</th><th>正常</th><th>异常时</th></tr>
-        <tr><td>☐</td><td>打开 <code>https://knettf.com</code> 登录</td><td>能登录</td><td>打不开：本机 <code>curl localhost:8080</code> 正常 → 隧道问题；也不正常 → 服务问题（第 7 章）</td></tr>
-        <tr><td>☐</td><td>AI Vigil <b>Detection model</b></td><td><code>ads_ml_ocsvm</code></td><td>No models registered → 查 <code>AdsMLModel not loaded</code> 日志</td></tr>
-        <tr><td>☐</td><td>检测日志最新时间</td><td>有实验时在几分钟内</td><td>有流量却无新记录 → bridge 线程多半已退出，重启后端</td></tr>
-        <tr><td>☐</td><td>Attack Rate、攻击类型</td><td>与实验计划相符</td><td>无实验却有大量攻击、陌生源 IP → 截图上报</td></tr>
-        <tr><td>☐</td><td>Users 列表</td><td>都认识</td><td>陌生账号 → 删除并上报</td></tr>
-        <tr><td>☐</td><td>Kubernetes：<code>default</code>、<code>kube-system</code> Pods</td><td>全 Running</td><td>看 Logs，截图</td></tr>
-        <tr><td>☐</td><td>TF Tools</td><td>5 个都 Enabled</td><td>问清原因后恢复</td></tr>
-      </table></div>
-      <p>命令行部分的巡检见第 7 章 7.1。</p>
-    </section>
   </main>
   <script src="guide.js"></script>
 </body>

@@ -3,923 +3,147 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NetSentinel User Manual</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f0f4f8;
-      color: #2d3748;
-      display: flex;
-      min-height: 100vh;
-    }
-
-    /* ── Sidebar ── */
-    .sidebar {
-      width: 260px;
-      flex-shrink: 0;
-      background: #1d2535;
-      color: #a0aec0;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .sidebar-logo {
-      padding: 24px 20px 16px;
-      font-size: 18px;
-      font-weight: 700;
-      color: #fff;
-      border-bottom: 1px solid #2d3748;
-      letter-spacing: 0.5px;
-    }
-
-    .sidebar-logo span {
-      font-size: 11px;
-      font-weight: 400;
-      color: #718096;
-      display: block;
-      margin-top: 2px;
-    }
-
-    .sidebar nav { padding: 12px 0; flex: 1; }
-
-    .nav-section {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      color: #4a5568;
-      padding: 16px 20px 6px;
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 20px;
-      font-size: 13.5px;
-      color: #a0aec0;
-      text-decoration: none;
-      transition: background 0.15s, color 0.15s;
-      border-left: 3px solid transparent;
-      cursor: pointer;
-    }
-
-    .nav-item:hover { background: #2d3748; color: #e2e8f0; }
-    .nav-item.active { background: #1e3a5f; color: #fff; border-left-color: #3b82f6; }
-
-    .nav-icon { font-size: 15px; width: 18px; text-align: center; }
-
-    /* ── Main ── */
-    .main {
-      flex: 1;
-      padding: 40px 48px;
-      max-width: 900px;
-    }
-
-    .section { margin-bottom: 60px; }
-
-    .section-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: #ebf4ff;
-      color: #2563eb;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 4px 12px;
-      border-radius: 20px;
-      margin-bottom: 10px;
-      letter-spacing: 0.3px;
-    }
-
-    .section-badge.green  { background: #f0fff4; color: #16a34a; }
-    .section-badge.purple { background: #faf5ff; color: #7c3aed; }
-    .section-badge.orange { background: #fff7ed; color: #ea580c; }
-    .section-badge.gray   { background: #f7fafc; color: #718096; }
-
-    h1 { font-size: 32px; font-weight: 700; color: #1a202c; margin-bottom: 6px; }
-    h2 { font-size: 22px; font-weight: 700; color: #1a202c; margin-bottom: 16px; }
-    h3 { font-size: 16px; font-weight: 600; color: #2d3748; margin: 24px 0 10px; }
-    h4 { font-size: 14px; font-weight: 600; color: #4a5568; margin: 16px 0 6px; }
-
-    .divider { border: none; border-top: 1px solid #e2e8f0; margin: 40px 0; }
-
-    p { font-size: 14px; color: #4a5568; line-height: 1.8; margin-bottom: 10px; }
-
-    .card {
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 20px 24px;
-      margin-bottom: 16px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.04);
-    }
-
-    .card-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: #1a202c;
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .steps { counter-reset: step; }
-    .step { display: flex; gap: 16px; margin-bottom: 20px; align-items: flex-start; }
-
-    .step-num {
-      counter-increment: step;
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      background: #2563eb;
-      color: #fff;
-      font-size: 13px; font-weight: 700;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; margin-top: 1px;
-    }
-    .step-num::before { content: counter(step); }
-
-    .step-body { flex: 1; }
-    .step-title { font-size: 14px; font-weight: 600; color: #1a202c; margin-bottom: 4px; }
-    .step-desc  { font-size: 13px; color: #718096; line-height: 1.7; }
-
-    .tag {
-      display: inline-block;
-      padding: 2px 10px; border-radius: 12px;
-      font-size: 11.5px; font-weight: 600;
-      margin: 2px 3px 2px 0;
-    }
-    .tag-blue   { background: #ebf4ff; color: #2563eb; }
-    .tag-green  { background: #f0fff4; color: #16a34a; }
-    .tag-red    { background: #fff5f5; color: #e53e3e; }
-    .tag-yellow { background: #fffbeb; color: #d97706; }
-    .tag-gray   { background: #f7fafc; color: #718096; }
-    .tag-purple { background: #faf5ff; color: #7c3aed; }
-
-    .info-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 12px; }
-    .info-table th {
-      background: #f7fafc; color: #4a5568; font-weight: 600;
-      padding: 10px 14px; text-align: left; border-bottom: 1px solid #e2e8f0;
-    }
-    .info-table td {
-      padding: 10px 14px; border-bottom: 1px solid #f0f4f8;
-      color: #4a5568; vertical-align: top;
-    }
-    .info-table tr:last-child td { border-bottom: none; }
-
-    .alert {
-      display: flex; gap: 12px; padding: 14px 16px; border-radius: 8px;
-      margin-bottom: 16px; font-size: 13.5px; line-height: 1.6; align-items: flex-start;
-    }
-    .alert-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-    .alert-blue   { background: #ebf8ff; border: 1px solid #bee3f8; color: #2b6cb0; }
-    .alert-yellow { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
-    .alert-red    { background: #fff5f5; border: 1px solid #feb2b2; color: #c53030; }
-    .alert-green  { background: #f0fff4; border: 1px solid #9ae6b4; color: #276749; }
-
-    code {
-      background: #f0f4f8; color: #d63369;
-      font-family: 'Courier New', monospace;
-      font-size: 12.5px; padding: 1px 6px; border-radius: 4px;
-    }
-
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-
-    .feature-list { list-style: none; }
-    .feature-list li {
-      padding: 6px 0; font-size: 13.5px; color: #4a5568;
-      display: flex; align-items: flex-start; gap: 8px; line-height: 1.6;
-    }
-    .feature-list li::before { content: '✓'; color: #16a34a; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
-
-    .cover {
-      background: linear-gradient(135deg, #1d2535 0%, #1e3a5f 100%);
-      border-radius: 12px; padding: 40px; margin-bottom: 48px; color: #fff;
-    }
-    .cover h1 { color: #fff; font-size: 36px; margin-bottom: 8px; }
-    .cover p  { color: #94a3b8; font-size: 15px; margin-bottom: 0; }
-
-    .cover-meta { display: flex; gap: 20px; margin-top: 20px; }
-    .cover-meta-item { font-size: 12px; color: #64748b; }
-    .cover-meta-item strong { color: #cbd5e1; display: block; font-size: 14px; }
-
-    [id] { scroll-margin-top: 20px; }
-  </style>
+  <title>User Manual · NetSentinel</title>
+  <link rel="stylesheet" href="guide/base.css" />
+  <link rel="stylesheet" href="guide/guide.css" />
 </head>
 <body>
+  <aside class="sidebar">
+    <div class="sidebar-logo">NetSentinel<span>User Manual</span></div>
+    <div class="nav-section">SECTIONS</div>
+    <a class="nav-page" href="#login">Sign in</a>
+    <a class="nav-page" href="#layout">Where things are</a>
+    <a class="nav-page" href="#clusters">Kubernetes clusters</a>
+    <a class="nav-page" href="#tf">Terraform scan &amp; apply</a>
+    <a class="nav-page" href="#vigil">AI Vigil</a>
+    <a class="nav-page" href="#admin">Admin console</a>
+    <a class="nav-page" href="#daily">Daily check</a>
+    <div class="nav-section">中文</div>
+    <a class="nav-page" href="guide/use.html">网页使用（中文） →</a>
+  </aside>
+  <main class="main">
+    <h1>User Manual</h1>
+    <div class="meta">How to use the NetSentinel website: what to click, why, and what you should see. No server access is needed for anything on this page.<br>
+      This page covers the same ground as the Chinese <a href="guide/use.html">网页使用</a> page, minus the code and API details.</div>
 
-<!-- ── Sidebar ── -->
-<div class="sidebar">
-  <div class="sidebar-logo">
-    NetSentinel
-    <span>User Manual v1.0</span>
-  </div>
-  <nav>
-    <div class="nav-section">Overview</div>
-    <a class="nav-item active" href="#overview">
-      <span class="nav-icon">📋</span> Platform Overview
-    </a>
-    <a class="nav-item" href="#login">
-      <span class="nav-icon">🔐</span> Login &amp; Auth
-    </a>
-
-    <div class="nav-section">Modules</div>
-    <a class="nav-item" href="#kubernetes">
-      <span class="nav-icon">☸️</span> Kubernetes Monitor
-    </a>
-    <a class="nav-item" href="#terraform">
-      <span class="nav-icon">🔍</span> Terraform Security Scan
-    </a>
-    <a class="nav-item" href="#terraform-scan">
-      <span class="nav-icon">▶</span> &nbsp;Security Scan
-    </a>
-    <a class="nav-item" href="#terraform-deploy">
-      <span class="nav-icon">🚀</span> &nbsp;Deploy (Apply)
-    </a>
-    <a class="nav-item" href="#terraform-report">
-      <span class="nav-icon">📄</span> &nbsp;Scan Report
-    </a>
-    <a class="nav-item" href="#vigil">
-      <span class="nav-icon">🤖</span> AI Vigil
-    </a>
-
-    <div class="nav-section">Admin</div>
-    <a class="nav-item" href="#admin">
-      <span class="nav-icon">⚙️</span> Admin Console
-    </a>
-    <a class="nav-item" href="#admin-users">
-      <span class="nav-icon">👥</span> User Management
-    </a>
-    <a class="nav-item" href="#admin-clusters">
-      <span class="nav-icon">🔗</span> Cluster Management
-    </a>
-    <a class="nav-item" href="#admin-tftools">
-      <span class="nav-icon">🛠</span> Scan Tool Management
-    </a>
-
-    <div class="nav-section">Appendix</div>
-    <a class="nav-item" href="#severity">
-      <span class="nav-icon">⚠️</span> Severity Levels
-    </a>
-    <a class="nav-item" href="#tools-ref">
-      <span class="nav-icon">📦</span> Tool Reference
-    </a>
-  </nav>
-</div>
-
-<!-- ── Main ── -->
-<div class="main">
-
-  <!-- Cover -->
-  <div class="cover">
-    <h1>NetSentinel</h1>
-    <p>Kubernetes Cluster Monitoring &amp; Terraform Security Scanning Platform — User Manual</p>
-    <div class="cover-meta">
-      <div class="cover-meta-item"><strong>Version</strong>v1.0</div>
-      <div class="cover-meta-item"><strong>Audience</strong>Standard Users / Admins</div>
-      <div class="cover-meta-item"><strong>Updated</strong>2026-03</div>
-    </div>
-  </div>
-
-  <!-- ── Platform Overview ── -->
-  <div class="section" id="overview">
-    <div class="section-badge">📋 Overview</div>
-    <h2>Platform Overview</h2>
-    <p>NetSentinel is an all-in-one platform for DevOps and security teams. It provides real-time Kubernetes cluster monitoring, Terraform configuration security scanning, and one-click deployment capabilities.</p>
-
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">☸️ Kubernetes Monitoring</div>
-        <ul class="feature-list">
-          <li>Connect and manage multiple K8s clusters</li>
-          <li>Browse Namespaces, Pods, and Deployments</li>
-          <li>Inspect Services and ConfigMaps</li>
-          <li>Stream live Pod logs in real time</li>
-        </ul>
+    <section id="login">
+      <h2>Sign in</h2>
+      <div class="task"><h4><span class="n">1</span>Open the site and sign in</h4>
+        <div class="do"><div>Go to <code>https://knettf.com</code>, enter <span class="ui">Username</span> and <span class="ui">Password</span>, press Enter.</div></div>
+        <div class="why"><div>Every page requires an account; when you are not signed in, any address sends you to <code>/login</code>.</div></div>
+        <div class="res"><div>Standard users land on <code>/kcore</code>, admins on <code>/admin/dashboard</code>. A wrong password shows <code>Invalid username or password</code>.</div></div>
       </div>
-      <div class="card">
-        <div class="card-title">🔍 Terraform Security Scan</div>
-        <ul class="feature-list">
-          <li>Upload or write <code>.tf</code> configs online</li>
-          <li>Multi-tool security scanning pipeline</li>
-          <li>HIGH / MEDIUM / LOW severity classification</li>
-          <li>One-click Terraform Apply after a clean scan</li>
-        </ul>
+      <ul>
+        <li><b>Staying signed in</b>: your session renews itself silently for 7 days. After that you are sent back to the login page.</li>
+        <li><b>Sign out</b>: <span class="ui">Sign Out</span> at the top right (bottom left in the admin console).</li>
+        <li><b>Strange login behaviour</b> (keeps logging out, shows someone else's name): browser DevTools → Application → Local Storage → delete <code>token</code>, <code>refreshToken</code>, <code>user</code>, then sign in again.</li>
+      </ul>
+    </section>
+
+    <section id="layout">
+      <h2>Where things are</h2>
+      <div class="table-wrap"><table>
+        <tr><th>Menu</th><th>Address</th><th>What it is for</th></tr>
+        <tr><td><span class="ui">Kubernetes</span></td><td><code>/kcore</code></td><td>Clusters <b>you</b> registered: browse resources, read Pod logs, edit YAML, restart, delete</td></tr>
+        <tr><td><span class="ui">Terraform Scan</span></td><td><code>/autotf</code></td><td>Your Terraform configs: write, scan, apply</td></tr>
+        <tr><td><span class="ui">AI Vigil</span></td><td><code>/vigil</code>, <code>/vigil/log</code></td><td>Live attack detection on cluster traffic (everyone sees the same data)</td></tr>
+        <tr><td><span class="ui">Help</span></td><td><code>/help</code></td><td>This manual and the Chinese handbook</td></tr>
+        <tr><td>(no menu entry)</td><td><code>/admin</code></td><td>Admin console; type the address. Non-admins are sent back to <code>/kcore</code></td></tr>
+      </table></div>
+      <div class="learn"><b>Who can touch what</b>: every cluster and Terraform config has an owner. Standard users can only act on their own; admins can act on everyone's. Detection data has no owner and is visible to all signed-in users.</div>
+    </section>
+
+    <section id="clusters">
+      <h2>Kubernetes clusters</h2>
+      <div class="task"><h4><span class="n">1</span>Register a cluster</h4>
+        <div class="do"><div><span class="ui">Kubernetes</span> → <span class="ui">Add</span> next to My Clusters → enter a name (unique for you) and paste the whole <b>kubeconfig</b> → <span class="ui">Add Cluster</span>.</div></div>
+        <div class="why"><div>The site talks to the cluster with exactly that kubeconfig. It carries full cluster rights, so only get it through a safe channel.</div></div>
+        <div class="res"><div>Click the new cluster → <span class="ui">Namespaces</span>. You should see <code>default</code>, <code>kube-system</code>, <code>metallb-system</code>, <code>targets</code>… An error means a wrong kubeconfig or the cluster is powered off.</div></div>
       </div>
-    </div>
+      <h3>Tabs</h3>
+      <p><span class="ui">Namespaces</span>, <span class="ui">Pods</span>, <span class="ui">Deployments</span>, <span class="ui">Services</span>, <span class="ui">ConfigMaps</span>, <span class="ui">DaemonSets</span>. All but Namespaces need a namespace picked in <span class="ui">Select Namespace</span> first (default <code>default</code>).</p>
+      <div class="table-wrap"><table>
+        <tr><th>Action</th><th>Where</th><th>What happens</th></tr>
+        <tr><td>View YAML</td><td>row → <span class="ui">YAML</span></td><td>Read-only view of the live object</td></tr>
+        <tr><td>Edit</td><td>row → <span class="ui">Edit</span> → <span class="ui">Apply</span></td><td>Applied immediately and overrides fields managed by others</td></tr>
+        <tr><td>Create</td><td><span class="ui">Apply YAML</span> (top right)</td><td>Several documents separated by <code>---</code> are fine; you get “Applied: N resource(s), M error(s)”</td></tr>
+        <tr><td>Pod logs</td><td>Pods → <span class="ui">Logs</span></td><td>Streams live once <b>● Connected</b> shows; closing the window disconnects</td></tr>
+        <tr><td>Restart</td><td>Deployments / DaemonSets row</td><td><b>Normal (Rolling)</b> replaces Pods one by one with no downtime — prefer this. <b>Force</b> deletes all Pods at once and causes an outage</td></tr>
+        <tr><td>Delete</td><td>row → <span class="ui">Delete</span> → <b>Confirm Delete</b></td><td>A deleted Pod is usually recreated; deleting a Deployment, Service or Namespace is permanent</td></tr>
+      </table></div>
+      <div class="danger"><b>Never delete</b> <code>kafka-controller</code> or any Namespace, and never force-restart anything in <code>kube-system</code> or <code>metallb-system</code>. <code>kafka-controller</code> is not recreated once deleted, and detection stops until Kafka is rebuilt.</div>
+      <p><b>After the cluster is rebuilt</b>, the old kubeconfig stops working and every tab errors. Delete the cluster entry (this only removes the website record) and add it again with the new kubeconfig.</p>
+    </section>
 
-    <div class="card">
-      <div class="card-title">🏗️ System Architecture</div>
-      <table class="info-table">
-        <thead>
-          <tr><th>Layer</th><th>Technology</th><th>Notes</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Frontend</td><td>Vue 3 + Element Plus</td><td>SPA, served at <code>localhost:5173</code></td></tr>
-          <tr><td>Backend</td><td>Django REST Framework</td><td>API service at <code>localhost:8000</code></td></tr>
-          <tr><td>Auth</td><td>JWT (SimpleJWT)</td><td>Access Token valid 2 h, silent refresh enabled</td></tr>
-          <tr><td>Scan Engines</td><td>tfsec / checkov / trivy / tflint / terraform validate</td><td>Executed server-side</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <hr class="divider" />
-
-  <!-- ── Login ── -->
-  <div class="section" id="login">
-    <div class="section-badge">🔐 Authentication</div>
-    <h2>Login &amp; Authentication</h2>
-
-    <div class="steps">
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Open the Login Page</div>
-          <div class="step-desc">Navigate to <code>http://localhost:5173/login</code> and enter your username and password.</div>
-        </div>
+    <section id="tf">
+      <h2>Terraform scan &amp; apply</h2>
+      <div class="task"><h4><span class="n">1</span>Create a config</h4>
+        <div class="do"><div><span class="ui">Terraform Scan</span> → <span class="ui">New</span>. Either <span class="ui">Upload File</span> (a local <code>.tf</code>) or <span class="ui">Write Online</span> (paste HCL).</div></div>
+        <div class="why"><div>The site keeps one file per config and scans that file.</div></div>
+        <div class="res"><div>The config appears under My Configs. Names must be unique for you.</div></div>
       </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Automatic Token Management</div>
-          <div class="step-desc">After a successful login the platform obtains an Access Token (valid for 2 hours). When it expires, the token is <strong>silently refreshed</strong> in the background — no manual re-login needed until the Refresh Token (7 days) expires.</div>
-        </div>
+      <div class="task"><h4><span class="n">2</span>Scan it</h4>
+        <div class="do"><div><span class="ui">Full Scan</span> runs every enabled tool; <span class="ui">Manual Scan</span> lets you pick tools. Wait — do not refresh.</div></div>
+        <div class="why"><div>Five tools look for different problems: <code>terraform_validate</code> (syntax), <code>tflint</code> (best practice), <code>checkov</code> (compliance), <code>tfsec</code> (security misconfig), <code>trivy</code> (misconfig + CVEs). The scan runs while the request is open, from a few seconds to about a minute.</div></div>
+        <div class="res"><div><b>Scan Report</b> shows HIGH / MEDIUM / LOW counts and a section per tool. <span class="ui">View Report</span> opens it as HTML, <span class="ui">Download PDF</span> saves a PDF. <code>tool not found</code> for one tool means it is not installed on the server; the other tools' results still count.</div></div>
       </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Sign Out</div>
-          <div class="step-desc">Click the <strong>Sign Out</strong> button next to your username in the top-right corner to end your session.</div>
-        </div>
+      <div class="task"><h4><span class="n">3</span>Apply it</h4>
+        <div class="do"><div>Click <span class="ui">Apply</span>. If it is grey, hover to see why: <i>Run a scan first</i> / <i>Scan must be complete</i> / <i>Fix all HIGH severity issues first</i>.</div></div>
+        <div class="why"><div>Apply is only allowed after a finished scan with zero HIGH findings. Editing the content clears the “scanned” flag, so you must scan again after every edit.</div></div>
+        <div class="res"><div>The page shows Last apply success / failure and the full output.</div></div>
       </div>
-    </div>
+      <div class="danger">Apply <b>really creates resources</b>, and no Terraform state is kept: applying twice creates everything twice, and nothing can be destroyed from the website.</div>
+    </section>
 
-    <div class="alert alert-blue">
-      <span class="alert-icon">ℹ️</span>
-      <div>Admin accounts can access the <code>/admin</code> path to enter the admin console. Standard users are redirected away from this path.</div>
-    </div>
-  </div>
+    <section id="vigil">
+      <h2>AI Vigil</h2>
+      <p>A machine-learning model watches traffic inside the lab cluster and flags flows that look like attacks. The dashboard <code>/vigil</code> refreshes every <b>30 seconds</b>, the log <code>/vigil/log</code> every <b>15 seconds</b>; <span class="ui">Refresh now</span> reloads immediately.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Area</th><th>Meaning</th></tr>
+        <tr><td>Detection model</td><td>Should show <code>ads_ml_ocsvm</code>. “No models registered” means the model failed to load — tell the operator</td></tr>
+        <tr><td>Total Inspected / Attacks Detected / Normal Flows / Attack Rate</td><td>All-time totals over the whole database, not since the page opened</td></tr>
+        <tr><td>Attack Type Breakdown</td><td>Count per attack type</td></tr>
+        <tr><td>Recent Attack Events</td><td>Latest 30 attacks; <span class="ui">View log →</span> opens the full log</td></tr>
+        <tr><td><span class="ui">Attacks only</span></td><td>Hide normal flows in the log</td></tr>
+      </table></div>
+      <h3>Reading a record</h3>
+      <p>In <code>/vigil/log</code>, filter by verdict, attack type and time range; click a row for details.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Field</th><th>How to read it</th></tr>
+        <tr><td>Verdict</td><td>Attack or normal</td></tr>
+        <tr><td>Confidence</td><td>0–1, how closely the flow matches the named attack type. <b>Always 0 for normal flows</b> — it is not “confidence that it is normal”</td></tr>
+        <tr><td>Attack Type</td><td>Closest known attack (e.g. <code>Dos-TCP SYN flood</code>, <code>Slowloris</code>); <code>Unknown_Attack</code> when nothing is similar enough</td></tr>
+        <tr><td>Cilium action</td><td><code>ignore</code> / <code>alert</code> / <code>rate_limit</code> / <code>drop</code>. <b>A suggestion only</b> — nothing is actually blocked</td></tr>
+        <tr><td>Ground Truth</td><td>Label from the test traffic: source .20–.29 = attack, .50–.64 = normal, otherwise empty</td></tr>
+        <tr><td>Flow Features</td><td>The 35 numbers the model saw (duration, packet counts, SYN ratio, timing…)</td></tr>
+      </table></div>
+      <p>Sources <code>192.168.100.20–29</code> and <code>.170–.184</code> are normally the lab's own simulated attacks and are expected.</p>
+    </section>
 
-  <hr class="divider" />
+    <section id="admin">
+      <h2>Admin console</h2>
+      <div class="table-wrap"><table>
+        <tr><th>Menu</th><th>You can</th><th>Note</th></tr>
+        <tr><td><span class="ui">Users</span></td><td>Create, delete</td><td>The <span class="ui">Admin</span> switch in New User <b>has no effect</b>; ask the operator to grant admin. Deleting a user also deletes all their clusters and Terraform configs. Never delete <code>vigil-bridge</code> (the detection service account)</td></tr>
+        <tr><td><span class="ui">Clusters</span></td><td>View everyone's, delete</td><td>Only the owner can browse a cluster from the Kubernetes page</td></tr>
+        <tr><td><span class="ui">TF Configs</span></td><td>View everyone's, delete</td><td></td></tr>
+        <tr><td><span class="ui">TF Tools</span></td><td>Create, edit, enable / disable, delete</td><td>Prefer disabling to deleting; standard users only see enabled tools</td></tr>
+      </table></div>
+      <p>Password changes, disabling an account and granting admin are done on the server — see <a href="guide/account.html">账号与令牌</a>.</p>
+    </section>
 
-  <!-- ── Kubernetes ── -->
-  <div class="section" id="kubernetes">
-    <div class="section-badge green">☸️ Kubernetes</div>
-    <h2>Kubernetes Cluster Monitoring</h2>
-    <p>Manage multiple Kubernetes cluster connections from the left sidebar. Click a cluster to load its resources in the tabbed panel on the right.</p>
-
-    <h3>Adding a Cluster</h3>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Click the Add Button</div>
-          <div class="step-desc">Click the blue <strong>Add</strong> button at the top of the left sidebar to open the Add Cluster dialog.</div>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Fill in Cluster Details</div>
-          <div class="step-desc">Enter the cluster name, API Server URL, CA certificate, and user bearer token with sufficient RBAC permissions.</div>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Select a Cluster to Explore</div>
-          <div class="step-desc">Click any cluster in the sidebar list. The right panel automatically loads that cluster's resources.</div>
-        </div>
-      </div>
-    </div>
-
-    <h3>Resource Tabs</h3>
-    <table class="info-table">
-      <thead>
-        <tr><th>Tab</th><th>Content</th><th>Special Feature</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="tag tag-blue">Namespaces</span></td>
-          <td>Namespace list — name, status, creation time</td>
-          <td>—</td>
-        </tr>
-        <tr>
-          <td><span class="tag tag-blue">Pods</span></td>
-          <td>Pod list — status, IP, node</td>
-          <td>Click <strong>Logs</strong> to stream live logs</td>
-        </tr>
-        <tr>
-          <td><span class="tag tag-blue">Deployments</span></td>
-          <td>Deployment list — desired vs. ready replicas</td>
-          <td>—</td>
-        </tr>
-        <tr>
-          <td><span class="tag tag-blue">Services</span></td>
-          <td>Service list — type, ClusterIP, ports</td>
-          <td>—</td>
-        </tr>
-        <tr>
-          <td><span class="tag tag-blue">ConfigMaps</span></td>
-          <td>ConfigMap list</td>
-          <td>—</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="alert alert-yellow">
-      <span class="alert-icon">⚠️</span>
-      <div>The Pods, Deployments, Services, and ConfigMaps tabs require a <strong>Namespace</strong> to be selected first. After switching namespaces, click Refresh to reload resources.</div>
-    </div>
-
-    <h3>Viewing Pod Logs</h3>
-    <p>In the Pods tab, locate the target Pod and click the <strong>Logs</strong> button on the right. A modal will stream the latest log output from that Pod in real time.</p>
-  </div>
-
-  <hr class="divider" />
-
-  <!-- ── Terraform ── -->
-  <div class="section" id="terraform">
-    <div class="section-badge purple">🔍 Terraform Scan</div>
-    <h2>Terraform Security Scan</h2>
-    <p>Manage your Terraform configuration files, run multi-tool security scans, and deploy only after confirming there are no high-severity findings.</p>
-
-    <h3>Creating a New Configuration</h3>
-    <p>Click the <strong>+ New</strong> button at the top of the left sidebar to open the dialog. Two input methods are supported:</p>
-
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">📁 Upload File</div>
-        <p style="font-size:13px;color:#718096;margin:0">Enter a config name and select a local <code>.tf</code> file to upload.</p>
-      </div>
-      <div class="card">
-        <div class="card-title">✏️ Write Online</div>
-        <p style="font-size:13px;color:#718096;margin:0">Enter a config name and paste or type HCL content directly in the text editor.</p>
-      </div>
-    </div>
-
-    <h3>Editing Configuration Content</h3>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Click the Edit Button</div>
-          <div class="step-desc">Click <strong>Edit</strong> in the top-right corner of the Config Content card to enable editing mode.</div>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Save Your Changes</div>
-          <div class="step-desc">After making changes click <strong>Save</strong>. Saving resets the <code>is_scanned</code> flag — the config must be re-scanned before it can be deployed.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Security Scan ── -->
-  <div class="section" id="terraform-scan">
-    <div class="section-badge purple">▶ Security Scan</div>
-    <h2>Security Scan</h2>
-
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">⚡ Full Scan</div>
-        <p style="font-size:13px;color:#718096;margin:0">Runs all enabled scan tools against the current configuration. Recommended for day-to-day use.</p>
-      </div>
-      <div class="card">
-        <div class="card-title">🎯 Manual Scan</div>
-        <p style="font-size:13px;color:#718096;margin:0">Opens a dialog to select specific tools. Only the chosen tools are executed — useful for targeted investigations.</p>
-      </div>
-    </div>
-
-    <h3>Built-in Scan Tools</h3>
-    <table class="info-table">
-      <thead>
-        <tr><th>Tool</th><th>Focus Area</th><th>Output Format</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>terraform_validate</strong></td>
-          <td>HCL syntax and resource reference validation</td>
-          <td><span class="tag tag-blue">JSON</span></td>
-        </tr>
-        <tr>
-          <td><strong>tflint</strong></td>
-          <td>Best practices, deprecated usage, variable type checks</td>
-          <td><span class="tag tag-blue">JSON</span></td>
-        </tr>
-        <tr>
-          <td><strong>tfsec</strong></td>
-          <td>Security misconfigurations (overly permissive IAM, plaintext secrets, etc.)</td>
-          <td><span class="tag tag-green">SARIF</span></td>
-        </tr>
-        <tr>
-          <td><strong>checkov</strong></td>
-          <td>Compliance policy checks (CIS Benchmark, K8s security policies)</td>
-          <td><span class="tag tag-green">SARIF</span></td>
-        </tr>
-        <tr>
-          <td><strong>trivy</strong></td>
-          <td>IaC misconfigurations and known CVE vulnerabilities</td>
-          <td><span class="tag tag-green">SARIF</span></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="alert alert-blue">
-      <span class="alert-icon">ℹ️</span>
-      <div>Scanning runs synchronously on the server. The page shows <strong>Scanning, please wait...</strong> while in progress. Do not close the page or click again until the scan completes.</div>
-    </div>
-  </div>
-
-  <!-- ── Deploy ── -->
-  <div class="section" id="terraform-deploy">
-    <div class="section-badge orange">🚀 Terraform Apply</div>
-    <h2>Deploy — Terraform Apply</h2>
-    <p>Once all prerequisites are met, you can execute <code>terraform apply</code> directly from the platform to deploy the configuration to the target cluster.</p>
-
-    <h3>Prerequisites for Apply (all required)</h3>
-    <div class="alert alert-red">
-      <span class="alert-icon">🚫</span>
-      <div>
-        Both conditions must be satisfied before the Apply button becomes clickable:<br />
-        <strong>① Scan completed</strong> (status shows Scanned)<br />
-        <strong>② Zero HIGH-severity findings</strong> in the scan report
-      </div>
-    </div>
-
-    <h3>Execution Steps</h3>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Confirm the Scan Passed</div>
-          <div class="step-desc">Check the Risk Summary in the Scan Report and confirm <span class="tag tag-red">HIGH 0</span>.</div>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Click the Green Apply Button</div>
-          <div class="step-desc">When prerequisites are met the <strong>Apply</strong> button in the Deploy card turns green and becomes clickable.</div>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Wait for Completion</div>
-          <div class="step-desc">The platform runs <code>terraform init</code> followed by <code>terraform apply -auto-approve</code>. Results are displayed when finished.</div>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num"></div>
-        <div class="step-body">
-          <div class="step-title">Review the Output</div>
-          <div class="step-desc">After Apply completes, the full terminal output is shown below the card with a <span class="tag tag-green">success</span> or <span class="tag tag-red">failed</span> status and execution time.</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="alert alert-yellow">
-      <span class="alert-icon">⚠️</span>
-      <div>The <code>.tf</code> file must contain valid cluster connection information (API endpoint, credentials). Otherwise <code>terraform init</code> will fail at the first stage.</div>
-    </div>
-  </div>
-
-  <!-- ── Scan Report ── -->
-  <div class="section" id="terraform-report">
-    <div class="section-badge purple">📄 Scan Report</div>
-    <h2>Scan Report</h2>
-
-    <h3>Report Overview Fields</h3>
-    <table class="info-table">
-      <thead>
-        <tr><th>Field</th><th>Description</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Status</td><td><span class="tag tag-green">Done</span> / <span class="tag tag-yellow">Running</span> / <span class="tag tag-red">Failed</span> / <span class="tag tag-gray">Pending</span></td></tr>
-        <tr><td>Tools</td><td>List of tools used in this scan run</td></tr>
-        <tr><td>Scanned At</td><td>Timestamp when the scan completed</td></tr>
-        <tr><td>Risk Summary</td><td>Aggregated count of HIGH / MEDIUM / LOW findings</td></tr>
-      </tbody>
-    </table>
-
-    <h3>Report Actions</h3>
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">👁 View Report</div>
-        <p style="font-size:13px;color:#718096;margin:0">Opens the full HTML scan report in a new tab, including detailed findings from every tool.</p>
-      </div>
-      <div class="card">
-        <div class="card-title">⬇️ Download PDF</div>
-        <p style="font-size:13px;color:#718096;margin:0">Downloads a PDF version of the scan report, suitable for archiving or sharing with your team.</p>
-      </div>
-    </div>
-
-    <h3>Finding Fields</h3>
-    <table class="info-table">
-      <thead>
-        <tr><th>Column</th><th>Description</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Rule ID</td><td>The triggered rule identifier, e.g. <code>CKV_K8S_28</code> or <code>kubernetes_service.app</code></td></tr>
-        <tr><td>Severity</td><td>Risk level: <span class="tag tag-red">HIGH</span> <span class="tag tag-yellow">MEDIUM</span> <span class="tag tag-gray">LOW</span></td></tr>
-        <tr><td>Description</td><td>Rule description explaining the detected issue</td></tr>
-        <tr><td>Location</td><td>File and line number of the issue, e.g. <code>main.tf:82</code></td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <hr class="divider" />
-
-  <!-- ── AI Vigil ── -->
-  <div class="section" id="vigil">
-    <div class="section-badge gray">🤖 AI Vigil</div>
-    <h2>AI Vigil</h2>
-    <p>AI Vigil provides real-time network anomaly detection powered by machine learning. It continuously monitors all traffic flowing through the Kubernetes cluster via Cilium / Hubble eBPF, classifies each flow, and pushes results to the dashboard over WebSocket.</p>
-
-    <h3 style="margin:20px 0 10px;font-size:15px;color:#2d3748;">Detection Pipeline</h3>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div>
-          <div class="step-title">Traffic Capture — Cilium / Hubble eBPF</div>
-          <div class="step-desc">Hubble hooks into the Cilium dataplane at the eBPF level and exports every network flow (TCP, UDP, ICMP) as a structured JSON event to a Kafka topic (<code>ebpf-net-logs</code>). No agents need to be installed on workloads.</div>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div>
-          <div class="step-title">Flow Aggregation — Bridge</div>
-          <div class="step-desc">The backend bridge thread consumes Kafka events and aggregates raw packets into per-flow feature vectors (30 statistical features: packet counts, IAT statistics, TCP flag ratios, directionality, etc.). Aggregation is triggered every 100 packets or every 2 seconds, whichever comes first. Infrastructure-internal flows are filtered out automatically.</div>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div>
-          <div class="step-title">Anomaly Detection — OCSVM + ZSL</div>
-          <div class="step-desc">Each aggregated flow is scored by a One-Class SVM (OCSVM) pipeline. Flows scoring below the anomaly threshold are flagged as attacks. A Zero-Shot Learning (ZSL) cosine-similarity step then maps the flow embedding to the nearest known attack-type prototype (e.g. Slowloris, SYN Flood, Credential Hijacking) to produce a human-readable classification and confidence score.</div>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">4</div>
-        <div>
-          <div class="step-title">Real-time Push — WebSocket</div>
-          <div class="step-desc">Detection results are saved to the database and immediately broadcast to all connected frontend clients over WebSocket (<code>/ws/vigil/</code>). The sidebar status pill turns green (<strong>WS</strong>) when a live connection is established. If the connection drops, the dashboard falls back to polling every 10 seconds and attempts to reconnect automatically.</div>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">5</div>
-        <div>
-          <div class="step-title">Cilium Response</div>
-          <div class="step-desc">Based on the detection result, a Cilium policy action is suggested and logged: <code>alert</code> (log only), <code>rate_limit</code> (throttle the source), or <code>drop</code> (block the flow). Actions are visible on each detection record.</div>
-        </div>
-      </div>
-    </div>
-
-    <h3 style="margin:24px 0 10px;font-size:15px;color:#2d3748;">Dashboard Overview</h3>
-    <table>
-      <thead><tr><th>Panel</th><th>Description</th></tr></thead>
-      <tbody>
-        <tr><td><strong>Total Inspected</strong></td><td>Cumulative number of flows evaluated by the model since the page loaded (or since the last Refresh).</td></tr>
-        <tr><td><strong>Attacks Detected</strong></td><td>Number of flows classified as anomalous / malicious.</td></tr>
-        <tr><td><strong>Normal Flows</strong></td><td>Flows the model classified as benign.</td></tr>
-        <tr><td><strong>Attack Rate</strong></td><td>Percentage of detected attacks out of all inspected flows.</td></tr>
-        <tr><td><strong>Attack Type Breakdown</strong></td><td>Bar chart of attack-type distribution for all detected attacks. Bars animate as new events arrive.</td></tr>
-        <tr><td><strong>Model Coverage</strong></td><td>Proportion of flows processed by each registered detection model.</td></tr>
-        <tr><td><strong>Recent Attack Events</strong></td><td>Live feed of the 15 most recent attack detections. New events slide in from the left.</td></tr>
-        <tr><td><strong>Detection Log</strong></td><td>Full scrollable log of all flows (attacks and normal). Click any row to open the detail modal.</td></tr>
-      </tbody>
-    </table>
-
-    <h3 style="margin:24px 0 10px;font-size:15px;color:#2d3748;">Detection Record Detail</h3>
-    <p>Click any row in the Detection Log to open its detail panel, which shows:</p>
-    <ul style="margin:10px 0 0 18px;line-height:1.9;font-size:14px;color:#4a5568;">
-      <li><strong>Flow</strong> — source / destination IP and port, protocol, timestamp, and ground-truth label (if available from simulation).</li>
-      <li><strong>Detection Result</strong> — model name, confidence score, classified attack type, and explanation string.</li>
-      <li><strong>ZSL Similarity Ranking</strong> — ranked similarity scores against all known attack-type prototypes, visualised as a bar chart.</li>
-      <li><strong>Cilium Response</strong> — the policy action taken and the reason string.</li>
-      <li><strong>Flow Features (30)</strong> — raw feature vector used for inference, including duration, packet counts, IAT statistics, and TCP flag ratios.</li>
-    </ul>
-
-    <h3 style="margin:24px 0 10px;font-size:15px;color:#2d3748;">Sidebar Controls</h3>
-    <table>
-      <thead><tr><th>Control</th><th>Description</th></tr></thead>
-      <tbody>
-        <tr><td><strong>Detection model</strong></td><td>Click a model name to filter the Detection Log to only that model's results. Click again to clear the filter.</td></tr>
-        <tr><td><strong>Attacks only</strong></td><td>Toggle to hide normal-flow records from the Detection Log.</td></tr>
-        <tr><td><strong>Refresh now</strong></td><td>Manually reload stats and records from the server.</td></tr>
-        <tr><td><strong>WS / POLL pill</strong></td><td>Green <strong>WS</strong> = live WebSocket feed active. Grey <strong>POLL</strong> = polling fallback (10 s interval).</td></tr>
-      </tbody>
-    </table>
-
-    <div class="alert alert-blue" style="margin-top:20px;">
-      <span class="alert-icon">ℹ️</span>
-      <div>AI Vigil only analyses traffic that passes through the Cilium dataplane (i.e. flows entering or leaving Kubernetes pods). Host-to-host traffic that bypasses the cluster network will not appear in the detection log.</div>
-    </div>
-  </div>
-
-  <hr class="divider" />
-
-  <!-- ── Admin ── -->
-  <div class="section" id="admin">
-    <div class="section-badge orange">⚙️ Admin</div>
-    <h2>Admin Console</h2>
-    <p>Admin accounts can navigate to <code>/admin</code> to access the admin console. The left-side menu contains the following modules.</p>
-
-    <div class="alert alert-red">
-      <span class="alert-icon">🔒</span>
-      <div>The admin console is accessible only to accounts where <strong>is_staff = true</strong>. Standard users are redirected with a 403 response.</div>
-    </div>
-
-    <h3>Dashboard</h3>
-    <p>The overview page displays platform-wide statistics: total users, cluster count, configuration file count, scan report count, and more.</p>
-  </div>
-
-  <!-- ── Admin Users ── -->
-  <div class="section" id="admin-users">
-    <div class="section-badge orange">👥 User Management</div>
-    <h2>Users — User Management</h2>
-
-    <table class="info-table">
-      <thead>
-        <tr><th>Action</th><th>Description</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>View User List</td><td>Displays all registered users with username, email, admin status, and registration date</td></tr>
-        <tr><td>Create User</td><td>Click <strong>New User</strong>, fill in username, password, email; check <em>is_staff</em> to grant admin privileges</td></tr>
-        <tr><td>Edit User</td><td>Click the <strong>Edit</strong> button to modify user details</td></tr>
-        <tr><td>Delete User</td><td>Click <strong>Delete</strong> and confirm — permanently deletes the account and all associated data</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- ── Admin Clusters ── -->
-  <div class="section" id="admin-clusters">
-    <div class="section-badge orange">🔗 Cluster Management</div>
-    <h2>Clusters — Cluster Management</h2>
-    <p>Admins can view all Kubernetes cluster connections added by any user, and can enable, disable, or delete them.</p>
-
-    <table class="info-table">
-      <thead>
-        <tr><th>Field</th><th>Description</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Name</td><td>Display name of the cluster</td></tr>
-        <tr><td>Owner</td><td>The user who added this cluster connection</td></tr>
-        <tr><td>Is Active</td><td>Whether the cluster is currently active and connectable</td></tr>
-        <tr><td>Created At</td><td>Date the connection was added</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- ── Admin TF Tools ── -->
-  <div class="section" id="admin-tftools">
-    <div class="section-badge orange">🛠 Tool Management</div>
-    <h2>TF Tools — Scan Tool Management</h2>
-    <p>Admins can add, edit, and delete scan tools, extending scanning capabilities without modifying any code.</p>
-
-    <h3>Tool Configuration Fields</h3>
-    <table class="info-table">
-      <thead>
-        <tr><th>Field</th><th>Description</th><th>Example</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Name</td>
-          <td>Unique tool identifier</td>
-          <td><code>tfsec</code></td>
-        </tr>
-        <tr>
-          <td>Command (cmd)</td>
-          <td>Execution command; supports <code>{target_dir}</code> and <code>{target_file}</code> placeholders</td>
-          <td><code>tfsec {target_dir} --format sarif</code></td>
-        </tr>
-        <tr>
-          <td>Init Command</td>
-          <td>Optional initialization command run before the main command</td>
-          <td><code>terraform init -backend=false</code></td>
-        </tr>
-        <tr>
-          <td>Output Format</td>
-          <td>Expected output format of the tool</td>
-          <td><span class="tag tag-green">SARIF</span> or <span class="tag tag-blue">JSON</span></td>
-        </tr>
-        <tr>
-          <td>Is Enabled</td>
-          <td>Whether this tool is included in Full Scan</td>
-          <td>—</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h3>JSON Format — Field Mapping</h3>
-    <p>When Output Format is set to <strong>JSON</strong>, the following field mappings are required so the platform knows how to extract findings from the output:</p>
-
-    <table class="info-table">
-      <thead>
-        <tr><th>Config Key</th><th>Description</th><th>Example (tflint)</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Items Path</td><td>Dot-notation path to the findings array in the JSON output</td><td><code>issues</code></td></tr>
-        <tr><td>Severity Field</td><td>Path to the severity field within each finding</td><td><code>rule.severity</code></td></tr>
-        <tr><td>Severity Map</td><td>Mapping from tool-native severity → platform severity (JSON)</td><td><code>{"error":"HIGH","warning":"MEDIUM"}</code></td></tr>
-        <tr><td>Rule ID Field</td><td>Path to the rule ID field</td><td><code>rule.name</code></td></tr>
-        <tr><td>Description Field</td><td>Path to the description field</td><td><code>message</code></td></tr>
-        <tr><td>Location File Field</td><td>Path to the file path field</td><td><code>range.filename</code></td></tr>
-        <tr><td>Location Line Field</td><td>Path to the line number field</td><td><code>range.start.line</code></td></tr>
-      </tbody>
-    </table>
-
-    <div class="alert alert-green">
-      <span class="alert-icon">💡</span>
-      <div>After adding a new tool, standard users can immediately select it in <strong>Manual Scan</strong>. It will also be included in <strong>Full Scan</strong> automatically as long as <em>Is Enabled</em> is true.</div>
-    </div>
-  </div>
-
-  <hr class="divider" />
-
-  <!-- ── Severity Levels ── -->
-  <div class="section" id="severity">
-    <div class="section-badge">⚠️ Appendix</div>
-    <h2>Severity Levels</h2>
-
-    <table class="info-table">
-      <thead>
-        <tr><th>Level</th><th>Meaning</th><th>Effect on Apply</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="tag tag-red">HIGH</span></td>
-          <td>Critical security issue — clear vulnerability or dangerous misconfiguration</td>
-          <td><strong>Blocks Apply</strong> — must be fixed and re-scanned</td>
-        </tr>
-        <tr>
-          <td><span class="tag tag-yellow">MEDIUM</span></td>
-          <td>Moderate risk — remediation recommended but not mandatory</td>
-          <td>Does not block Apply</td>
-        </tr>
-        <tr>
-          <td><span class="tag tag-gray">LOW</span></td>
-          <td>Low-risk informational finding — best-practice suggestion</td>
-          <td>Does not block Apply</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- ── Tool Reference ── -->
-  <div class="section" id="tools-ref">
-    <h2>Scan Tool Reference</h2>
-
-    <div class="card">
-      <div class="card-title">📦 terraform validate</div>
-      <p style="font-size:13px;color:#4a5568;margin:0">Official Terraform validation command. Checks HCL syntax correctness and resource reference validity. Outputs JSON with error/warning levels.</p>
-    </div>
-    <div class="card">
-      <div class="card-title">📦 tflint</div>
-      <p style="font-size:13px;color:#4a5568;margin:0">Terraform Linter. Detects deprecated resources, variable type errors, and Provider best-practice violations. Outputs JSON.</p>
-    </div>
-    <div class="card">
-      <div class="card-title">📦 tfsec</div>
-      <p style="font-size:13px;color:#4a5568;margin:0">Focused on security configuration scanning. Detects overly permissive IAM roles, publicly exposed ports, plaintext secrets, and more. Outputs SARIF.</p>
-    </div>
-    <div class="card">
-      <div class="card-title">📦 checkov</div>
-      <p style="font-size:13px;color:#4a5568;margin:0">Compliance scanning tool with 500+ built-in rules. Supports Terraform Kubernetes Provider resources and CIS Benchmark checks (CKV_K8S_* rule family). Outputs SARIF.</p>
-    </div>
-    <div class="card">
-      <div class="card-title">📦 trivy</div>
-      <p style="font-size:13px;color:#4a5568;margin:0">Comprehensive scanner by Aqua Security. Covers IaC misconfigurations and known CVE vulnerabilities. Outputs SARIF.</p>
-    </div>
-  </div>
-
-</div>
-
-<script>
-  const items = document.querySelectorAll('.nav-item')
-  const sections = document.querySelectorAll('[id]')
-
-  function setActive(id) {
-    items.forEach(i => {
-      i.classList.toggle('active', i.getAttribute('href') === '#' + id)
-    })
-  }
-
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(e => { if (e.isIntersecting) setActive(e.target.id) })
-  }, { rootMargin: '-20% 0px -70% 0px' })
-
-  sections.forEach(s => observer.observe(s))
-</script>
+    <section id="daily">
+      <h2>Daily check (5 minutes)</h2>
+      <div class="table-wrap"><table>
+        <tr><th>Look at</th><th>Normal</th><th>If not</th></tr>
+        <tr><td>Can you sign in?</td><td>Yes</td><td>Tell the operator</td></tr>
+        <tr><td>AI Vigil → Detection model</td><td><code>ads_ml_ocsvm</code></td><td>Model failed to load</td></tr>
+        <tr><td>Newest log entry time</td><td>Within minutes while experiments run</td><td>Detection stalled — the backend usually needs a restart</td></tr>
+        <tr><td>Attack Rate and types</td><td>Match the experiment plan</td><td>Many attacks with no experiment, unknown source IPs → screenshot and report</td></tr>
+        <tr><td>Admin → Users</td><td>You know everyone</td><td>Anyone can self-register; delete strangers and report</td></tr>
+        <tr><td>Admin → TF Tools</td><td>All 5 enabled</td><td>Find out why before re-enabling</td></tr>
+      </table></div>
+    </section>
+  </main>
 </body>
 </html>

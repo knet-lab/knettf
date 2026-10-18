@@ -9,9 +9,8 @@ interface Manual {
 
 const manuals: Manual[] = [
   { key: 'home', label: '从这里开始', src: '' },
-  { key: 'user', label: 'User Manual（英文）', src: '/manual_en.html' },
-  { key: 'guide', label: '使用管理手册', src: '/guide/index.html' },
-  { key: 'ops', label: '运维对照手册', src: '/ops/index.html' },
+  { key: 'guide', label: '中文手册', src: '/guide/use.html' },
+  { key: 'user', label: 'User Manual (English)', src: '/manual_en.html' },
 ]
 const current = ref<Manual>(manuals[0]!)
 const frameSrc = ref('')
@@ -22,51 +21,46 @@ function open(key: string, page?: string) {
   frameSrc.value = page ?? m.src
 }
 
-// 按“你要做什么”组织入口，每条直达具体章节
-const routes = [
-  {
-    who: '我只是用这个网站',
-    desc: '登录、查看检测结果、运行实验',
-    links: [
-      { text: '网页使用全流程', key: 'guide', page: '/guide/use.html' },
-      { text: 'English user manual', key: 'user', page: '/manual_en.html' },
-    ],
-  },
-  {
-    who: '我是新接手的人',
-    desc: '先建账户、拿到 GitHub 权限，再按顺序读',
-    links: [
-      { text: '① 准备工作：账户与 Git', key: 'guide', page: '/guide/prepare.html' },
-      { text: '② 开始之前（环境与目录）', key: 'guide', page: '/guide/index.html' },
-      { text: '③ 日常管理与变更', key: 'guide', page: '/guide/manage.html' },
-    ],
-  },
-  {
-    who: '我要改代码',
-    desc: '先弄清楚代码在哪、数据怎么流动',
-    links: [
-      { text: '前端代码', key: 'guide', page: '/guide/frontend.html' },
-      { text: '后端代码', key: 'guide', page: '/guide/backend.html' },
-      { text: '检测链路与模型', key: 'guide', page: '/guide/detect.html' },
-      { text: '集群与 Shell 脚本', key: 'guide', page: '/guide/infra.html' },
-    ],
-  },
-  {
-    who: '出问题了 / 要查东西',
-    desc: '按症状找命令，按名字查接口和字段',
-    links: [
-      { text: '运维操作逐步骤', key: 'ops', page: '/ops/runbook.html' },
-      { text: '已知问题与练习', key: 'guide', page: '/guide/issues.html' },
-      { text: 'API 逐接口说明', key: 'ops', page: '/ops/api.html' },
-      { text: '数据库与模型字段', key: 'ops', page: '/ops/db.html' },
-    ],
-  },
+// 最常做的几件事，一键直达
+const quick = [
+  { text: '每日健康检查', desc: '确认系统在跑、检测有数据', page: '/guide/health.html' },
+  { text: '改动上线', desc: 'scripts/deploy.sh 怎么用', page: '/guide/deploy.html' },
+  { text: '开机恢复', desc: '宿主机重启后让检测恢复', page: '/guide/power.html#startup' },
+  { text: '出问题了', desc: '按症状找原因和处理', page: '/guide/trouble.html' },
 ]
 
-const manualInfo = [
-  { key: 'guide', title: '使用管理手册', body: '按顺序读的教程：从准备工作到每块代码、日常变更。第一次接手时读这本。' },
-  { key: 'ops', title: '运维对照手册', body: '查阅型参考：接口、数据库字段、运维命令。遇到具体问题时查这本。' },
-  { key: 'user', title: 'User Manual', body: '面向网站使用者的英文说明，不涉及代码和服务器。' },
+// 手册的三块，对应侧栏的三组
+const parts = [
+  {
+    who: '使用网站',
+    desc: '登录、管理用户、操作集群、扫描 Terraform、看检测结果。不需要碰服务器。',
+    links: [
+      { text: '网页使用', page: '/guide/use.html' },
+      { text: 'User Manual (English)', page: '/manual_en.html', key: 'user' },
+    ],
+  },
+  {
+    who: '运维',
+    desc: '接手、巡检、上线、开关机、排障。每一步都写了怎么做、为什么、结果应该是什么。',
+    links: [
+      { text: '接手准备：账户与 Git', page: '/guide/prepare.html' },
+      { text: '每日健康检查', page: '/guide/health.html' },
+      { text: '改动上线', page: '/guide/deploy.html' },
+      { text: '开关机 · 重建 · 备份', page: '/guide/power.html' },
+      { text: '账号与令牌', page: '/guide/account.html' },
+      { text: '排障与日志', page: '/guide/trouble.html' },
+    ],
+  },
+  {
+    who: '开发参考',
+    desc: '改代码前读：系统怎么组成、代码在哪、接口和表字段。',
+    links: [
+      { text: '系统总览', page: '/guide/index.html' },
+      { text: '前端 / 后端 / 检测 / 集群代码', page: '/guide/frontend.html' },
+      { text: 'API 逐接口', page: '/guide/api.html' },
+      { text: '数据库与字段', page: '/guide/db.html' },
+    ],
+  },
 ]
 </script>
 
@@ -86,25 +80,24 @@ const manualInfo = [
 
     <div v-if="current.key === 'home'" class="help-home">
       <h1>帮助中心</h1>
-      <p class="lead">先选你要做的事，下面直接给出该读哪一章。</p>
+      <p class="lead">只有一本手册，分三块。先看下面最常用的四项，找不到再按身份进对应的那一块。</p>
 
-      <div class="route-grid">
-        <div v-for="r in routes" :key="r.who" class="route-card">
-          <h2>{{ r.who }}</h2>
-          <p>{{ r.desc }}</p>
-          <ul>
-            <li v-for="l in r.links" :key="l.page">
-              <a href="#" @click.prevent="open(l.key, l.page)">{{ l.text }} →</a>
-            </li>
-          </ul>
-        </div>
+      <div class="quick-grid">
+        <a v-for="q in quick" :key="q.page" href="#" class="quick" @click.prevent="open('guide', q.page)">
+          <strong>{{ q.text }} →</strong>
+          <span>{{ q.desc }}</span>
+        </a>
       </div>
 
-      <h3>三本手册分别是什么</h3>
-      <div class="manual-list">
-        <div v-for="m in manualInfo" :key="m.key" class="manual-row" @click="open(m.key)">
-          <strong>{{ m.title }}</strong>
-          <span>{{ m.body }}</span>
+      <div class="route-grid">
+        <div v-for="p in parts" :key="p.who" class="route-card">
+          <h2>{{ p.who }}</h2>
+          <p>{{ p.desc }}</p>
+          <ul>
+            <li v-for="l in p.links" :key="l.page">
+              <a href="#" @click.prevent="open(l.key ?? 'guide', l.page)">{{ l.text }} →</a>
+            </li>
+          </ul>
         </div>
       </div>
     </div>
@@ -231,45 +224,40 @@ const manualInfo = [
   text-decoration: underline;
 }
 
-.help-home h3 {
-  margin: 0 0 10px;
-  font-size: 15px;
-}
-
-.manual-list {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-}
-
-.manual-row {
+.quick-grid {
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
-  padding: 12px 20px;
-  font-size: 13.5px;
-  cursor: pointer;
+  margin-bottom: 24px;
 }
 
-.manual-row + .manual-row {
-  border-top: 1px solid #edf2f7;
+.quick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: #1d2535;
+  border-radius: 10px;
+  text-decoration: none;
 }
 
-.manual-row:hover {
-  background: #f7fafc;
+.quick strong {
+  font-size: 14.5px;
+  color: #fff;
 }
 
-.manual-row span {
-  color: #4a5568;
+.quick span {
+  font-size: 12.5px;
+  color: #a0aec0;
+}
+
+.quick:hover {
+  background: #2d3748;
 }
 
 @media (max-width: 700px) {
   .help-home {
     padding: 20px 16px;
-  }
-  .manual-row {
-    grid-template-columns: 1fr;
-    gap: 2px;
   }
 }
 </style>

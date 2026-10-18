@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>API 逐接口说明 · 运维对照手册</title>
-  <link rel="stylesheet" href="ops.css" />
+  <title>API 逐接口说明 · NetSentinel 手册</title>
+  <link rel="stylesheet" href="base.css" />
+  <link rel="stylesheet" href="guide.css" />
 </head>
 <body>
   <aside class="sidebar"></aside>
@@ -317,6 +318,6 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
       <p>开发模式 <code>pnpm dev</code> 时，Vite 把 <code>/api</code>、<code>/ws</code> 代理到 <code>127.0.0.1:8080</code>（<code>vite.config.ts</code>）。生产由后端直接提供 <code>frontend/dist</code>。</p>
     </section>
   </main>
-  <script src="ops.js"></script>
+  <script src="guide.js"></script>
 </body>
 </html>

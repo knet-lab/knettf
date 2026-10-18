@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>集群与 Shell 脚本 · 使用管理手册</title>
-  <link rel="stylesheet" href="../ops/ops.css" />
+  <title>集群与 Shell 脚本 · NetSentinel 手册</title>
+  <link rel="stylesheet" href="base.css" />
   <link rel="stylesheet" href="guide.css" />
 </head>
 <body>
   <aside class="sidebar"></aside>
   <main class="main">
-    <h1>5. 集群与 Shell 脚本</h1>
+    <h1>集群与 Shell 脚本</h1>
     <div class="meta">读完你能：画出宿主机、网桥、VM、集群组件的关系；读懂 00 / 01 / 02 / 03 四个脚本每一步在做什么、为什么这样做；看懂 Kafka、Vector、靶机的清单；知道宿主机上 systemd、cloudflared、crontab、PostgreSQL 容器的配置。<br>
-      脚本在 <span class="tag tag-k">K</span> <code>$K/kubeadm-cluster/</code>，都以普通用户运行（内部按需 <code>sudo</code>），<b>不要</b> <code>sudo bash</code> 整个脚本（kubeconfig 会写到 root 家目录）。逐步的开关机 / 重建命令见 <a href="../ops/runbook.html">运维手册 · 运维操作逐步骤</a>。</div>
+      脚本在 <span class="tag tag-k">K</span> <code>$K/kubeadm-cluster/</code>，都以普通用户运行（内部按需 <code>sudo</code>），<b>不要</b> <code>sudo bash</code> 整个脚本（kubeconfig 会写到 root 家目录）。逐步的开关机 / 重建命令见 <a href="power.html">开关机 · 重建 · 备份</a>。</div>
 
     <section id="ip">
       <h2>5.1 IP 规划（全部在 192.168.100.0/24）</h2>
@@ -49,7 +49,7 @@
     <section id="s00">
       <h2>5.3 00-clear.sh：彻底清理（不可逆）</h2>
       <p>按顺序：杀掉 hubble <code>port-forward</code>、minikube tunnel 后台进程 → <code>virsh destroy/undefine</code> 5 台 VM → 删网络 virbr-k8s → 删 <code>~/vm-images</code> 下 VM 磁盘 → 删 cloud image → 删 <code>/tmp/cidata-*</code>、<code>/tmp/k8s-network.xml</code> → 删 <code>~/.kube/config</code> → 从 <code>/etc/hosts</code> 删 k8s 相关行 → 从 <code>known_hosts</code> 删 .10-.14。</p>
-      <div class="danger">执行后集群、Kafka 中的数据、kubeconfig 全部消失。执行前按运维手册 6.3 备份 <code>$K</code> 整个目录（它不在 Git 里）。</div>
+      <div class="danger">执行后集群、Kafka 中的数据、kubeconfig 全部消失。执行前按 <a href="power.html#rebuild-cluster">重建整个集群</a> 第 1 步备份 <code>$K</code> 整个目录（它不在 Git 里）。</div>
     </section>
 
     <section id="s01">
@@ -67,7 +67,7 @@
         <tr><td>8</td><td>等待 5 台 SSH 就绪（最多 8 分钟），每 2 分钟自动诊断一次（DHCP 租约、VM 状态）</td><td></td></tr>
         <tr><td>9</td><td>SSH 进去看各节点 <code>/</code> 实际大小</td><td>确认 growpart 生效</td></tr>
       </table></div>
-      <p>成功后：<code>ssh k8s@192.168.100.10</code> 能免密登录。VM <b>没有</b>设置 autostart（宿主机重启后要手动开，运维手册第 4 节）。</p>
+      <p>成功后：<code>ssh k8s@192.168.100.10</code> 能免密登录。VM <b>没有</b>设置 autostart（宿主机重启后要手动开，<a href="power.html#startup">开机恢复</a>）。</p>
     </section>
 
     <section id="s02">
@@ -179,7 +179,7 @@ ingress:
 
     <section id="bootstrap">
       <h2>5.11 从零到可用的完整顺序</h2>
-      <p>换一台新机器或全部重建时按这个顺序（依赖关系的详细说明见 <a href="../ops/index.html#order">运维手册 · 整体构建顺序</a>）：</p>
+      <p>换一台新机器或全部重建时按这个顺序（依赖关系的详细说明见 <a href="index.html#order">系统总览 · 构建顺序</a>）：</p>
 <pre><code><span class="c"># —— K：集群 ——</span>
 cd $K/kubeadm-cluster
 bash 01-setup-vms.sh
@@ -214,7 +214,7 @@ loginctl enable-linger $USER
 systemctl --user restart netsentinel      <span class="c"># Kafka 就绪后重启，bridge 才能连上</span>
 <span class="c"># 网页登录 → Kubernetes → Add，粘贴 ~/.kube/config</span>
 cd $K &amp;&amp; sudo .venv/bin/python3 traffic/spoof_attack.py --packets 50   <span class="c"># 端到端验证</span></code></pre>
-      <p>systemd unit 和 cloudflared 配置不在任何仓库里，新机器上要从备份恢复（运维手册 7.1）或照 5.10 重写；cloudflared 隧道凭证 JSON 需要在 Cloudflare 账号里重新生成。</p>
+      <p>systemd unit 和 cloudflared 配置不在任何仓库里，新机器上要从备份恢复（<a href="power.html#backup">备份与恢复</a>）或照 5.10 重写；cloudflared 隧道凭证 JSON 需要在 Cloudflare 账号里重新生成。</p>
     </section>
   </main>
   <script src="guide.js"></script>
