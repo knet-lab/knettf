@@ -15,7 +15,7 @@
       本页所有命令、路径、IP 都是按这台机器实际情况写的（2026-10 核对）。命令里的 <code>NEWUSER</code> 指接手人<b>自己新建的</b>账户，执行时替换成你的用户名。</div>
 
     <section id="machine">
-      <h2>0 先了解：这台机器的现状</h2>
+      <h2>先了解：这台机器的现状</h2>
       <div class="table-wrap"><table>
         <tr><th>项目</th><th>实际值</th></tr>
         <tr><td>主机名 / 系统</td><td><code>cis-Z10PE-D8-WS</code>，Ubuntu 24.04.2，56 核，125 GB 内存</td></tr>
@@ -53,7 +53,7 @@
       <h2>全流程一览</h2>
       <div class="table-wrap"><table>
         <tr><th>阶段</th><th>内容</th><th>做完的标志</th></tr>
-        <tr><td><b>一 准备工作</b><br>（只做一次，必做）</td><td>1.1 申请 Linux 账户 → 1.2 加入 GitHub 仓库 → 1.3 配置 Git</td><td><a href="#ready">准备完成验收</a> 6 项全部通过</td></tr>
+        <tr><td><b>一 准备工作</b><br>（只做一次，必做）</td><td>1.1 申请 Linux 账户 → 1.2 加入 GitHub 仓库 → 1.3 配置 Git → 1.4 验收</td><td><a href="#ready">准备完成验收</a> 6 项全部通过</td></tr>
         <tr><td><b>二 正式接手</b><br>（验收通过后开始）</td><td>2.1 学会操作服务 → 2.2 接手第一天 → 之后每天 <a href="health.html">健康检查</a></td><td>第一天清单做完，之后进入日常</td></tr>
         <tr><td><b>三 后续</b><br>（可选，择机）</td><td>3.1 迁出 soar009 家目录 → 3.2 原作者离开时收尾</td><td>原作者账户可以安全锁定</td></tr>
       </table></div>
@@ -186,7 +186,7 @@ git switch main && git push origin --delete test/handover && git branch -D test/
     </section>
 
     <section id="ready">
-      <h2>✔ 准备完成验收（阶段一到此结束）</h2>
+      <h2>1.4 准备完成验收（阶段一到此结束）</h2>
       <p>用<b>你自己的账户</b>登录服务器，逐条执行。6 条都符合，准备工作才算结束；任何一条不符合，回到对应小节。</p>
       <div class="table-wrap"><table>
         <tr><th>#</th><th>检查</th><th>应该看到</th><th>不符合回到</th></tr>
