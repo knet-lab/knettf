@@ -1,7 +1,6 @@
 // 共用侧栏：页面列表 + 当前页各 section 的目录，滚动时高亮
 (function () {
   const PAGES = [
-    { href: 'admin.html', title: '管理员上手教程' },
     { href: 'index.html', title: '总览与代码组织' },
     { href: 'api.html', title: 'API 逐接口说明' },
     { href: 'db.html', title: '数据库与模型字段' },

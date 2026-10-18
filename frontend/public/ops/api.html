@@ -307,7 +307,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
         <tr><td><code>/autotf</code></td><td><code>AutoTFView.vue</code></td><td><code>autotf/users/&lt;me&gt;/tf-configs/…</code>、<code>tf-configs/&lt;id&gt;/scan|apply|report…</code>、<code>tf-tools/</code></td><td>登录</td></tr>
         <tr><td><code>/vigil</code></td><td><code>VigilView.vue</code></td><td><code>vigil/models/</code>、<code>stats/</code>、<code>records/</code>、<code>records/&lt;id&gt;/</code></td><td>登录</td></tr>
         <tr><td><code>/vigil/log</code></td><td><code>VigilLogView.vue</code></td><td><code>vigil/records/</code>（15 秒轮询）、<code>records/&lt;id&gt;/</code></td><td>登录</td></tr>
-        <tr><td><code>/help</code></td><td><code>HelpView.vue</code></td><td>静态 <code>/manual_en.html</code>、<code>/ops/index.html</code></td><td>登录</td></tr>
+        <tr><td><code>/help</code></td><td><code>HelpView.vue</code></td><td>静态 <code>/manual_en.html</code>、<code>/guide/index.html</code>、<code>/ops/index.html</code></td><td>登录</td></tr>
         <tr><td><code>/admin/dashboard</code></td><td><code>admin/DashboardView.vue</code></td><td>用户、集群、配置汇总</td><td>管理员（否则跳 <code>/kcore</code>）</td></tr>
         <tr><td><code>/admin/users</code></td><td><code>admin/UsersView.vue</code></td><td><code>kcore/users/</code>、<code>users/&lt;pk&gt;/</code></td><td>管理员</td></tr>
         <tr><td><code>/admin/clusters</code></td><td><code>admin/ClustersView.vue</code></td><td><code>kcore/users/&lt;pk&gt;/clusters/</code>、<code>clusters/&lt;pk&gt;/</code></td><td>管理员</td></tr>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>开始之前 · 使用管理手册</title>
+  <link rel="stylesheet" href="../ops/ops.css" />
+  <link rel="stylesheet" href="guide.css" />
+</head>
+<body>
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <h1>使用管理手册 · 0. 开始之前</h1>
+    <div class="meta">写给要接手整个项目的人：从网页怎么用，到前端、后端、检测模型、集群脚本、实验脚本，逐层讲到代码和命令。读完后你应该能独立使用、修改、部署和排查这套系统。<br>
+      依据 2026-10-18 本机代码核对。<span class="tag tag-k">K</span> = knetsentinel（<code>~/knetsentinel</code>），<span class="tag tag-n">N</span> = NetSentinel（<code>~/github/NetSentinel</code>）。<br>
+      手册里的命令约定：<code>$N=~/github/NetSentinel</code>，<code>$K=~/knetsentinel</code>。先执行 <code>export N=~/github/NetSentinel K=~/knetsentinel</code>。</div>
+
+    <section id="what">
+      <h2>0.1 这个系统做什么</h2>
+      <p>一句话：<b>在一个自建的 Kubernetes 实验集群里抓网络流量，用机器学习模型判断哪些是攻击，并在网页上管理集群、扫描 Terraform 配置、查看检测结果。</b></p>
+      <p>它由两个独立的项目组成：</p>
+      <div class="table-wrap"><table>
+        <tr><th>项目</th><th>是什么</th><th>里面主要有什么</th><th>怎么运行</th></tr>
+        <tr><td><span class="tag tag-k">K</span> knetsentinel</td><td>“实验场”：搭集群、产生流量、采集数据</td><td>KVM 建 5 台虚拟机的 shell 脚本；kubeadm 装 K8s；Cilium/Hubble 观测流量；Vector 把流量事件送进 Kafka；发正常 / 攻击包的 Python 脚本；数据集采集与离线评估</td><td>手动执行 shell 和 Python 脚本</td></tr>
+        <tr><td><span class="tag tag-n">N</span> NetSentinel</td><td>“平台”：网页 + 后端 + 检测模型</td><td>Django 后端（三个应用：kcore 集群管理、autotf Terraform 扫描、vigil 流量检测）；Vue 3 前端；OCSVM 检测模型；集群内检测器镜像</td><td>一个常驻服务 <code>netsentinel</code>（uvicorn，端口 8080），公网经 cloudflared 映射到 <code>https://knettf.com</code></td></tr>
+      </table></div>
+      <p>网页上有三大功能，对应后端三个应用：</p>
+      <div class="table-wrap"><table>
+        <tr><th>网页菜单</th><th>前端页面</th><th>后端应用</th><th>做什么</th></tr>
+        <tr><td><b>Kubernetes</b></td><td><code>/kcore</code></td><td><code>kcore</code></td><td>登记集群（粘贴 kubeconfig），查看 Namespace / Pod / Deployment / Service / ConfigMap / DaemonSet，看 Pod 实时日志，编辑 YAML，重启、删除</td></tr>
+        <tr><td><b>Terraform Scan</b></td><td><code>/autotf</code></td><td><code>autotf</code></td><td>上传或在线编写 <code>.tf</code> 文件，用 terraform validate / tflint / checkov / tfsec / trivy 扫描安全问题，没有 HIGH 级问题时才允许 <code>terraform apply</code></td></tr>
+        <tr><td><b>AI Vigil</b></td><td><code>/vigil</code>、<code>/vigil/log</code></td><td><code>vigil</code></td><td>展示模型对集群流量的实时检测结果：总数、攻击数、攻击类型分布、每条流的 35 个特征和判断依据</td></tr>
+        <tr><td><b>Help</b></td><td><code>/help</code></td><td>—</td><td>本手册、英文用户手册、运维对照手册</td></tr>
+        <tr><td>（无菜单入口）</td><td><code>/admin</code></td><td><code>kcore</code> + <code>autotf</code></td><td>管理后台：用户、全部集群、全部 Terraform 配置、扫描工具</td></tr>
+      </table></div>
+    </section>
+
+    <section id="big">
+      <h2>0.2 全景图：一个数据包走到网页上的全过程</h2>
+      <p>理解这张图就理解了一半项目。左边全部在 <span class="tag tag-k">K</span> 的实验集群里，右边全部在 <span class="tag tag-n">N</span> 的后端进程里。</p>
+<pre><code>宿主机（Ubuntu，物理网卡 enp6s0）
+│
+├─ 网桥 virbr-k8s 192.168.100.1/24 ──────────── K 01-setup-vms.sh 创建
+│    │
+│    ├─ VM k8s-master .10   ┐
+│    ├─ VM k8s-node1  .11   │  K 02-setup-cluster.sh：kubeadm v1.28 + Cilium(eBPF) + Hubble
+│    ├─ VM k8s-node2  .12   │                         + MetalLB(.200-.250) + local-path
+│    ├─ VM k8s-node3  .13   │
+│    └─ VM k8s-node4  .14   ┘
+│
+│   ① 发包脚本（K traffic/）把伪造源 IP .20-.29（攻击）/ .50-.64（正常）临时挂到 virbr-k8s 上发包
+│        │
+│        ▼
+│   ② Cilium 在每个节点用 eBPF 看到这个包 → Hubble 把它变成一条“flow 事件”（JSON）
+│        │
+│        ▼
+│   ③ Vector（每节点一个 Pod）执行 hubble observe --follow --output=json，把事件写入
+│      Kafka topic ebpf-net-logs                       ← K 03-deploy-5nodes.sh 部署
+│        │
+│        ▼  Kafka 外部地址 192.168.100.200-203:9094（MetalLB 分配）
+│
+└─ NetSentinel 后端进程（systemd 服务 netsentinel，uvicorn :8080）
+      │
+      ④ vigil/bridge.py 的 bridge 线程：消费 Kafka → 按 5 元组把包聚成“流” → 计算 35 个特征
+      │
+      ⑤ drainer 线程：把一批流交给 vigil/services.detect_batch()
+      │       → ads_ml 模型：预处理 → PCA → One-Class SVM 判异常 → 零样本学习猜攻击类型
+      │       → cilium/policy.py：给出建议动作 drop / rate_limit / alert / ignore（目前只记日志）
+      │       → INSERT 到 PostgreSQL 表 vigil_detectionrecord（按天分区）
+      │
+      ⑥ 前端 /vigil 每 30 秒、/vigil/log 每 15 秒调 REST 接口读取 → 浏览器显示</code></pre>
+      <p>另外两条与流量无关的链路：</p>
+      <ul>
+        <li><b>集群管理</b>：浏览器 → <code>/api/kcore/...</code> → 后端用你登记的 kubeconfig 调 Kubernetes API → 结果返回网页。Pod 日志走 WebSocket <code>/ws/clusters/&lt;id&gt;/pods/&lt;ns&gt;/&lt;pod&gt;/logs/</code>。</li>
+        <li><b>Terraform 扫描</b>：浏览器上传 <code>.tf</code> → 后端存到 <code>backend/terraform/</code> → 扫描时复制到临时目录，依次调用 5 个命令行工具，解析它们的 JSON / SARIF 输出 → 汇总成报告存进 SQLite。</li>
+      </ul>
+    </section>
+
+    <section id="where">
+      <h2>0.3 东西都在哪里</h2>
+      <div class="table-wrap"><table>
+        <tr><th>东西</th><th>位置</th><th>说明</th></tr>
+        <tr><td>网页（公网）</td><td><code>https://knettf.com</code></td><td>cloudflared 隧道 → 本机 <code>localhost:8080</code></td></tr>
+        <tr><td>网页（本机 / 内网）</td><td><code>http://localhost:8080</code>、<code>http://&lt;宿主机 IP&gt;:8080</code></td><td>同一个后端进程，既提供 API 也提供前端页面</td></tr>
+        <tr><td>后端源码</td><td><code>$N/backend/</code></td><td>Django 项目，<code>manage.py</code> 在这里</td></tr>
+        <tr><td>前端源码</td><td><code>$N/frontend/src/</code></td><td>Vue 3 + TypeScript + Element Plus</td></tr>
+        <tr><td>前端构建产物</td><td><code>$N/frontend/dist/</code></td><td><code>pnpm build</code> 生成；后端直接从这里提供页面</td></tr>
+        <tr><td>本手册源文件</td><td><code>$N/frontend/public/guide/</code></td><td>构建时原样复制到 <code>dist/guide/</code></td></tr>
+        <tr><td>Python 环境</td><td><code>$N/.venv/</code></td><td>用 <code>uv sync</code> 生成，Python 3.12</td></tr>
+        <tr><td>default 数据库</td><td><code>$N/backend/db.sqlite3</code></td><td>SQLite：用户、集群、Terraform 配置、扫描报告</td></tr>
+        <tr><td>vigil 数据库</td><td>Docker 容器 <code>pg</code>，<code>127.0.0.1:5432</code>，库 / 用户 <code>vigil</code></td><td>PostgreSQL：检测记录（按天分区）</td></tr>
+        <tr><td>模型文件</td><td><code>$N/backend/vigil/ml/ads_ml/trained/</code></td><td>OCSVM 流水线、攻击原型、训练数据</td></tr>
+        <tr><td>后端服务定义</td><td><code>~/.config/systemd/user/netsentinel.service</code></td><td>用户级 systemd 服务</td></tr>
+        <tr><td>集群脚本</td><td><code>$K/kubeadm-cluster/</code></td><td>00 清理 / 01 建 VM / 02 装集群 / 03 部署数据管道</td></tr>
+        <tr><td>集群凭证</td><td><code>~/.kube/config</code></td><td>宿主机上 <code>kubectl</code> 用它；登记集群时把它的内容贴到网页上</td></tr>
+        <tr><td>VM 磁盘</td><td><code>~/vm-images/</code></td><td>5 个 qcow2 + Ubuntu 22.04 cloud image</td></tr>
+      </table></div>
+    </section>
+
+    <section id="terms">
+      <h2>0.4 术语表</h2>
+      <p>后面各章会反复用到这些词，先过一遍，不必全记住。</p>
+      <dl class="terms">
+        <dt>KVM / libvirt / virsh</dt><dd>Linux 自带的虚拟化。libvirt 是管理层，<code>virsh</code> 是它的命令行。本项目的 VM 在 <code>qemu:///system</code> 下，所以命令是 <code>virsh -c qemu:///system ...</code>。</dd>
+        <dt>cloud-init</dt><dd>VM 第一次开机时自动执行的初始化（建用户、放 SSH 公钥、关 swap、扩容磁盘）。01 脚本为每台 VM 生成一个 cidata ISO 挂进去。</dd>
+        <dt>kubeadm</dt><dd>官方的 K8s 集群安装工具。<code>kubeadm init</code> 在 master 上建控制面，<code>kubeadm join</code> 让 worker 加入。</dd>
+        <dt>kubeconfig</dt><dd>访问 K8s 集群的“钥匙”文件，包含 API 地址（本项目 <code>https://192.168.100.10:6443</code>）、CA 证书和客户端证书。</dd>
+        <dt>Namespace / Pod / Deployment / DaemonSet / StatefulSet / Service / ConfigMap / Secret</dt><dd>K8s 基本对象。Pod 是运行中的容器；Deployment 管理无状态 Pod 副本；DaemonSet 每个节点跑一个；StatefulSet 给每个副本固定名字和磁盘；Service 给一组 Pod 一个稳定地址；ConfigMap / Secret 存配置和密钥。</dd>
+        <dt>Cilium</dt><dd>K8s 网络插件（CNI），用 eBPF 在内核里处理网络包。本项目让它完全替代 kube-proxy。</dd>
+        <dt>eBPF</dt><dd>在内核里运行小程序的技术，Cilium 用它看到每个网络包。</dd>
+        <dt>Hubble / hubble-relay</dt><dd>Cilium 的可观测组件。每个节点产生 flow 事件，hubble-relay（端口 4245）把全集群的事件汇总，<code>hubble observe</code> 命令从它读取。</dd>
+        <dt>Vector</dt><dd>日志搬运工具。本项目里它以 DaemonSet 运行，执行 <code>hubble observe</code> 并把输出写入 Kafka。</dd>
+        <dt>Kafka / topic / consumer group / offset</dt><dd>消息队列。消息写入 topic（本项目 <code>ebpf-net-logs</code>）；消费者以 group 为单位读取，各 group 互不影响；offset 是读到哪里的位置。本项目 Kafka 用 KRaft 模式：1 个 controller + 4 个 broker。</dd>
+        <dt>MetalLB</dt><dd>在没有云厂商的集群里给 <code>type: LoadBalancer</code> 的 Service 分配真实 IP。本项目地址池 <code>192.168.100.200-250</code>。</dd>
+        <dt>local-path</dt><dd>把节点本地目录当磁盘用的 StorageClass，Kafka broker 的 PVC 依赖它。</dd>
+        <dt>flow（流）</dt><dd>同一个 5 元组（源 IP、目的 IP、源端口、目的端口、协议）的一组包。模型的输入单位是“流”，不是单个包。</dd>
+        <dt>35 个特征</dt><dd>从一条流算出来的数字和字符串，例如持续时间、包数、SYN 比例、包间隔均值等，详见第 4 章。</dd>
+        <dt>OCSVM</dt><dd>One-Class SVM，只用正常数据训练的异常检测模型，偏离“正常”的样本判为攻击。</dd>
+        <dt>ZSL（零样本学习）</dt><dd>判为攻击后，拿样本和各攻击类型的“原型向量”算余弦相似度，猜它是哪种攻击；都不像就是 <code>Unknown_Attack</code>。</dd>
+        <dt>Django / DRF</dt><dd>Python Web 框架和它的 REST 扩展（Django REST Framework）。</dd>
+        <dt>ASGI / uvicorn / Channels</dt><dd>ASGI 是支持 WebSocket 的 Python Web 服务接口；uvicorn 是运行它的服务器；Channels 让 Django 能处理 WebSocket。</dd>
+        <dt>JWT（access / refresh）</dt><dd>登录后拿到的令牌。access 有效 2 小时，每个请求都带上；refresh 有效 7 天，用来换新的 access。</dd>
+        <dt>Vue 3 / Pinia / Vue Router / Element Plus / Vite</dt><dd>前端框架 / 状态管理 / 路由 / UI 组件库 / 构建工具。</dd>
+        <dt>uv / pnpm</dt><dd>Python 和 Node 的包管理器。</dd>
+        <dt>systemd user 服务</dt><dd>以当前用户身份运行的常驻服务，用 <code>systemctl --user</code> 管理，<code>journalctl --user -u &lt;名字&gt;</code> 看日志。</dd>
+        <dt>cloudflared</dt><dd>Cloudflare 隧道客户端，把本机 8080 安全地映射到公网域名。</dd>
+        <dt>SARIF</dt><dd>静态分析工具通用的 JSON 结果格式，checkov / tfsec / trivy 都输出它。</dd>
+      </dl>
+    </section>
+
+    <section id="path">
+      <h2>0.5 学习路线</h2>
+      <p>按你的目标选路线。每一章开头都有“读完你能做什么”。</p>
+      <div class="table-wrap"><table>
+        <tr><th>目标</th><th>建议阅读</th><th>预计时间</th></tr>
+        <tr><td>只需要会用网页</td><td>第 1 章</td><td>1 小时</td></tr>
+        <tr><td>要做日常管理（账号、巡检、重启、备份）</td><td>第 1 章 → 第 7 章 → 运维对照手册的“运维操作逐步骤”</td><td>半天</td></tr>
+        <tr><td>要改前端</td><td>第 1 章 → 第 2 章（含实战：新增一个页面）</td><td>1 天</td></tr>
+        <tr><td>要改后端 / 加接口</td><td>第 1 章 → 第 3 章（含实战：新增一个接口）</td><td>1 天</td></tr>
+        <tr><td>要改检测逻辑 / 换模型</td><td>第 3 章 → 第 4 章（含实战：注册一个新模型）</td><td>1 天</td></tr>
+        <tr><td>要重建集群 / 改集群</td><td>第 5 章 → 运维对照手册“重建”</td><td>1 天</td></tr>
+        <tr><td>要做实验 / 采数据集</td><td>第 4 章 → 第 6 章</td><td>半天</td></tr>
+        <tr><td><b>完整接手</b></td><td>0 → 8 章顺序读完，做完第 8 章的练习</td><td>3～4 天</td></tr>
+      </table></div>
+      <div class="learn"><b>与“运维对照手册”的分工</b>：本手册讲“是什么、为什么、代码怎么写的、怎么用”；运维对照手册是查表用的——逐个接口的请求响应、全部表字段、开关机 / 重建 / 备份的逐步命令和预期输出。两者互相链接，遇到“详见运维手册”时点过去即可。</div>
+    </section>
+
+    <section id="first">
+      <h2>0.6 第一天就该做的 5 件事</h2>
+      <div class="steps">
+        <div class="step"><div class="step-title">拿到账号并登录</div>
+          <p>打开 <code>https://knettf.com</code>，用高级运维给你的账号登录。管理员账号登录后直接进入 <code>/admin/dashboard</code>。</p></div>
+        <div class="step"><div class="step-title">确认能登录宿主机</div>
+          <p>SSH 到宿主机后执行下面三条，确认你有权限查看服务、数据库和集群：</p>
+<pre><code>systemctl --user status netsentinel --no-pager | head -5
+docker ps --filter name=pg
+kubectl get nodes</code></pre>
+          <div class="expect">预期：服务 <code>active (running)</code>；<code>pg</code> 容器 <code>Up</code>；5 个节点 <code>Ready</code>（集群若没开机，看第 7 章“开机”）。</div></div>
+        <div class="step"><div class="step-title">把两个仓库都打开看一眼</div>
+<pre><code>cd $N && git log --oneline | head -5 && ls
+cd $K && ls</code></pre>
+          <p>注意：<span class="tag tag-k">K</span> 的脚本和数据<b>大多不在 Git 里</b>，只跟踪了 README、pyproject、uv.lock、requirements.txt。改动前先备份。</p></div>
+        <div class="step"><div class="step-title">看一眼实时日志</div>
+<pre><code>journalctl --user -u netsentinel -f</code></pre>
+          <p>有流量时会看到 <code>vigil.bridge: queue: N flows → M attack(s)</code>。<span class="kbd">Ctrl</span>+<span class="kbd">C</span> 退出。</p></div>
+        <div class="step"><div class="step-title">做一次端到端验证</div>
+<pre><code>cd $K && sudo .venv/bin/python3 traffic/spoof_attack.py --packets 50</code></pre>
+          <p>然后打开网页 <b>AI Vigil → Detection Log</b>，15 秒内应出现源 IP 为 <code>192.168.100.20～29</code> 的新记录。能看到就说明整条链路是通的。</p></div>
+      </div>
+      <div class="danger"><b>安全须知</b>：kubeconfig、<code>backend/backend/.env</code> 里的 <code>VIGIL_BRIDGE_TOKEN</code>、数据库密码都是敏感信息，不要发到群聊或截图里。默认账号 admin / alice / bob 的密码是公开的（写在 <code>users_init.py</code> 里），如果还没改，第一时间修改（第 7 章）。</div>
+    </section>
+  </main>
+  <script src="guide.js"></script>
+</body>
+</html>

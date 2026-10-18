@@ -18,7 +18,7 @@
     <section id="pages">
       <h2>手册导航</h2>
       <div class="cards">
-        <a class="card" href="admin.html"><b>管理员上手教程</b><span>写给基础管理员：网页上的登录、用户、集群、Terraform、检测查看、每日巡检，手把手步骤</span></a>
+        <a class="card" href="../guide/index.html"><b>使用管理手册 →</b><span>从零教会一个人整个项目：网页使用、前端、后端、检测模型、集群 Shell 脚本、实验脚本、日常管理（独立手册）</span></a>
         <a class="card" href="index.html#order"><b>总览与代码组织</b><span>两个项目的定位、数据链路、<b style="display:inline;color:#2b6cb0">整体构建顺序</b>、本地目录树、职责对照、接口契约</span></a>
         <a class="card" href="api.html"><b>API 逐接口说明</b><span>40+ 个 HTTP / WebSocket 端点：参数、请求与响应示例、权限、对应代码</span></a>
         <a class="card" href="db.html"><b>数据库与模型字段</b><span>SQLite / PostgreSQL 全部表与字段、分区机制、35 个流特征、检测模型与 Cilium 策略</span></a>
@@ -176,7 +176,7 @@
 ├── frontend/
 │   ├── package.json · pnpm-lock.yaml · vite.config.ts（dev 代理 /api、/ws → 127.0.0.1:8080）
 │   ├── .env.production
-│   ├── public/                  manual_en.html · ops/（本手册）· favicon
+│   ├── public/                  manual_en.html · guide/（使用管理手册）· ops/（本手册）· favicon
 │   ├── src/
 │   │   ├── main.ts · App.vue · router/index.ts（路由 + 登录 / 管理员守卫）
 │   │   ├── stores/auth.ts       token / refreshToken / user 存 localStorage，401 自动刷新
