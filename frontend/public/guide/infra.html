@@ -105,7 +105,7 @@
         <tr><td>8</td><td>apply Vector → 等 DS → 检查重启次数 &gt; 5 告警</td><td></td></tr>
         <tr><td>9</td><td><code>kubectl create deployment my-nginx --image=nginx</code> + <code>expose --type=LoadBalancer --port=80</code> → 等 IP（.204）</td><td>正常流量的目标</td></tr>
         <tr><td>10</td><td>后台 <code>kubectl port-forward svc/hubble-relay 4245</code>，日志 <code>/tmp/hubble-pf.log</code></td><td>只给宿主机上 <code>hubble observe</code> 调试用，Vector 不依赖它；宿主机重启后不会自动恢复</td></tr>
-        <tr><td>11</td><td><code>/etc/hosts</code> 加 <code>&lt;kafka-0 IP&gt; kafka-svc.default.svc.cluster.local</code></td><td>宿主机脚本用集群内域名时能解析</td></tr>
+        <tr><td>11</td><td><code>/etc/hosts</code> 加 <code>192.168.100.200 kafka-svc.default.svc.cluster.local</code></td><td>宿主机脚本用集群内域名时能解析</td></tr>
         <tr><td>12</td><td>重写 <code>$K/.env</code>：<code>BOOTSTRAP_SERVERS=.200:9094,...</code>、<code>GROUP_ID=ebpf-log-consumer-group</code>、<code>AUTO_OFFSET_RESET=earliest</code>、<code>TOPICS='["ebpf-net-logs"]'</code></td><td>knetsentinel 的 Python 脚本读它</td></tr>
       </table></div>
     </section>
@@ -119,7 +119,7 @@
         <tr><td>Service <code>kafka-controller-svc</code></td><td>controller 的 <code>:9093</code></td></tr>
         <tr><td>Service <code>kafka-0..3-external</code></td><td>LoadBalancer，selector 按 <code>statefulset.kubernetes.io/pod-name</code> 一对一指向某个 broker，端口 9094</td></tr>
         <tr><td>Pod <code>kafka-controller</code></td><td><code>apache/kafka:4.0.2</code>，KRaft 控制器，<code>listeners=CONTROLLER://0.0.0.0:9093</code>。<b>裸 Pod + emptyDir</b>：删了不会重建，元数据丢失</td></tr>
-        <tr><td>StatefulSet <code>kafka-broker</code>（4 副本）</td><td>init 容器（busybox）读 Pod 序号和 <code>kafka-node-ips</code>，生成 <code>KAFKA_NODE_ID</code> 和 <code>advertised.listeners=PLAINTEXT://kafka-broker-N.kafka-headless...:9092,EXTERNAL://&lt;外部 IP&gt;:9094</code>；主容器 <code>listeners=PLAINTEXT://:9092,EXTERNAL://:9094</code>；副本因子 3、<code>min.insync.replicas=2</code>；每个 10Gi PVC（local-path）</td></tr>
+        <tr><td>StatefulSet <code>kafka-broker</code>（4 副本）</td><td>init 容器（busybox）读 Pod 序号和 <code>kafka-node-ips</code>，生成 <code>KAFKA_NODE_ID</code> 和 <code>advertised.listeners=PLAINTEXT://kafka-broker-N.kafka-headless...:9092,EXTERNAL://192.168.100.20N:9094</code>（broker-0..3 对应 .200–.203）；主容器 <code>listeners=PLAINTEXT://:9092,EXTERNAL://:9094</code>；副本因子 3、<code>min.insync.replicas=2</code>；每个 10Gi PVC（local-path）</td></tr>
       </table></div>
       <div class="learn"><b>为什么要两个 listener</b>：集群内的客户端（Vector）用 PLAINTEXT 和 DNS 名；集群外的客户端（宿主机上的后端 bridge）只能访问 MetalLB 的 IP，所以 broker 必须把自己的“外部 IP:9094”告诉客户端。这就是 03 脚本必须先拿 IP 再建 broker 的原因。</div>
       <p>常用：</p>
