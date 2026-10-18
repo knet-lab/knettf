@@ -37,3 +37,5 @@ details[open] summary { margin-bottom: 8px; }
 html[lang="en"] .task .do::before { content: 'Do'; }
 html[lang="en"] .task .why::before { content: 'Why'; }
 html[lang="en"] .task .res::before { content: 'Result'; }
+.phase { display: flex; gap: 14px; align-items: center; background: #1e3a5f; color: #fff; border-radius: 10px; padding: 14px 18px; margin: 36px 0 8px; font-size: 14px; line-height: 1.6; }
+.phase-n { font-size: 18px; font-weight: 700; white-space: nowrap; padding-right: 14px; border-right: 1px solid rgba(255,255,255,.35); }

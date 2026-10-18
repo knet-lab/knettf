@@ -11,17 +11,17 @@
   <aside class="sidebar"></aside>
   <main class="main">
     <h1>接手准备：Linux 账户、权限与 Git</h1>
-    <div class="meta">读完你能：用自己的账户登录这台服务器并拥有管理权限；被邀请进两个 GitHub 仓库；用自己的身份提交代码；（可选）把服务从 <code>soar009</code> 名下迁出。<br>
-      本页所有命令、路径、IP 都是按这台机器实际情况写的（2026-10 核对）。命令里的 <code>cis</code> 指接手人账户，换人时替换成对方的用户名。</div>
+    <div class="meta">分三个阶段：<b>一 准备工作</b>（申请账户、权限、Git，止于“准备完成验收”）→ <b>二 正式接手</b>（从验收通过开始）→ <b>三 后续</b>（可选）。先看 <a href="#roadmap">全流程一览</a>。<br>
+      本页所有命令、路径、IP 都是按这台机器实际情况写的（2026-10 核对）。命令里的 <code>NEWUSER</code> 指接手人<b>自己新建的</b>账户，执行时替换成你的用户名。</div>
 
     <section id="machine">
-      <h2>P.0 这台机器的现状</h2>
+      <h2>0 先了解：这台机器的现状</h2>
       <div class="table-wrap"><table>
         <tr><th>项目</th><th>实际值</th></tr>
         <tr><td>主机名 / 系统</td><td><code>cis-Z10PE-D8-WS</code>，Ubuntu 24.04.2，56 核，125 GB 内存</td></tr>
         <tr><td>访问地址</td><td>实验室内网 <code>192.168.0.247</code>；Tailscale <code>100.117.219.123</code>（tailnet 属于原作者的 Tailscale 账号）</td></tr>
         <tr><td>SSH</td><td>端口 22，<b>禁止密码登录</b>（<code>PasswordAuthentication no</code>），只能用密钥</td></tr>
-        <tr><td>人类账户</td><td><code>cis</code>（uid 1000，装机时的第一个账户，已在 sudo / docker / libvirt 组）、<code>soar009</code>（原作者）</td></tr>
+        <tr><td>人类账户</td><td><code>cis</code>（uid 1000，装机时的第一个账户，实验室共用，<b>不得用于接手</b>）、<code>soar009</code>（原作者）</td></tr>
         <tr><td>集群虚拟机</td><td>libvirt 系统级：<code>k8s-master</code> 192.168.100.10，<code>k8s-node1~4</code> 192.168.100.11~14</td></tr>
       </table></div>
 
@@ -49,67 +49,193 @@
         NetSentinel 只用 8080（后端）和 5432（容器 <code>pg</code>）。</div>
     </section>
 
-    <section id="user">
-      <h2>P.1 账户与权限</h2>
-      <h3>接手人是 cis：只差 kvm 组（可选）</h3>
-      <pre><code>id cis
-# 现在：groups=...(sudo),...(docker),...(libvirt),... 已经够用
-sudo usermod -aG kvm cis      # 可选：直接用 qemu 时才需要，virsh 管理虚拟机不需要</code></pre>
-
-      <h3>接手人是新的人：新建账户</h3>
-      <pre><code>sudo adduser 新用户名                                  # 设置密码（只用于 sudo，SSH 不收密码）
-sudo usermod -aG sudo,docker,libvirt 新用户名
-id 新用户名</code></pre>
+    <section id="roadmap">
+      <h2>全流程一览</h2>
       <div class="table-wrap"><table>
-        <tr><th>组</th><th>在这台机器上能做什么</th></tr>
-        <tr><td><code>sudo</code></td><td>完全管理员；可以 <code>sudo -iu soar009</code> 操作原作者的服务（见 P.2）</td></tr>
-        <tr><td><code>docker</code></td><td>管理 <code>pg</code> 容器；注意也能看到/停掉 pnu-notice、emotion-talk 等别人的容器</td></tr>
-        <tr><td><code>libvirt</code></td><td><code>virsh -c qemu:///system list</code> 管理 5 台 k8s 虚拟机</td></tr>
+        <tr><th>阶段</th><th>内容</th><th>做完的标志</th></tr>
+        <tr><td><b>一 准备工作</b><br>（只做一次，必做）</td><td>1.1 申请 Linux 账户 → 1.2 加入 GitHub 仓库 → 1.3 配置 Git</td><td><a href="#ready">准备完成验收</a> 6 项全部通过</td></tr>
+        <tr><td><b>二 正式接手</b><br>（验收通过后开始）</td><td>2.1 学会操作服务 → 2.2 接手第一天 → 之后每天 <a href="health.html">健康检查</a></td><td>第一天清单做完，之后进入日常</td></tr>
+        <tr><td><b>三 后续</b><br>（可选，择机）</td><td>3.1 迁出 soar009 家目录 → 3.2 原作者离开时收尾</td><td>原作者账户可以安全锁定</td></tr>
       </table></div>
-      <div class="note">组变更要<b>重新登录</b>才生效。</div>
+      <div class="note">验收没通过之前<b>不要</b>开始阶段二：账户、权限、Git 身份没配好就操作服务，容易出现权限错误或提交记到别人名下。</div>
+    </section>
+
+    <div class="phase"><div class="phase-n">阶段一</div><div><b>准备工作</b><br>让你有自己的账户、权限和 Git 身份。这一阶段还不碰线上服务。</div></div>
+
+    <section id="user">
+      <h2>1.1 账户与权限</h2>
+      <div class="danger"><b>禁止用 <code>cis</code> 账户接手。</b><code>cis</code> 是装机时的共用账户，权限过大（sudo + docker + libvirt），用它操作出了问题查不到是谁做的，也没法单独收回某个人的权限。接手人必须<b>新建自己的 Linux 账户</b>，按下面流程申请权限；不要借用 <code>cis</code> 或 <code>soar009</code> 的密码、密钥。</div>
+
+      <h3>流程</h3>
+      <div class="table-wrap"><table>
+        <tr><th>步骤</th><th>谁做</th><th>做什么</th><th>结果</th></tr>
+        <tr><td>1 申请</td><td>接手人</td><td>向实验室负责人提交：想要的用户名、SSH 公钥（下文 ①）、需要哪些组及理由</td><td>负责人书面（邮件/群消息）批准，留档</td></tr>
+        <tr><td>2 建账户</td><td>现有管理员</td><td>按下面命令新建账户、放公钥、只加批准的组</td><td>接手人能用密钥登录</td></tr>
+        <tr><td>3 核对</td><td>接手人</td><td>登录后 <code>id</code>，确认组与批准的一致</td><td>多了或少了都反馈管理员</td></tr>
+        <tr><td>4 收回</td><td>管理员</td><td>人员离开时 <code>sudo usermod -L NEWUSER</code> 锁账户，删 <code>authorized_keys</code>，移出各组</td><td>不影响服务和其他人</td></tr>
+      </table></div>
+
+      <h3>管理员：新建账户</h3>
+      <pre><code>sudo adduser NEWUSER                                   # 设置密码（只用于 sudo，SSH 不收密码）
+sudo usermod -aG sudo,docker,libvirt NEWUSER           # 只加批准的组
+id NEWUSER</code></pre>
+      <div class="table-wrap"><table>
+        <tr><th>组</th><th>在这台机器上能做什么</th><th>何时批准</th></tr>
+        <tr><td><code>sudo</code></td><td>完全管理员；可以 <code>sudo -iu soar009</code> 操作原作者的服务（见 2.1）</td><td>负责运维、要重启服务时</td></tr>
+        <tr><td><code>docker</code></td><td>管理 <code>pg</code> 容器；注意也能看到/停掉 pnu-notice、emotion-talk 等别人的容器</td><td>要操作数据库时</td></tr>
+        <tr><td><code>libvirt</code></td><td><code>virsh -c qemu:///system list</code> 管理 5 台 k8s 虚拟机</td><td>要开关/重建集群时</td></tr>
+      </table></div>
+      <div class="note">组变更要<b>重新登录</b>才生效。只看网页、不运维的人不需要 Linux 账户，在网站上建普通账号即可（<a href="account.html">账号与令牌</a>）。</div>
 
       <h3>SSH 登录（这台机器只认密钥）</h3>
       <p>因为禁止了密码登录，<code>ssh-copy-id</code> 用不了，要由已能登录的人帮你放公钥：</p>
       <pre><code># ① 接手人在自己电脑上生成密钥，把 .pub 内容发给管理员
-ssh-keygen -t ed25519 -C "cis@cis-Z10PE-D8-WS"
+ssh-keygen -t ed25519 -C "NEWUSER@cis-Z10PE-D8-WS"
 cat ~/.ssh/id_ed25519.pub
 
 # ② 管理员在服务器上（把引号里换成收到的整行公钥）
-sudo install -d -o cis -g cis -m 700 /home/cis/.ssh
-echo 'ssh-ed25519 AAAA... cis@cis-Z10PE-D8-WS' | sudo tee -a /home/cis/.ssh/authorized_keys
-sudo chown cis:cis /home/cis/.ssh/authorized_keys && sudo chmod 600 /home/cis/.ssh/authorized_keys
+sudo install -d -o NEWUSER -g NEWUSER -m 700 /home/NEWUSER/.ssh
+echo 'ssh-ed25519 AAAA... NEWUSER@cis-Z10PE-D8-WS' | sudo tee -a /home/NEWUSER/.ssh/authorized_keys
+sudo chown NEWUSER:NEWUSER /home/NEWUSER/.ssh/authorized_keys && sudo chmod 600 /home/NEWUSER/.ssh/authorized_keys
 
 # ③ 接手人登录
-ssh cis@192.168.0.247            # 在实验室内网
-ssh cis@100.117.219.123          # 在外面，需要加入 Tailscale（见下）</code></pre>
+ssh NEWUSER@192.168.0.247            # 在实验室内网
+ssh NEWUSER@100.117.219.123          # 在外面，需要加入 Tailscale（见下）</code></pre>
       <p><b>Tailscale</b>：现在的 tailnet 是原作者个人 Tailscale 账号。接手人要从外网连，需原作者在 Tailscale 后台 <b>Users → Invite users</b> 邀请，或接手人用自己的 tailnet 重新在服务器上 <code>sudo tailscale up</code> 登录（会换 IP，原作者设备就连不上了）。</p>
 
       <h3>kubectl</h3>
-      <pre><code>sudo install -d -o cis -g cis -m 700 /home/cis/.kube
-sudo install -o cis -g cis -m 600 /home/soar009/.kube/config /home/cis/.kube/config
+      <pre><code>sudo install -d -o NEWUSER -g NEWUSER -m 700 /home/NEWUSER/.kube
+sudo install -o NEWUSER -g NEWUSER -m 600 /home/soar009/.kube/config /home/NEWUSER/.kube/config
 kubectl get nodes        # 接手人执行，应看到 k8s-master + k8s-node1~4 共 5 个 Ready</code></pre>
     </section>
 
+    <section id="github">
+      <h2>1.2 GitHub：邀请到两个仓库</h2>
+      <p><code>user.email</code> 只决定提交上<b>显示</b>谁，能不能 push 取决于 GitHub <b>账号</b>是不是协作者。两个仓库要分别邀请：</p>
+      <div class="table-wrap"><table>
+        <tr><th>仓库</th><th>本地目录</th><th>邀请页面</th></tr>
+        <tr><td><code>Wk-P/NetSentinel</code></td><td><code>/home/soar009/github/NetSentinel</code></td><td><code>https://github.com/Wk-P/NetSentinel/settings/access</code></td></tr>
+        <tr><td><code>Wk-P/knetsentinel</code></td><td><code>/home/soar009/knetsentinel</code></td><td><code>https://github.com/Wk-P/knetsentinel/settings/access</code></td></tr>
+      </table></div>
+      <ol>
+        <li>原作者（Wk-P）打开上面两个页面 → <b>Add people</b> → 输入接手人的 GitHub 用户名 → 发送。协作者自动有 push 权限，邀请 7 天内有效。</li>
+        <li>接手人打开 <code>https://github.com/Wk-P/NetSentinel/invitations</code> 和 <code>https://github.com/Wk-P/knetsentinel/invitations</code> 分别接受。</li>
+        <li>接手人在 GitHub <b>Settings → Emails</b> 确认要用的提交邮箱已验证。</li>
+      </ol>
+      <p>长期：两个仓库都是 Wk-P 个人仓库，原作者离开后无法给别人 Admin 权限。建议建一个实验室 Organization，用 <b>Settings → General → Transfer ownership</b> 把两个仓库转过去，然后在服务器上 <code>git remote set-url origin git@github.com:组织名/NetSentinel.git</code>（knetsentinel 同理）。</p>
+    </section>
+
+    <section id="git">
+      <h2>1.3 本地 Git：用自己的身份提交</h2>
+
+      <h3>第 1 步：在服务器上给你的账户配 GitHub 密钥</h3>
+      <p>这是你在<b>服务器上</b>用来连 GitHub 的密钥，和 1.1 里登录服务器的密钥不是一个。</p>
+      <pre><code>ssh-keygen -t ed25519 -C "你的GitHub邮箱"
+cat ~/.ssh/id_ed25519.pub        # 加到 GitHub → Settings → SSH and GPG keys → New SSH key
+ssh -T git@github.com            # 期望 Hi 你的用户名!；若是 Hi Wk-P! 说明在用原作者的密钥</code></pre>
+
+      <h3>第 2 步：把两个仓库里写死的 Wk-P 身份移到 soar009 全局（必须做）</h3>
+      <p>现在两个仓库的 <code>.git/config</code> 里都有 <code>user.name=Wk-P</code> / <code>user.email=weekend2000119@gmail.com</code>。仓库级配置优先于个人全局配置，不删的话<b>谁提交都显示 Wk-P</b>。soar009 本身没有全局身份，所以先补上再删：</p>
+      <pre><code>sudo -iu soar009
+git config --global user.name  Wk-P
+git config --global user.email weekend2000119@gmail.com
+for r in ~/github/NetSentinel ~/knetsentinel; do
+  git -C $r config --local --unset user.name
+  git -C $r config --local --unset user.email
+done
+exit</code></pre>
+      <p>（迁移后路径换成 <code>/srv/netsentinel/NetSentinel</code>、<code>/srv/netsentinel/knetsentinel</code>。）</p>
+
+      <h3>第 3 步：你的全局身份</h3>
+      <pre><code>git config --global user.name  "你的名字"
+git config --global user.email "你在GitHub已验证的邮箱"   # 或 GitHub 提供的 数字+用户名@users.noreply.github.com
+git config --global --list</code></pre>
+
+      <h3>第 4 步：在哪里改代码</h3>
+      <p><b>已迁移到 /srv（3.1 做过）</b>：直接在线上目录工作，改完重启服务即可。</p>
+      <pre><code>cd /srv/netsentinel/NetSentinel && git status
+cd /srv/netsentinel/knetsentinel
+git remote set-url origin git@github.com:Wk-P/knetsentinel.git   # 原来是 HTTPS，改成 SSH 才能用密钥 push</code></pre>
+      <p><b>还没迁移</b>：你的账户对 soar009 的目录只有读权限，只能克隆到自己家目录开发：</p>
+      <pre><code>mkdir -p ~/github && cd ~/github
+git clone git@github.com:Wk-P/NetSentinel.git
+git clone git@github.com:Wk-P/knetsentinel.git ~/knetsentinel
+# 改完 push 后，部署到线上：
+sudo -iu soar009 git -C ~/github/NetSentinel pull     # 注意这里的 ~ 是 soar009 的
+sudo -iu soar009 systemctl --user restart netsentinel</code></pre>
+      <p>前端改动还要在线上目录 <code>frontend/</code> 下 <code>pnpm build</code>（node/pnpm 装在 soar009 的 nvm 里，也要 <code>sudo -iu soar009</code> 执行）。</p>
+
+      <h3>第 5 步：试一次提交</h3>
+      <pre><code>cd ~/github/NetSentinel          # 或 /srv/netsentinel/NetSentinel
+git switch -c test/handover
+echo "" >> README.md && git commit -am "test: handover commit"
+git log -1 --format='%an <%ae>'     # 应是你自己
+git push -u origin test/handover
+git switch main && git push origin --delete test/handover && git branch -D test/handover</code></pre>
+
+      <h3>常见错误</h3>
+      <div class="table-wrap"><table>
+        <tr><th>现象</th><th>原因</th><th>处理</th></tr>
+        <tr><td><code>Permission denied (publickey)</code></td><td>服务器上你账户的公钥没加到 GitHub</td><td>第 1 步</td></tr>
+        <tr><td><code>Permission to Wk-P/NetSentinel.git denied to 你的用户名</code></td><td>没接受邀请（两个仓库各要接受一次）</td><td>1.2</td></tr>
+        <tr><td>knetsentinel push 时要求输入用户名密码</td><td>远程是 HTTPS</td><td>第 4 步的 <code>set-url</code></td></tr>
+        <tr><td>提交作者显示 Wk-P</td><td>第 2 步没做，或在 soar009 身份下提交</td><td>第 2 步</td></tr>
+        <tr><td><code>detected dubious ownership</code></td><td>仓库属于 soar009</td><td><code>git config --global --add safe.directory 仓库路径</code></td></tr>
+        <tr><td><code>insufficient permission for adding an object</code></td><td>/srv 下有文件不是组可写</td><td><code>sudo chmod -R g+rwX /srv/netsentinel/NetSentinel/.git</code>，确认 umask 002</td></tr>
+      </table></div>
+    </section>
+
+    <section id="ready">
+      <h2>✔ 准备完成验收（阶段一到此结束）</h2>
+      <p>用<b>你自己的账户</b>登录服务器，逐条执行。6 条都符合，准备工作才算结束；任何一条不符合，回到对应小节。</p>
+      <div class="table-wrap"><table>
+        <tr><th>#</th><th>检查</th><th>应该看到</th><th>不符合回到</th></tr>
+        <tr><td>1</td><td><code>ssh NEWUSER@192.168.0.247</code></td><td>用密钥直接登录，不问密码</td><td>1.1 SSH 登录</td></tr>
+        <tr><td>2</td><td><code>id</code></td><td>组和批准的一致（如 sudo、docker、libvirt）</td><td>1.1 流程第 3 步</td></tr>
+        <tr><td>3</td><td><code>sudo -iu soar009 systemctl --user is-active netsentinel</code></td><td><code>active</code></td><td>1.1（缺 sudo 组）</td></tr>
+        <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 个节点 <code>Ready</code></td><td>1.1 kubectl</td></tr>
+        <tr><td>5</td><td><code>ssh -T git@github.com</code></td><td><code>Hi 你的GitHub用户名!</code></td><td>1.3 第 1 步</td></tr>
+        <tr><td>6</td><td>在两个仓库各试一次提交并 push</td><td>GitHub 上作者是你，不是 Wk-P</td><td>1.2、1.3 第 2–5 步</td></tr>
+      </table></div>
+    </section>
+
+    <div class="phase"><div class="phase-n">阶段二</div><div><b>正式接手</b><br>验收通过后从这里开始。你开始负责线上服务。</div></div>
+
     <section id="transition">
-      <h2>P.2 过渡期：用 sudo 操作原作者的服务</h2>
-      <p>迁移（P.3）之前，后端、隧道、crontab 都是 soar009 的，cis 直接执行 <code>systemctl --user</code> 看到的是自己的（空的）。用 sudo 切过去：</p>
-      <pre><code>sudo -iu soar009                         # 输入的是 cis 自己的密码
+      <h2>2.1 日常怎么操作服务（迁移前）</h2>
+      <p>迁移（3.1）之前，后端、隧道、crontab 都是 soar009 的，你直接执行 <code>systemctl --user</code> 看到的是自己的（空的）。用 sudo 切过去：</p>
+      <pre><code>sudo -iu soar009                         # 输入的是你自己的密码
 systemctl --user status netsentinel cloudflared-knettf
 systemctl --user restart netsentinel
 journalctl --user -u netsentinel -f
 crontab -l                               # 看定时任务
 exit</code></pre>
-      <div class="note">在 <code>sudo -iu soar009</code> 下<b>不要 git commit</b>：两个仓库的 <code>.git/config</code> 都写死了 <code>user.name=Wk-P</code>，提交会记到原作者名下（见 P.5 第 2 步）。<code>git pull</code> 可以。</div>
+      <div class="note">在 <code>sudo -iu soar009</code> 下<b>不要 git commit</b>：两个仓库的 <code>.git/config</code> 都写死了 <code>user.name=Wk-P</code>，提交会记到原作者名下（见 1.3 第 2 步）。<code>git pull</code> 可以。</div>
     </section>
 
+    <section id="day1">
+      <h2>2.2 接手第一天</h2>
+      <p>按顺序做一次，之后转入每天的 <a href="health.html">健康检查</a>。</p>
+      <ol>
+        <li>完整做一遍 <a href="health.html">每日健康检查</a>，记下各项的正常值，作为以后对比的基线。</li>
+        <li>改掉网站默认账号 admin / alice / bob 的密码（<a href="account.html">账号与令牌</a>）——它们写在代码里，等于公开。</li>
+        <li>在网站管理后台 Users 里核对账号，删掉或停用陌生账号。</li>
+        <li>读一遍 <a href="trouble.html#dont">不要做的事</a> 和 <a href="power.html">开关机与恢复</a>，知道宿主机重启后要做什么。</li>
+        <li>确认已经从原作者那里当面拿到：网页管理员账号、<code>.env</code> 里的 token、PostgreSQL 密码（见 3.2 第 5 条）。</li>
+      </ol>
+      <div class="learn">做到这里，你已经正式接手。阶段三不着急，等系统稳定、有停机窗口时再做。</div>
+    </section>
+
+    <div class="phase"><div class="phase-n">阶段三</div><div><b>后续（可选）</b><br>不影响日常运维，择机进行。</div></div>
+
     <section id="migrate">
-      <h2>P.3 长期方案：迁出 soar009 家目录（可选，需停机）</h2>
+      <h2>3.1 迁出 soar009 家目录（可选，需停机）</h2>
       <p>目标：代码放 <code>/srv/netsentinel</code>（现在 <code>/srv</code> 是空的），用 <code>netsentinel</code> 组授权；服务、定时任务改成系统级。<b>只动 NetSentinel</b>，my-code 的服务和隧道保持原样。预计停机 15–30 分钟，knettf.com 期间不可用。</p>
 
       <h3>第 1 步：建组、建目录</h3>
       <pre><code>sudo groupadd netsentinel
 sudo usermod -aG netsentinel soar009
-sudo usermod -aG netsentinel cis
+sudo usermod -aG netsentinel NEWUSER
 sudo mkdir -p /srv/netsentinel</code></pre>
 
       <h3>第 2 步：停服务、搬代码（三个目录）</h3>
@@ -120,8 +246,8 @@ sudo mv /home/soar009/terraform           /srv/netsentinel/terraform     # autot
 sudo chown -R soar009:netsentinel /srv/netsentinel
 sudo chmod -R g+rwX /srv/netsentinel
 sudo find /srv/netsentinel -type d -exec chmod g+s {} +
-echo 'umask 002' | sudo tee -a /home/cis/.bashrc /home/soar009/.bashrc</code></pre>
-      <p>SQLite 文件（<code>backend/*.sqlite3</code>）也随之变成组可写，cis 才能跑 <code>manage.py</code>。</p>
+echo 'umask 002' | sudo tee -a /home/NEWUSER/.bashrc /home/soar009/.bashrc</code></pre>
+      <p>SQLite 文件（<code>backend/*.sqlite3</code>）也随之变成组可写，NEWUSER 才能跑 <code>manage.py</code>。</p>
 
       <h3>第 3 步：改写死的路径、重建虚拟环境</h3>
       <pre><code>cd /srv/netsentinel/NetSentinel
@@ -204,89 +330,13 @@ sudo -iu soar009 systemctl --user is-active cloudflared-my-code        # 确认 
         迁移后，手册其他章节里的 <code>systemctl --user</code> → <code>sudo systemctl</code>，<code>journalctl --user -u</code> → <code>journalctl -u</code>，<code>/home/soar009/github/NetSentinel</code> → <code>/srv/netsentinel/NetSentinel</code>，<code>/home/soar009/knetsentinel</code> → <code>/srv/netsentinel/knetsentinel</code>。</div>
     </section>
 
-    <section id="github">
-      <h2>P.4 GitHub：邀请到两个仓库</h2>
-      <p><code>user.email</code> 只决定提交上<b>显示</b>谁，能不能 push 取决于 GitHub <b>账号</b>是不是协作者。两个仓库要分别邀请：</p>
-      <div class="table-wrap"><table>
-        <tr><th>仓库</th><th>本地目录</th><th>邀请页面</th></tr>
-        <tr><td><code>Wk-P/NetSentinel</code></td><td><code>/home/soar009/github/NetSentinel</code></td><td><code>https://github.com/Wk-P/NetSentinel/settings/access</code></td></tr>
-        <tr><td><code>Wk-P/knetsentinel</code></td><td><code>/home/soar009/knetsentinel</code></td><td><code>https://github.com/Wk-P/knetsentinel/settings/access</code></td></tr>
-      </table></div>
-      <ol>
-        <li>原作者（Wk-P）打开上面两个页面 → <b>Add people</b> → 输入接手人的 GitHub 用户名 → 发送。协作者自动有 push 权限，邀请 7 天内有效。</li>
-        <li>接手人打开 <code>https://github.com/Wk-P/NetSentinel/invitations</code> 和 <code>https://github.com/Wk-P/knetsentinel/invitations</code> 分别接受。</li>
-        <li>接手人在 GitHub <b>Settings → Emails</b> 确认要用的提交邮箱已验证。</li>
-      </ol>
-      <p>长期：两个仓库都是 Wk-P 个人仓库，原作者离开后无法给别人 Admin 权限。建议建一个实验室 Organization，用 <b>Settings → General → Transfer ownership</b> 把两个仓库转过去，然后在服务器上 <code>git remote set-url origin git@github.com:组织名/NetSentinel.git</code>（knetsentinel 同理）。</p>
-    </section>
-
-    <section id="git">
-      <h2>P.5 本地 Git：用自己的身份提交</h2>
-
-      <h3>第 1 步：在服务器上给 cis 配 GitHub 密钥</h3>
-      <p>这是 cis 在<b>服务器上</b>用来连 GitHub 的密钥，和 P.1 里登录服务器的密钥不是一个。</p>
-      <pre><code>ssh-keygen -t ed25519 -C "你的GitHub邮箱"
-cat ~/.ssh/id_ed25519.pub        # 加到 GitHub → Settings → SSH and GPG keys → New SSH key
-ssh -T git@github.com            # 期望 Hi 你的用户名!；若是 Hi Wk-P! 说明在用原作者的密钥</code></pre>
-
-      <h3>第 2 步：把两个仓库里写死的 Wk-P 身份移到 soar009 全局（必须做）</h3>
-      <p>现在两个仓库的 <code>.git/config</code> 里都有 <code>user.name=Wk-P</code> / <code>user.email=weekend2000119@gmail.com</code>。仓库级配置优先于个人全局配置，不删的话<b>谁提交都显示 Wk-P</b>。soar009 本身没有全局身份，所以先补上再删：</p>
-      <pre><code>sudo -iu soar009
-git config --global user.name  Wk-P
-git config --global user.email weekend2000119@gmail.com
-for r in ~/github/NetSentinel ~/knetsentinel; do
-  git -C $r config --local --unset user.name
-  git -C $r config --local --unset user.email
-done
-exit</code></pre>
-      <p>（迁移后路径换成 <code>/srv/netsentinel/NetSentinel</code>、<code>/srv/netsentinel/knetsentinel</code>。）</p>
-
-      <h3>第 3 步：cis 的全局身份</h3>
-      <pre><code>git config --global user.name  "你的名字"
-git config --global user.email "你在GitHub已验证的邮箱"   # 或 GitHub 提供的 数字+用户名@users.noreply.github.com
-git config --global --list</code></pre>
-
-      <h3>第 4 步：在哪里改代码</h3>
-      <p><b>已迁移到 /srv（P.3 做过）</b>：直接在线上目录工作，改完重启服务即可。</p>
-      <pre><code>cd /srv/netsentinel/NetSentinel && git status
-cd /srv/netsentinel/knetsentinel
-git remote set-url origin git@github.com:Wk-P/knetsentinel.git   # 原来是 HTTPS，改成 SSH 才能用密钥 push</code></pre>
-      <p><b>还没迁移</b>：cis 对 soar009 的目录只有读权限，只能克隆到自己家目录开发：</p>
-      <pre><code>mkdir -p ~/github && cd ~/github
-git clone git@github.com:Wk-P/NetSentinel.git
-git clone git@github.com:Wk-P/knetsentinel.git ~/knetsentinel
-# 改完 push 后，部署到线上：
-sudo -iu soar009 git -C ~/github/NetSentinel pull     # 注意这里的 ~ 是 soar009 的
-sudo -iu soar009 systemctl --user restart netsentinel</code></pre>
-      <p>前端改动还要在线上目录 <code>frontend/</code> 下 <code>pnpm build</code>（node/pnpm 装在 soar009 的 nvm 里，也要 <code>sudo -iu soar009</code> 执行）。</p>
-
-      <h3>第 5 步：试一次提交</h3>
-      <pre><code>cd ~/github/NetSentinel          # 或 /srv/netsentinel/NetSentinel
-git switch -c test/handover
-echo "" >> README.md && git commit -am "test: handover commit"
-git log -1 --format='%an <%ae>'     # 应是你自己
-git push -u origin test/handover
-git switch main && git push origin --delete test/handover && git branch -D test/handover</code></pre>
-
-      <h3>常见错误</h3>
-      <div class="table-wrap"><table>
-        <tr><th>现象</th><th>原因</th><th>处理</th></tr>
-        <tr><td><code>Permission denied (publickey)</code></td><td>服务器上 cis 的公钥没加到 GitHub</td><td>第 1 步</td></tr>
-        <tr><td><code>Permission to Wk-P/NetSentinel.git denied to 你的用户名</code></td><td>没接受邀请（两个仓库各要接受一次）</td><td>P.4</td></tr>
-        <tr><td>knetsentinel push 时要求输入用户名密码</td><td>远程是 HTTPS</td><td>第 4 步的 <code>set-url</code></td></tr>
-        <tr><td>提交作者显示 Wk-P</td><td>第 2 步没做，或在 soar009 身份下提交</td><td>第 2 步</td></tr>
-        <tr><td><code>detected dubious ownership</code></td><td>仓库属于 soar009</td><td><code>git config --global --add safe.directory 仓库路径</code></td></tr>
-        <tr><td><code>insufficient permission for adding an object</code></td><td>/srv 下有文件不是组可写</td><td><code>sudo chmod -R g+rwX /srv/netsentinel/NetSentinel/.git</code>，确认 umask 002</td></tr>
-      </table></div>
-    </section>
-
     <section id="offboard">
-      <h2>P.6 原作者离开时的收尾</h2>
+      <h2>3.2 原作者离开时的收尾</h2>
       <ol>
-        <li>cis 能独立：<code>sudo</code> 可用、<code>kubectl get nodes</code> 5 个 Ready、两个仓库测试 push 成功。</li>
+        <li><a href="#ready">准备完成验收</a> 全部通过。</li>
         <li>GitHub：两个仓库转到组织，或至少确认接手人已是协作者。</li>
         <li>Cloudflare：knettf.com 和两条隧道都在原作者的 Cloudflare 账号里，要把接手人加为成员（Manage Account → Members）。</li>
-        <li>Tailscale：tailnet 是原作者的，要么邀请接手人，要么接手人用自己的账号重新登录（P.1）。</li>
+        <li>Tailscale：tailnet 是原作者的，要么邀请接手人，要么接手人用自己的账号重新登录（1.1）。</li>
         <li>当面交接：网页管理员账号、<code>backend/backend/.env</code> 和 <code>NetSentinel/.env</code> 里的 VIGIL_BRIDGE_TOKEN、<code>settings.py</code> 里的 PostgreSQL 密码（vigil 用户）。</li>
         <li><b>不能直接锁 soar009</b>：即使 NetSentinel 已迁移，my-code 的三个服务和 my-code 隧道仍是 soar009 的 user 服务，锁账户（或关 linger）会把它们一起停掉。先和 my-code 的负责人确认怎么处理，再执行：
           <pre><code>sudo usermod -L soar009              # 只锁密码；密钥登录要另外删 authorized_keys
