@@ -18,9 +18,9 @@
       <h3>属于 NetSentinel 的东西（全部在 soar009 名下）</h3>
       <div class="table-wrap"><table>
         <tr><th>资源</th><th>位置</th><th>说明</th></tr>
-        <tr><td>平台代码（开发）</td><td><code>/home/soar009/github/NetSentinel</code></td><td>GitHub <code>Wk-P/NetSentinel</code>（SSH 远程，分支 main）；平时改代码、提交都在这里</td></tr>
+        <tr><td>平台代码（开发）</td><td><code>/home/soar009/github/NetSentinel</code></td><td>GitHub <code>knet-lab/NetSentinel</code>（SSH 远程，分支 main）；平时改代码、提交都在这里</td></tr>
         <tr><td>平台代码（线上）</td><td><code>/home/soar009/netsentinel-prod</code></td><td>开发目录的 git clone（origin 指向开发目录），只由 <code>scripts/deploy.sh</code> 更新，不要在里面改代码</td></tr>
-        <tr><td>集群/检测代码</td><td><code>/home/soar009/knetsentinel</code></td><td>GitHub <code>Wk-P/knetsentinel</code>（<b>HTTPS</b> 远程，分支 master）——是第二个独立仓库</td></tr>
+        <tr><td>集群/检测代码</td><td><code>/home/soar009/knetsentinel</code></td><td>GitHub <code>knet-lab/knetsentinel</code>（SSH 远程，分支 master）——是第二个独立仓库</td></tr>
         <tr><td>Python 环境</td><td>两个目录各有一个 <code>.venv</code>（uv 管理）</td><td>依赖见 <code>pyproject.toml</code> / <code>uv.lock</code></td></tr>
         <tr><td>Terraform 扫描工具</td><td><code>/home/soar009/terraform/.venv/bin/checkov</code></td><td>路径写死在 <code>backend/autotf/services.py:267</code> 和 <code>autotf_init.py:63-64</code></td></tr>
         <tr><td>后端服务</td><td><code>~/.config/systemd/user/netsentinel.service</code></td><td>运行 <code>netsentinel-prod</code>，uvicorn 监听 8080，user 级服务，已开 linger</td></tr>
@@ -101,19 +101,19 @@ kubectl get nodes        # 接手人执行，应看到 k8s-master + k8s-node1~4 
     </section>
 
     <section id="github">
-      <h2>1.2 GitHub：邀请到两个仓库</h2>
-      <p><code>user.email</code> 只决定提交上<b>显示</b>谁，能不能 push 取决于 GitHub <b>账号</b>是不是协作者。两个仓库要分别邀请：</p>
+      <h2>1.2 GitHub：加入 knet-lab 组织</h2>
+      <p>两个仓库都在实验室组织 <code>knet-lab</code> 下。<code>user.email</code> 只决定提交上<b>显示</b>谁，能不能 push 取决于你的 GitHub <b>账号</b>在不在组织里：</p>
       <div class="table-wrap"><table>
-        <tr><th>仓库</th><th>本地目录</th><th>邀请页面</th></tr>
-        <tr><td><code>Wk-P/NetSentinel</code></td><td><code>/home/soar009/github/NetSentinel</code></td><td><code>https://github.com/Wk-P/NetSentinel/settings/access</code></td></tr>
-        <tr><td><code>Wk-P/knetsentinel</code></td><td><code>/home/soar009/knetsentinel</code></td><td><code>https://github.com/Wk-P/knetsentinel/settings/access</code></td></tr>
+        <tr><th>仓库</th><th>本地目录</th><th>远程地址</th></tr>
+        <tr><td><code>knet-lab/NetSentinel</code></td><td><code>/home/soar009/github/NetSentinel</code></td><td><code>git@github.com:knet-lab/NetSentinel.git</code>（分支 main）</td></tr>
+        <tr><td><code>knet-lab/knetsentinel</code></td><td><code>/home/soar009/knetsentinel</code></td><td><code>git@github.com:knet-lab/knetsentinel.git</code>（分支 master）</td></tr>
       </table></div>
       <ol>
-        <li>原作者（Wk-P）打开上面两个页面 → <b>Add people</b> → 输入接手人的 GitHub 用户名 → 发送。协作者自动有 push 权限，邀请 7 天内有效。</li>
-        <li>接手人打开 <code>https://github.com/Wk-P/NetSentinel/invitations</code> 和 <code>https://github.com/Wk-P/knetsentinel/invitations</code> 分别接受。</li>
+        <li>组织的任意一位 Owner 打开 <code>https://github.com/orgs/knet-lab/people</code> → <b>Invite member</b> → 输入接手人的 GitHub 用户名。要能管理仓库和成员就给 <b>Owner</b>，只写代码给 <b>Member</b> 即可。</li>
+        <li>接手人打开 <code>https://github.com/orgs/knet-lab/invitation</code> 接受，一次邀请两个仓库都能用。</li>
         <li>接手人在 GitHub <b>Settings → Emails</b> 确认要用的提交邮箱已验证。</li>
       </ol>
-      <p>长期：两个仓库都是 Wk-P 个人仓库，原作者离开后无法给别人 Admin 权限。建议建一个实验室 Organization，用 <b>Settings → General → Transfer ownership</b> 把两个仓库转过去，然后在服务器上 <code>git remote set-url origin git@github.com:组织名/NetSentinel.git</code>（knetsentinel 同理）。</p>
+      <p>组织里始终保持至少两个 Owner，这样任何一个人离开都不会导致没人能管理仓库。</p>
     </section>
 
     <section id="git">
@@ -145,12 +145,11 @@ git config --global --list</code></pre>
       <h3>第 4 步：在哪里改代码</h3>
       <p><b>已迁移到 /srv（3.1 做过）</b>：直接在线上目录工作，改完重启服务即可。</p>
       <pre><code>cd /srv/netsentinel/NetSentinel && git status
-cd /srv/netsentinel/knetsentinel
-git remote set-url origin git@github.com:Wk-P/knetsentinel.git   # 原来是 HTTPS，改成 SSH 才能用密钥 push</code></pre>
+cd /srv/netsentinel/knetsentinel && git status</code></pre>
       <p><b>还没迁移</b>：你的账户对 soar009 的目录只有读权限，只能克隆到自己家目录开发：</p>
       <pre class="on-prod"><code>mkdir -p ~/github && cd ~/github
-git clone git@github.com:Wk-P/NetSentinel.git
-git clone git@github.com:Wk-P/knetsentinel.git ~/knetsentinel
+git clone git@github.com:knet-lab/NetSentinel.git
+git clone git@github.com:knet-lab/knetsentinel.git ~/knetsentinel
 # 改完 push 到 GitHub 后，部署到线上：
 sudo -iu soar009 bash -c 'cd ~/github/NetSentinel && git pull --ff-only && scripts/deploy.sh -all'   # 这里的 ~ 是 soar009 的</code></pre>
       <p>链路是 你的 clone → GitHub → soar009 的开发目录 <code>~/github/NetSentinel</code> → <code>deploy.sh</code> 拉到线上目录 <code>~/netsentinel-prod</code> 并构建、重启。不要直接在 <code>netsentinel-prod</code> 里 pull GitHub，它的 origin 是开发目录。</p>
@@ -167,8 +166,7 @@ git switch main && git push origin --delete test/handover && git branch -D test/
       <div class="table-wrap"><table>
         <tr><th>现象</th><th>原因</th><th>处理</th></tr>
         <tr><td><code>Permission denied (publickey)</code></td><td>服务器上你账户的公钥没加到 GitHub</td><td>第 1 步</td></tr>
-        <tr><td><code>Permission to Wk-P/NetSentinel.git denied to 你的用户名</code></td><td>没接受邀请（两个仓库各要接受一次）</td><td>1.2</td></tr>
-        <tr><td>knetsentinel push 时要求输入用户名密码</td><td>远程是 HTTPS</td><td>第 4 步的 <code>set-url</code></td></tr>
+        <tr><td><code>Permission to knet-lab/NetSentinel.git denied to 你的用户名</code></td><td>还没接受 knet-lab 组织的邀请</td><td>1.2</td></tr>
         <tr><td>提交作者显示 Wk-P</td><td>第 2 步没做，或在 soar009 身份下提交</td><td>第 2 步</td></tr>
         <tr><td><code>detected dubious ownership</code></td><td>仓库属于 soar009</td><td><code>git config --global --add safe.directory 仓库路径</code></td></tr>
         <tr><td><code>insufficient permission for adding an object</code></td><td>/srv 下有文件不是组可写</td><td><code>sudo chmod -R g+rwX /srv/netsentinel/NetSentinel/.git</code>，确认 umask 002</td></tr>

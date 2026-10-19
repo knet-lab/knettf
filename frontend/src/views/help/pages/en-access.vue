@@ -43,10 +43,10 @@ exit</code></pre>
 
     <section id="github">
       <h2>GitHub access</h2>
-      <div class="task"><h4><span class="n">1</span>Get invited to both repositories</h4>
-        <div class="do"><div>The original author (<code>Wk-P</code>) opens <code>https://github.com/Wk-P/NetSentinel/settings/access</code> and <code>https://github.com/Wk-P/knetsentinel/settings/access</code> → <span class="ui">Add people</span>. You accept both invitations at <code>https://github.com/Wk-P/NetSentinel/invitations</code> and <code>https://github.com/Wk-P/knetsentinel/invitations</code>.</div></div>
-        <div class="why"><div>Push rights come from being a collaborator; each repository needs its own invitation. Invitations expire after 7 days.</div></div>
-        <div class="res"><div>Both repositories show you as a collaborator. Long term, move both into a lab GitHub Organization so access does not depend on one person.</div></div>
+      <div class="task"><h4><span class="n">1</span>Join the knet-lab organization</h4>
+        <div class="do"><div>Any Owner of <code>knet-lab</code> opens <code>https://github.com/orgs/knet-lab/people</code> → <span class="ui">Invite member</span> and enters your GitHub username. You accept at <code>https://github.com/orgs/knet-lab/invitation</code>.</div></div>
+        <div class="why"><div>Both repositories (<code>knet-lab/NetSentinel</code> and <code>knet-lab/knetsentinel</code>) belong to the lab organization, so one invitation covers both. Keep at least two Owners so access never depends on one person.</div></div>
+        <div class="res"><div>You can see both repositories at <code>https://github.com/knet-lab</code>.</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>Give the server your GitHub key</h4>
         <div class="do"><div>Logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -C "your-github-email"

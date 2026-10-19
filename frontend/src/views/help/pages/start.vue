@@ -27,7 +27,7 @@
 
     <section id="code">
       <h2>代码在哪里</h2>
-      <p>代码分在两个 GitHub 仓库里，都属于原作者的账号 <code>Wk-P</code>：</p>
+      <p>代码分在两个 GitHub 仓库里，都在实验室的 GitHub 组织 <code>knet-lab</code> 下：</p>
       <div class="table-wrap"><table>
         <tr><th>仓库</th><th>内容</th><th>服务器上的目录</th></tr>
         <tr><td><b>NetSentinel</b></td><td>网站本身（前端 + 后端 + 检测模型）</td><td>开发目录 <code>~/github/NetSentinel</code>；线上目录 <code>~/netsentinel-prod</code></td></tr>

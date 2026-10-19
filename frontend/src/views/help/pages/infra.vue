@@ -185,7 +185,7 @@ docker run -d --name pg --restart unless-stopped -p 5432:5432 \
 docker exec pg psql -U vigil -c "CREATE DATABASE vigil_dev"      <span class="c"># 开发库</span>
 
 <span class="c"># —— N：开发目录 <span class="vn">~/github/NetSentinel</span> ——</span>
-git clone git@github.com:Wk-P/NetSentinel.git <span class="vn">~/github/NetSentinel</span>
+git clone git@github.com:knet-lab/NetSentinel.git <span class="vn">~/github/NetSentinel</span>
 cd <span class="vn">~/github/NetSentinel</span> &amp;&amp; uv sync
 printf 'ENVIRONMENT=linux_development\nVIGIL_KAFKA_GROUP_ID=vigil-bridge-dev\n' &gt; <span class="vn">~/github/NetSentinel</span>/backend/backend/.env
 printf 'VITE_API_BASE=/api\nVITE_WS_BASE=\n' &gt; <span class="vn">~/github/NetSentinel</span>/frontend/.env
