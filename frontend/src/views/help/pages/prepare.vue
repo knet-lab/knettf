@@ -162,14 +162,28 @@ git log -1 --format='%an <%ae>'     # 应是你自己
 git push -u origin test/handover
 git switch main && git push origin --delete test/handover && git branch -D test/handover</code></pre>
 
-      <h3>第 6 步：soar009 改用部署密钥，撤掉 Wk-P 的个人密钥（交接收尾，必须做）</h3>
-      <p>现在 soar009 连 GitHub 用的是 Wk-P 的个人密钥（<code>sudo -iu soar009 ssh -T git@github.com</code> 会显示 <code>Hi Wk-P!</code>），部署时的 <code>git pull</code> 都靠它。换成两把<b>只读部署密钥</b>，每个仓库一把（GitHub 不允许同一把部署密钥加到两个仓库）：</p>
+      <h3>第 6 步：soar009 完全换掉 Wk-P 的密钥（交接收尾，必须做）</h3>
+      <div class="danger">这一步不能省，也不能只做一半。Wk-P 的密钥必须<b>从服务器和 GitHub 两边都删掉</b>，交接才算完成。</div>
+      <p><b>现状：</b>服务器账户 soar009 和 GitHub 账号 Wk-P 都属于原作者本人。soar009 连 GitHub 用的是 Wk-P 的个人私钥 <code>/home/soar009/.ssh/github_ssh_key</code>（<code>sudo -iu soar009 ssh -T git@github.com</code> 会显示 <code>Hi Wk-P!</code>），部署时的 <code>git pull</code> 全靠它。原作者走后，后端、tunnel、crontab 还在 soar009 下继续跑，这把私钥也就一直留在服务器上。</p>
+      <p><b>不换会怎样：</b></p>
+      <ul>
+        <li><b>冒名：</b>任何能 sudo 的人都能拿这把私钥，以 Wk-P 的身份 push、删分支、改仓库，GitHub 上记的是原作者的名字，出了问题说不清是谁做的。</li>
+        <li><b>权限过大：</b>它不只是这两个仓库的钥匙，而是 Wk-P 整个 GitHub 账号的钥匙：Wk-P 能访问的所有仓库（包括与实验室无关的个人仓库）都能读写。</li>
+        <li><b>部署随时会断：</b>原作者哪天在 GitHub 上删掉这把公钥或注销账号，soar009 的 <code>git pull</code> 立刻失败，<code>scripts/deploy.sh</code> 拉不到新代码，而且事先没有任何提醒。</li>
+      </ul>
+      <p><b>换成什么：</b>每个仓库一把<b>只读部署密钥</b>（GitHub 不允许同一把部署密钥加到两个仓库，所以是两把）。部署密钥属于仓库本身，不属于任何人的账号；只能 pull 这一个仓库，不能 push，也碰不到别的仓库。谁离开都不影响部署。</p>
+      <p><b>过程：</b>先装新钥匙、验证能用，再拆旧钥匙。顺序不能反，否则中间部署会断。</p>
+
+      <h4>6.1 生成两把部署密钥并加到 GitHub</h4>
       <pre><code>sudo -iu soar009
 ssh-keygen -t ed25519 -N "" -C "soar009 deploy NetSentinel"  -f /home/soar009/.ssh/deploy_netsentinel
 ssh-keygen -t ed25519 -N "" -C "soar009 deploy knetsentinel" -f /home/soar009/.ssh/deploy_knetsentinel
 cat /home/soar009/.ssh/deploy_netsentinel.pub    # 加到 https://github.com/knet-lab/NetSentinel/settings/keys → Add deploy key，不勾 Allow write access
 cat /home/soar009/.ssh/deploy_knetsentinel.pub   # 加到 https://github.com/knet-lab/knetsentinel/settings/keys，同上</code></pre>
-      <p>把 <code>/home/soar009/.ssh/config</code> 里原来的 <code>Host github.com</code> 段整段换成：</p>
+      <p>加部署密钥需要仓库管理员权限，由 knet-lab 的 Owner 操作。</p>
+
+      <h4>6.2 改 SSH 配置和 remote</h4>
+      <p>把 <code>/home/soar009/.ssh/config</code> 里原来的 <code>Host github.com</code> 段（含 <code>IdentityFile ~/.ssh/github_ssh_key</code> 那一行）<b>整段删掉</b>，换成：</p>
       <pre><code>Host github-netsentinel
     HostName github.com
     User git
@@ -187,12 +201,20 @@ git -C /home/soar009/knetsentinel        remote set-url origin git@github-knetse
 git -C /home/soar009/github/NetSentinel fetch origin    # 不报错即可
 git -C /home/soar009/knetsentinel        fetch origin
 exit</code></pre>
-      <p>两边 fetch 都通过后：</p>
+      <p>任何一边 fetch 失败就停在这里，先排查，<b>不要</b>进行 6.3。</p>
+
+      <h4>6.3 拆掉 Wk-P 的密钥（两边都要删）</h4>
       <ol>
-        <li>删掉旧密钥：<code>sudo rm /home/soar009/.ssh/github_ssh_key</code>（若有同名 .pub 一并删）。</li>
-        <li>请 Wk-P 在自己 GitHub 的 <b>Settings → SSH and GPG keys</b> 里删掉对应这台服务器的那把公钥。</li>
+        <li>服务器上：<code>sudo rm /home/soar009/.ssh/github_ssh_key</code>。</li>
+        <li>GitHub 上：请 Wk-P 在自己账号的 <b>Settings → SSH and GPG keys</b> 里删掉这台服务器对应的那把公钥。只删服务器上的文件不够：若有人事先复制过私钥，GitHub 上那把不删，复制品照样能用。</li>
       </ol>
-      <p>之后 soar009 只能 pull 不能 push，正好符合「soar009 下不提交」的规矩；改代码一律用你自己的账户和密钥。</p>
+
+      <h4>6.4 确认已完全替换</h4>
+      <pre><code>sudo grep -rn github_ssh_key /home/soar009/.ssh/       # 应无输出
+sudo -iu soar009 ssh -T git@github.com                  # 应是 Permission denied，不再出现 Hi Wk-P!
+sudo -iu soar009 git -C /home/soar009/github/NetSentinel pull --ff-only   # 应成功
+sudo -iu soar009 git -C /home/soar009/github/NetSentinel push --dry-run   # 应被拒绝（只读）</code></pre>
+      <p>四条都符合才算交接完成。之后 soar009 只能 pull 不能 push，正好符合「soar009 下不提交」的规矩；改代码一律用你自己的账户和密钥。</p>
 
       <h3>常见错误</h3>
       <div class="table-wrap"><table>
@@ -207,7 +229,7 @@ exit</code></pre>
 
     <section id="ready">
       <h2>1.4 准备完成验收（阶段一到此结束）</h2>
-      <p>用<b>你自己的账户</b>登录服务器，逐条执行。6 条都符合，准备工作才算结束；任何一条不符合，回到对应小节。</p>
+      <p>用<b>你自己的账户</b>登录服务器，逐条执行。7 条都符合，准备工作才算结束；任何一条不符合，回到对应小节。</p>
       <div class="table-wrap"><table>
         <tr><th>#</th><th>检查</th><th>应该看到</th><th>不符合回到</th></tr>
         <tr><td>1</td><td><code>ssh NEWUSER@192.168.0.247</code></td><td>用密钥直接登录，不问密码</td><td>1.1 SSH 登录</td></tr>
@@ -216,6 +238,7 @@ exit</code></pre>
         <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 个节点 <code>Ready</code></td><td>1.1 kubectl</td></tr>
         <tr><td>5</td><td><code>ssh -T git@github.com</code></td><td><code>Hi 你的GitHub用户名!</code></td><td>1.3 第 1 步</td></tr>
         <tr><td>6</td><td>在两个仓库各试一次提交并 push</td><td>GitHub 上作者是你，不是 Wk-P</td><td>1.2、1.3 第 2–5 步</td></tr>
+        <tr><td>7</td><td><code>sudo -iu soar009 ssh -T git@github.com</code></td><td><code>Permission denied</code>，不再出现 <code>Hi Wk-P!</code>；且 soar009 下 <code>git pull</code> 仍成功</td><td>1.3 第 6 步</td></tr>
       </table></div>
     </section>
 
