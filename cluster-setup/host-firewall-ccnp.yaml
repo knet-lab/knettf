@@ -1,0 +1,22 @@
+apiVersion: "cilium.io/v2"
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: host-visibility
+spec:
+  nodeSelector: {}          # 所有节点的 host endpoint
+  ingress:
+  # 1. 集群内部流量（Pod、节点间、Cilium health）
+  - fromEntities:
+    - cluster
+    - host
+    - remote-node
+  # 2. 主机桥子网（192.168.100.0/24）：含宿主机 .1、VM .10~.14、MetalLB .200~.250、伪造 IP .20~.29
+  - fromCIDR:
+    - 192.168.100.0/24
+  # 3. Pod CIDR（Cilium overlay 内部流量）
+  - fromCIDR:
+    - 10.244.0.0/16
+  egress:
+  # 出方向不限制
+  - toEntities:
+    - all
