@@ -109,4 +109,10 @@ router.beforeEach((to) => {
   return true
 })
 
+// 记住上次用过的功能页，首页的 Continue 按钮直接回去
+router.afterEach((to) => {
+  if (to.meta.public || to.name === 'login') return
+  try { localStorage.setItem('lastPage', to.fullPath) } catch { /* 无痕模式等 */ }
+})
+
 export default router
