@@ -261,13 +261,13 @@ const parts = [
   align-items: flex-end;
   gap: 4px;
   padding: 8px 12px 0;
-  background: #1d2535;
+  background: #0f172a;
 }
 
 .help-tab {
   padding: 8px 16px;
   font-size: 13px;
-  color: #a0aec0;
+  color: #94a3b8;
   background: transparent;
   border: none;
   border-radius: 6px 6px 0 0;
@@ -280,8 +280,8 @@ const parts = [
 }
 
 .help-tab.active {
-  background: #f0f4f8;
-  color: #1d2535;
+  background: #f1f5f9;
+  color: #0f172a;
   font-weight: 600;
 }
 
@@ -302,7 +302,7 @@ const parts = [
   background:
     radial-gradient(ellipse 55% 90% at 0% 0%, rgba(20,184,166,.28), transparent 60%),
     radial-gradient(ellipse 50% 80% at 100% 100%, rgba(139,92,246,.30), transparent 60%),
-    linear-gradient(160deg, #0f172a 0%, #1d2535 100%);
+    linear-gradient(160deg, #0f172a 0%, #0f172a 100%);
   color: #e2e8f0;
 }
 .hh-hero::after {

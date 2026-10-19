@@ -12,4 +12,4 @@ export const NAV_LINKS: NavLink[] = [
   { to: '/help',   label: 'Help',           icon: QuestionFilled, public: true },
 ]
 
-export const ADMIN_LINK: NavLink = { to: '/admin/dashboard', label: 'Admin', icon: Setting }
+export const ADMIN_LINK: NavLink = { to: '/admin', label: 'Admin', icon: Setting }

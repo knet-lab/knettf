@@ -69,7 +69,7 @@ const continueTo = computed(() => {
 </script>
 
 <style scoped>
-.home { height: 100%; overflow-y: auto; background: #f1f5f9; color: #2d3748; }
+.home { height: 100%; overflow-y: auto; background: #f1f5f9; color: #1e293b; }
 
 /* 满宽深色 hero */
 .hero {
@@ -78,7 +78,7 @@ const continueTo = computed(() => {
   background:
     radial-gradient(ellipse 60% 80% at 15% 0%, rgba(59,130,246,.35), transparent 60%),
     radial-gradient(ellipse 50% 70% at 90% 100%, rgba(139,92,246,.30), transparent 60%),
-    linear-gradient(160deg, #0f172a 0%, #1d2535 100%);
+    linear-gradient(160deg, #0f172a 0%, #0f172a 100%);
   color: #e2e8f0;
 }
 .hero::after { /* 细网格纹理 */

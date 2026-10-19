@@ -1,1 +1,78 @@
 @import './base.css';
+
+/* ── NetSentinel 设计基础：全站只从这里取色 ── */
+:root {
+  --ns-ink-950: #0b1120;
+  --ns-ink-900: #0f172a;
+  --ns-ink-800: #1e293b;
+  --ns-ink-700: #334155;
+  --ns-ink-500: #64748b;
+  --ns-ink-400: #94a3b8;
+  --ns-ink-300: #cbd5e1;
+  --ns-ink-200: #e2e8f0;
+  --ns-ink-100: #f1f5f9;
+  --ns-ink-50: #f8fafc;
+
+  --ns-primary: #2563eb;
+  --ns-primary-soft: #eff6ff;
+  --ns-teal: #14b8a6;
+  --ns-violet: #8b5cf6;
+  --ns-success: #16a34a;
+  --ns-warning: #f59e0b;
+  --ns-danger: #ef4444;
+
+  --ns-radius: 12px;
+  --ns-radius-sm: 8px;
+  --ns-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+  --ns-shadow-lg: 0 14px 32px rgba(37, 99, 235, .14);
+  --ns-hero:
+    radial-gradient(ellipse 60% 80% at 15% 0%, rgba(59,130,246,.30), transparent 60%),
+    radial-gradient(ellipse 50% 70% at 90% 100%, rgba(139,92,246,.26), transparent 60%),
+    linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
+
+  /* Element Plus 主题 */
+  --el-color-primary: #2563eb;
+  --el-color-primary-light-3: #60a5fa;
+  --el-color-primary-light-5: #93c5fd;
+  --el-color-primary-light-7: #bfdbfe;
+  --el-color-primary-light-8: #dbeafe;
+  --el-color-primary-light-9: #eff6ff;
+  --el-color-primary-dark-2: #1d4ed8;
+  --el-color-success: #16a34a;
+  --el-color-warning: #f59e0b;
+  --el-color-danger: #ef4444;
+  --el-color-error: #ef4444;
+  --el-text-color-primary: #0f172a;
+  --el-text-color-regular: #334155;
+  --el-text-color-secondary: #64748b;
+  --el-border-color: #e2e8f0;
+  --el-border-color-light: #e2e8f0;
+  --el-border-color-lighter: #f1f5f9;
+  --el-fill-color-light: #f8fafc;
+  --el-bg-color-page: #f1f5f9;
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+/* Element Plus 组件微调 */
+.el-button { font-weight: 600; }
+.el-card { border-radius: var(--ns-radius); border-color: var(--ns-ink-200); box-shadow: var(--ns-shadow) !important; }
+.el-card__header { font-weight: 700; color: var(--ns-ink-900); }
+.el-dialog { border-radius: 16px; }
+.el-dialog__title { font-weight: 700; }
+.el-table th.el-table__cell { background: var(--ns-ink-50) !important; color: var(--ns-ink-500); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; }
+.el-tag { border-radius: 999px; font-weight: 600; }
+
+/* 通用页头：深色渐变带，与首页 hero 同源 */
+.ns-page { height: 100%; overflow-y: auto; background: var(--ns-ink-100); }
+.ns-page-head {
+  position: relative;
+  padding: 28px max(24px, calc((100% - 1440px) / 2)) 72px;
+  background: var(--ns-hero);
+  color: #e2e8f0;
+}
+.ns-page-head h1 { font-size: clamp(22px, 2.4vw, 32px); font-weight: 800; letter-spacing: -0.02em; color: #fff; }
+.ns-page-head p { margin-top: 6px; color: var(--ns-ink-400); font-size: 14.5px; }
+.ns-page-body { width: min(1440px, 100% - 48px); margin: -48px auto 0; padding-bottom: 40px; position: relative; }
+@media (max-width: 600px) { .ns-page-body { width: calc(100% - 32px); } }

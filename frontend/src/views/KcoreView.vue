@@ -59,8 +59,9 @@
     <!-- Right Content -->
     <main class="content">
       <div v-if="!selectedCluster" class="content-empty">
-        <el-icon size="48" color="#4a5568"><Folder /></el-icon>
-        <p>Select a cluster from the left</p>
+        <div class="empty-ico"><el-icon><Cpu /></el-icon></div>
+        <h3>Select a cluster</h3>
+        <p>Pick a cluster on the left to see its nodes, pods and logs, or click <b>Add</b> to register a new one.</p>
         <el-button class="narrow-only" type="primary" @click="sidebarOpen = true">
           <el-icon><List /></el-icon>
           My Clusters
@@ -415,7 +416,7 @@
         <code>{{ deleteDialog.name }}</code>
         <span v-if="deleteDialog.namespace"> in namespace <code>{{ deleteDialog.namespace }}</code></span>?
       </p>
-      <p style="color:#e53e3e;font-size:13px;margin-top:8px">This action cannot be undone.</p>
+      <p style="color:#ef4444;font-size:13px;margin-top:8px">This action cannot be undone.</p>
       <template #footer>
         <el-button @click="deleteDialog.visible = false">Cancel</el-button>
         <el-button type="danger" :loading="deleteDialog.loading" @click="submitDelete">Delete</el-button>
@@ -802,7 +803,7 @@ onUnmounted(disconnectWs)
 
 :deep(.sidebar-drawer .el-drawer__body) {
   padding: 0;
-  background: #1a2233;
+  background: #0f172a;
 }
 
 .drawer-sidebar {
@@ -815,8 +816,8 @@ onUnmounted(disconnectWs)
 .sidebar {
   width: 240px;
   flex-shrink: 0;
-  background: #1a2233;
-  border-right: 1px solid #2d3748;
+  background: #0f172a;
+  border-right: 1px solid #1e293b;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -827,13 +828,13 @@ onUnmounted(disconnectWs)
   align-items: center;
   justify-content: space-between;
   padding: 16px 14px;
-  border-bottom: 1px solid #2d3748;
+  border-bottom: 1px solid #1e293b;
 }
 
 .sidebar-title {
   font-size: 13px;
   font-weight: 600;
-  color: #a0aec0;
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -841,7 +842,7 @@ onUnmounted(disconnectWs)
 .sidebar-loading,
 .sidebar-empty {
   padding: 24px 16px;
-  color: #4a5568;
+  color: #475569;
   font-size: 13px;
   text-align: center;
 }
@@ -860,11 +861,11 @@ onUnmounted(disconnectWs)
 }
 
 .cluster-card:hover {
-  background: #1e2d42;
+  background: #1e293b;
 }
 
 .cluster-card.active {
-  background: #1e3a5f;
+  background: #1e3a8a;
   border-left-color: #3b82f6;
 }
 
@@ -881,7 +882,7 @@ onUnmounted(disconnectWs)
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #f0f4f8;
+  background: #f1f5f9;
 }
 
 .content-empty {
@@ -891,7 +892,7 @@ onUnmounted(disconnectWs)
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: #718096;
+  color: #64748b;
   font-size: 14px;
 }
 
@@ -908,7 +909,7 @@ onUnmounted(disconnectWs)
 .content-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1a202c;
+  color: #0f172a;
 }
 
 .resource-tabs {
@@ -945,7 +946,7 @@ onUnmounted(disconnectWs)
   padding: 12px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
-  background: #1a202c;
+  background: #0f172a;
   color: #e2e8f0;
   resize: vertical;
   outline: none;
@@ -953,7 +954,7 @@ onUnmounted(disconnectWs)
 }
 
 .yaml-editor.yaml-readonly {
-  background: #2d3748;
+  background: #1e293b;
   color: #cbd5e1;
   cursor: default;
 }
@@ -964,17 +965,17 @@ onUnmounted(disconnectWs)
   gap: 10px;
   padding: 40px;
   justify-content: center;
-  color: #718096;
+  color: #64748b;
 }
 
 .yaml-hint {
   font-size: 12.5px;
-  color: #718096;
+  color: #64748b;
   margin-bottom: 8px;
 }
 
 .yaml-hint code {
-  background: #f0f4f8;
+  background: #f1f5f9;
   padding: 1px 6px;
   border-radius: 3px;
 }
@@ -988,7 +989,7 @@ onUnmounted(disconnectWs)
 }
 
 .log-terminal {
-  background: #1a202c;
+  background: #0f172a;
   color: #e2e8f0;
   font-family: 'Courier New', monospace;
   font-size: 12px;
@@ -1000,4 +1001,22 @@ onUnmounted(disconnectWs)
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* ── 新 UI：统一工作区外观 ── */
+.sidebar { width: 264px; background: #0f172a; border-right: 1px solid rgba(255,255,255,.06); }
+.sidebar-header { padding: 20px 16px 16px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.sidebar-title { font-size: 11.5px; font-weight: 700; letter-spacing: .12em; color: #94a3b8; }
+.sidebar-empty { color: #64748b; }
+.cluster-list { padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+.cluster-card { padding: 12px 14px; border-radius: 10px; border-left: none; transition: background .15s, box-shadow .15s; }
+.cluster-card:hover { background: rgba(255,255,255,.05); }
+.cluster-card.active { background: rgba(37,99,235,.18); box-shadow: inset 3px 0 0 #60a5fa; }
+.cluster-card-name { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 6px; }
+.content { background: #f1f5f9; }
+.content-header { padding: 20px 28px; border-bottom: 1px solid #e2e8f0; background: #fff; }
+.content-title { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; color: #0f172a; }
+.content-empty { text-align: center; padding: 24px; }
+.content-empty h3 { font-size: 20px; font-weight: 800; color: #0f172a; }
+.content-empty p { max-width: 44ch; font-size: 14px; line-height: 1.7; color: #64748b; }
+.empty-ico { width: 72px; height: 72px; border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 34px; color: #2563eb; background: #eff6ff; box-shadow: 0 10px 24px rgba(37,99,235,.15); }
 </style>

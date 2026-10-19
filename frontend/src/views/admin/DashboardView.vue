@@ -1,31 +1,22 @@
 <template>
     <div>
-        <el-row :gutter="20">
-            <el-col :span="8">
-                <el-card class="stat-card">
-                    <div class="stat-value">{{ stats.users }}</div>
-                    <div class="stat-label">Total Users</div>
-                </el-card>
-            </el-col>
-            <el-col :span="8">
-                <el-card class="stat-card">
-                    <div class="stat-value">{{ stats.clusters }}</div>
-                    <div class="stat-label">Total Clusters</div>
-                </el-card>
-            </el-col>
-            <el-col :span="8">
-                <el-card class="stat-card">
-                    <div class="stat-value">{{ stats.tfConfigs }}</div>
-                    <div class="stat-label">Total TF Configs</div>
-                </el-card>
-            </el-col>
-        </el-row>
+        <div class="stats">
+            <RouterLink v-for="c in cards" :key="c.label" :to="c.to" class="stat" :style="{ '--accent': c.color }">
+                <el-icon class="ico"><component :is="c.icon" /></el-icon>
+                <div>
+                    <div class="value">{{ stats[c.key] }}</div>
+                    <div class="label">{{ c.label }}</div>
+                </div>
+                <el-icon class="go"><ArrowRight /></el-icon>
+            </RouterLink>
+        </div>
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { User, Connection, Document, ArrowRight } from '@element-plus/icons-vue'
 
 interface UserStat {
     cluster_count?: number
@@ -35,6 +26,11 @@ const BASE = import.meta.env.VITE_API_BASE
 const auth = useAuthStore()
 
 const stats = ref({ users: 0, clusters: 0, tfConfigs: 0 })
+const cards = [
+    { key: 'users', label: 'Total Users', to: '/admin/users', icon: User, color: '#2563eb' },
+    { key: 'clusters', label: 'Total Clusters', to: '/admin/clusters', icon: Connection, color: '#14b8a6' },
+    { key: 'tfConfigs', label: 'Total TF Configs', to: '/admin/tf-configs', icon: Document, color: '#8b5cf6' },
+] as const
 
 onMounted(async () => {
     const [usersRes, tfRes] = await Promise.all([
@@ -60,20 +56,17 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.stat-card {
-    text-align: center;
-    padding: 12px 0;
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+.stat {
+    display: flex; align-items: center; gap: 18px; padding: 26px 24px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: var(--ns-shadow);
+    text-decoration: none; color: inherit; transition: transform .15s, box-shadow .15s, border-color .15s;
 }
-
-.stat-value {
-    font-size: 40px;
-    font-weight: 700;
-    color: #409eff;
-}
-
-.stat-label {
-    margin-top: 8px;
-    font-size: 14px;
-    color: #909399;
-}
+.stat:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: var(--ns-shadow-lg); }
+.ico { width: 54px; height: 54px; border-radius: 14px; font-size: 26px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, #fff); }
+.stat > div { flex: 1; }
+.value { font-size: 36px; font-weight: 800; line-height: 1.1; color: #0f172a; letter-spacing: -0.02em; }
+.label { margin-top: 4px; font-size: 13.5px; color: #64748b; }
+.go { color: #cbd5e1; transition: color .15s, transform .15s; }
+.stat:hover .go { color: var(--accent); transform: translateX(3px); }
 </style>

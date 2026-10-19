@@ -16,9 +16,9 @@ import FooterComponent from '@/components/FooterComponent.vue'
 
 const route = useRoute()
 
-// Admin 有自己的 Layout，登录页不需要 Nav
+// 登录页不需要 Nav，其余（含 Admin）都显示
 const showNav = computed(
-  () => !route.path.startsWith('/admin') && route.path !== '/login',
+  () => route.path !== '/login',
 )
 </script>
 
