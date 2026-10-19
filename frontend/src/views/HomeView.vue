@@ -1,10 +1,5 @@
 <template>
   <div class="home">
-    <header class="home-top">
-      <span class="brand">NetSentinel</span>
-      <el-button v-if="auth.isLoggedIn" type="primary" @click="router.push(auth.isAdmin ? '/admin/dashboard' : '/kcore')">Open Console</el-button>
-      <el-button v-else type="primary" @click="router.push('/login')">Sign In</el-button>
-    </header>
 
     <section class="hero">
       <h1>Kubernetes Network Security Platform</h1>
@@ -20,7 +15,6 @@
       </a>
     </section>
 
-    <footer class="home-foot">The manual is open to everyone; other pages require signing in. Pick a card and you will return to it after signing in.</footer>
   </div>
 </template>
 
@@ -47,8 +41,6 @@ function go(to: string) {
 
 <style scoped>
 .home { min-height: 100vh; overflow-y: auto; background: #f0f4f8; color: #2d3748; }
-.home-top { display: flex; justify-content: space-between; align-items: center; padding: 14px 32px; background: #1d2535; }
-.brand { color: #fff; font-size: 18px; font-weight: 700; }
 .hero { text-align: center; padding: 64px 16px 32px; }
 .hero h1 { font-size: 30px; color: #1a202c; margin: 0 0 12px; }
 .hero p { font-size: 15px; color: #718096; margin: 0; }
@@ -59,5 +51,4 @@ function go(to: string) {
 .card span { font-size: 13px; color: #718096; line-height: 1.6; }
 .card em { position: absolute; top: 12px; right: 12px; font-style: normal; font-size: 11px; background: #faf5ff; color: #6b46c1; padding: 1px 8px; border-radius: 10px; }
 .card em.open { background: #e6fffa; color: #2c7a7b; }
-.home-foot { text-align: center; font-size: 12.5px; color: #a0aec0; padding: 24px 16px 40px; }
 </style>

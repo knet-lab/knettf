@@ -13,15 +13,12 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import NavComponent from '@/components/NavComponent.vue'
 import FooterComponent from '@/components/FooterComponent.vue'
-import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
-const auth = useAuthStore()
 
-// Admin 有自己的 Layout；登录页、首页不需要 Nav；未登录看手册时也不显示
+// Admin 有自己的 Layout，登录页不需要 Nav
 const showNav = computed(
-  () => !route.path.startsWith('/admin') && route.path !== '/login' && route.path !== '/' &&
-    !(route.path.startsWith('/help') && !auth.isLoggedIn),
+  () => !route.path.startsWith('/admin') && route.path !== '/login',
 )
 </script>
 

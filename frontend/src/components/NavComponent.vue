@@ -6,15 +6,19 @@
 
     <!-- wide: inline links -->
     <div class="nav-links wide-only">
-      <RouterLink v-for="l in links" :key="l.to" :to="l.to" class="nav-link">
+      <RouterLink v-for="l in links" :key="l.to" :to="l.to" class="nav-link" :exact-active-class="l.to === '/' ? 'router-link-active' : undefined" :active-class="l.to === '/' ? '' : 'router-link-active'">
         <el-icon><component :is="l.icon" /></el-icon>
         {{ l.label }}
+        <el-icon v-if="!l.public && !auth.isLoggedIn" class="lock"><Lock /></el-icon>
       </RouterLink>
     </div>
 
     <div class="nav-right">
-      <span class="username wide-only">{{ user?.username }}</span>
-      <el-button size="small" text style="color: #a0aec0" class="wide-only" @click="handleLogout">Sign Out</el-button>
+      <template v-if="auth.isLoggedIn">
+        <span class="username wide-only">{{ user?.username }}</span>
+        <el-button size="small" text style="color: #a0aec0" class="wide-only" @click="handleLogout">Sign Out</el-button>
+      </template>
+      <el-button v-else size="small" type="primary" class="wide-only" @click="signIn">Sign In</el-button>
 
       <!-- narrow: hamburger -->
       <el-button class="narrow-only hamburger" text @click="drawerOpen = true">
@@ -28,14 +32,18 @@
     :with-header="false" class="nav-drawer">
     <div class="drawer-inner">
       <div class="drawer-user">
-        <span class="drawer-username">{{ user?.username }}</span>
-        <el-button size="small" text style="color:#a0aec0" @click="handleLogout">Sign Out</el-button>
+        <template v-if="auth.isLoggedIn">
+          <span class="drawer-username">{{ user?.username }}</span>
+          <el-button size="small" text style="color:#a0aec0" @click="handleLogout">Sign Out</el-button>
+        </template>
+        <el-button v-else size="small" type="primary" @click="signIn">Sign In</el-button>
       </div>
       <div class="drawer-links">
-        <RouterLink v-for="l in links" :key="l.to" :to="l.to" class="drawer-link"
+        <RouterLink v-for="l in links" :key="l.to" :to="l.to" class="drawer-link" :active-class="l.to === '/' ? '' : 'router-link-active'"
           @click="drawerOpen = false">
           <el-icon><component :is="l.icon" /></el-icon>
           {{ l.label }}
+          <el-icon v-if="!l.public && !auth.isLoggedIn" class="lock"><Lock /></el-icon>
         </RouterLink>
       </div>
     </div>
@@ -43,10 +51,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Monitor, DataAnalysis, QuestionFilled, Menu } from '@element-plus/icons-vue'
+import { computed, ref } from 'vue'
+import { Menu, Lock } from '@element-plus/icons-vue'
+import { NAV_LINKS, ADMIN_LINK } from '@/config/navLinks'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
 const auth = useAuthStore()
@@ -54,12 +63,13 @@ const { user } = storeToRefs(auth)
 const router = useRouter()
 const drawerOpen = ref(false)
 
-const links = [
-  { to: '/kcore',  label: 'Kubernetes',     icon: Monitor },
-  { to: '/autotf', label: 'Terraform Scan', icon: DataAnalysis },
-  { to: '/vigil',  label: 'AI Vigil',       icon: DataAnalysis },
-  { to: '/help',   label: 'Help',           icon: QuestionFilled },
-]
+const route = useRoute()
+const links = computed(() => (auth.isAdmin ? [...NAV_LINKS, ADMIN_LINK] : NAV_LINKS))
+
+function signIn() {
+  drawerOpen.value = false
+  router.push({ path: '/login', query: { redirect: route.fullPath } })
+}
 
 function handleLogout() {
   auth.logout()
@@ -110,6 +120,7 @@ function handleLogout() {
 }
 
 .nav-link:hover { background: #2d3748; color: #e2e8f0; }
+.lock { font-size: 11px; opacity: .6; }
 .nav-link.router-link-active { background: #2563eb; color: #fff; }
 
 .nav-right {
