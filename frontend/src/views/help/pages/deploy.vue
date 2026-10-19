@@ -4,6 +4,39 @@
     <div class="meta">改了代码或配置之后，怎么让它在线上生效、会影响谁、怎么确认成功。<br>
       流程固定为：在开发目录 <code class="vn">~/github/NetSentinel</code> 的<b>个人分支</b>上改、<code>git commit</code>、<code>git push</code> → 在 GitHub 开 PR 合并到 <code>merge-dev</code> → 确认后把 <code>merge-dev</code> 原样快进到 <code>prod</code> → 跑 <code>scripts/deploy.sh</code>，脚本把 GitHub 上的 <code>prod</code> 拉到线上目录 <code class="vp">/srv/netsentinel/prod</code> 再构建、重启。两个目录的分工见 <a href="/help/index#envs">开发与生产</a>。其他改动按后面几节逐项做。</div>
 
+    <section id="branches">
+      <h2>分支与协作规则</h2>
+      <pre><code>soar009 ──┐
+          ├── PR（对方审核）──▶ merge-dev ──快进──▶ prod ──deploy.sh──▶ /srv/netsentinel/prod
+B 的分支 ─┘                   （默认分支）           （线上版本）</code></pre>
+      <div class="table-wrap"><table>
+        <tr><th>分支</th><th>谁改、怎么改</th><th>作用</th></tr>
+        <tr><td>个人分支（<code>soar009</code> 等）</td><td>本人随便 commit / push</td><td>自己的工作区，别人不往里推。每人一个，名字和 Linux 用户名一致</td></tr>
+        <tr><td><code>merge-dev</code></td><td>只能通过 PR 合并，<b>不直接 push</b></td><td>两人改动的汇合点，也是 GitHub 默认分支；上面的每个提交都经过对方审核</td></tr>
+        <tr><td><code>prod</code></td><td>只用 <code>git push origin origin/merge-dev:prod</code> 快进，<b>不 commit、不开 PR、不 force push</b></td><td>线上运行的版本，永远是 merge-dev 上某个已审核的提交</td></tr>
+      </table></div>
+      <div class="note">仓库是免费组织的私有仓库，GitHub 的分支保护（Rulesets）<b>不生效</b>，以上规则靠两人遵守。唯一由 Git 自动把关的是：不加 <code>-f</code> 时，非快进的 push 会被拒绝，所以 prod 不会被意外改写。<b>任何时候都不要用 <code>git push -f</code></b>。</div>
+      <div class="task"><h4><span class="n">1</span>审核：在 PR 上进行</h4>
+        <div class="do"><div>开 PR 时在右侧 <b>Reviewers</b> 点齿轮选对方。对方打开 PR → <b>Files changed</b> 逐行看，可以在行上留评论 → 右上 <b>Review changes</b> 选 <b>Approve</b>（同意）或 <b>Request changes</b>（要改）。要改时作者在自己的分支上继续 commit、push，PR 自动更新，再审一次。Approve 后由作者点 <b>Merge pull request</b>。</div></div>
+        <div class="why"><div>审核只做一次，就在进 merge-dev 之前。prod 和 merge-dev 内容完全相同，发布时不需要再审；发布前看一眼 <code>git log origin/prod..origin/merge-dev</code> 即可。</div></div>
+        <div class="res"><div>PR 页面显示 <code>merged ... into merge-dev from soar009</code>。看清楚是 <b>into merge-dev</b>。</div></div>
+      </div>
+      <div class="task"><h4><span class="n">2</span>常见情况</h4>
+        <div class="do"><div><div class="table-wrap"><table>
+          <tr><th>情况</th><th>做法</th></tr>
+          <tr><td>对方的 PR 已合并，我要跟上</td><td><code>git switch soar009 && git pull origin merge-dev</code>，有冲突就在自己分支上解决后 commit、push</td></tr>
+          <tr><td>PR 冲突（GitHub 显示 This branch has conflicts）</td><td>同上：在自己分支上 <code>git pull origin merge-dev</code>，解决冲突后 push，PR 自动变为可合并</td></tr>
+          <tr><td>PR 的 base 选错了</td><td>合并前：PR 标题旁 Edit，把 base 改成 <code>merge-dev</code>。已经合进别的分支：不用撤，重新开一个 base 为 <code>merge-dev</code> 的 PR</td></tr>
+          <tr><td>GitHub 首页提示 “prod had recent pushes · Compare &amp; pull request”</td><td>忽略，<b>不要点</b>。prod 不走 PR</td></tr>
+          <tr><td>发布时 <code>rejected (non-fast-forward)</code></td><td>说明 prod 上有 merge-dev 没有的提交（有人直接改了 prod）。用 <code>git log origin/merge-dev..origin/prod</code> 查是什么，两人商量，把需要的改动走 PR 进 merge-dev 后再发布</td></tr>
+          <tr><td>上线后出问题要回退</td><td>在个人分支上 <code>git revert &lt;提交&gt;</code> → PR → 快进 prod → 部署。不要在线上目录里改代码，也不要把 prod 往回 reset</td></tr>
+          <tr><td>新成员加入</td><td>owner 在 GitHub Settings → Collaborators 邀请（Write 权限）；Linux 账户见 <a href="/help/prepare">接手准备</a>；个人分支从 merge-dev 建：<code>git switch -c NEWUSER origin/merge-dev && git push -u origin NEWUSER</code></td></tr>
+        </table></div></div></div>
+        <div class="why"><div>所有改动都只从个人分支进入，经过 merge-dev 再到 prod，任何时候都能用 <code>git log</code> 查到某个线上版本是谁、在哪个 PR 里改的。</div></div>
+        <div class="res"><div><code>git branch -a</code> 只有 <code>merge-dev</code>、<code>prod</code> 和各人的个人分支，没有 main。</div></div>
+      </div>
+    </section>
+
     <section id="before">
       <h2>上线前</h2>
       <div class="note">分支：每人一个个人分支（如 <code>soar009</code>），只在自己的分支上 commit；<code>merge-dev</code> 只通过 PR 合并；<code>prod</code> 只从 <code>merge-dev</code> 快进，不在上面做任何修改。没有 main 分支。</div>
