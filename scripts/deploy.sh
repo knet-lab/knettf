@@ -4,14 +4,15 @@
 #   -frontend  pnpm install + pnpm build → 重启 netsentinel（WhiteNoise 启动时才扫描 dist）
 #   -backend   uv sync → manage.py check → collectstatic → migrate(default) → 重启 netsentinel → 检查 8080
 #   -all       两者都做（先后端，再前端）
-# 生产目录是 /srv/netsentinel/prod（netsentinel 账户运行的系统服务），只部署 GitHub 上已 push 的 main：
-# 先在自己的 clone 里 commit 并 push，脚本会在生产目录 git pull 后再构建/重启。
+# 生产目录是 /srv/netsentinel/prod（netsentinel 账户运行的系统服务），只部署 GitHub 上的 prod 分支：
+# 个人分支 → PR 合并到 merge-dev → merge-dev 快进到 prod，脚本会在生产目录 git pull 后再构建/重启。
 # 运行者须在 netsentinel 组（id 能看到），git pull 用运行者自己的 GitHub 密钥。
 # vigil 库（PostgreSQL）不会自动 migrate：大表 ALTER 可能很慢，有未应用的迁移时只提示。
 set -euo pipefail
 
 DEV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT="${NETSENTINEL_PROD:-/srv/netsentinel/prod}"
+BRANCH=prod
 PY="$ROOT/.venv/bin/python"
 SERVICE=netsentinel
 PORT=8080
@@ -42,13 +43,14 @@ for arg in "$@"; do
 done
 
 sync_code() {
-  log "同步代码：GitHub origin/main → $ROOT"
+  log "同步代码：GitHub origin/$BRANCH → $ROOT"
   [ -d "$ROOT/.git" ] || die "找不到生产目录 $ROOT"
+  [ "$(git -C "$ROOT" branch --show-current)" = "$BRANCH" ] || die "生产目录不在 $BRANCH 分支上（git -C $ROOT branch --show-current）"
   if [ -n "$(git -C "$DEV_ROOT" status --porcelain)" ]; then
     printf '\033[1;33m! 开发目录有未提交的改动，它们不会被部署\033[0m\n'
   fi
   [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] || die "生产目录有本地改动，不允许部署（不要在生产目录里改代码）"
-  git -C "$ROOT" pull --ff-only -q origin main
+  git -C "$ROOT" pull --ff-only -q origin "$BRANCH"
   git -C "$ROOT" log --oneline -1
 }
 

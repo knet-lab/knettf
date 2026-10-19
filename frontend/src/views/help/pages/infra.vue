@@ -1,7 +1,7 @@
 <template>
   <div v-pre>
         <h1>集群与 Shell 脚本</h1>
-    <div class="meta">读完你能：画出宿主机、网桥、VM、集群组件的关系；读懂 00 / 01 / 02 / 03 四个脚本每一步在做什么、为什么这样做；看懂 Kafka、Vector、靶机的清单；知道宿主机上 systemd、cloudflared、crontab、PostgreSQL 容器的配置。<br>
+    <div class="meta">读完你能：画出宿主机、网桥、VM、集群组件的关系；读懂 00 / 01 / 02 / 03 四个脚本每一步在做什么、为什么这样做；看懂 Kafka、Vector、靶机的清单；知道宿主机上 systemd、cloudflared、/etc/cron.d 定时任务、PostgreSQL 容器的配置。<br>
       脚本在 <span class="tag tag-k">K</span> <code>~/knetsentinel/kubeadm-cluster/</code>，都以普通用户运行（内部按需 <code>sudo</code>），<b>不要</b> <code>sudo bash</code> 整个脚本（kubeconfig 会写到 root 家目录）。逐步的开关机 / 重建命令见 <a href="/help/power">开关机 · 重建 · 备份</a>。</div>
 
     <section id="ip">
@@ -31,7 +31,7 @@
         <li>Ubuntu，支持 KVM（<code>kvm-ok</code> 或 <code>ls /dev/kvm</code>），能 sudo，能访问外网。</li>
         <li>出网网卡 <code>enp6s0</code>（02 脚本写死在 <code>HOST_NIC</code>，换机器要改；<code>ip route get 1.1.1.1</code> 查）。</li>
         <li><code>~/vm-images</code> 所在分区可用 ≥ 420GB（01 脚本检查；master 120G + 4×60G，qcow2 稀疏分配，实际占用小得多）。</li>
-        <li>工具：<code>virtinst qemu-utils genisoimage wget python3</code>（01 自动装）、<code>kubectl</code>、<code>helm</code>（02 自动装）、<code>docker</code>、<code>uv</code>、<code>pnpm</code>、<code>terraform</code>、<code>tflint</code>、<code>tfsec</code>、<code>trivy</code>、checkov（在 <code>~/terraform/.venv</code>）、<code>hubble</code> CLI（可选）。</li>
+        <li>工具：<code>virtinst qemu-utils genisoimage wget python3</code>（01 自动装）、<code>kubectl</code>、<code>helm</code>（02 自动装）、<code>docker</code>、<code>uv</code>、<code>pnpm</code>、<code>terraform</code>、<code>tflint</code>、<code>tfsec</code>、<code>trivy</code>、checkov（在 <code>/srv/netsentinel/tools/checkov</code>，依赖见 <code>deploy/checkov-requirements.txt</code>）、<code>hubble</code> CLI（可选）。</li>
         <li>SSH 密钥 <code>~/.ssh/id_rsa</code>（01 没有就生成），公钥会写进每台 VM 的 <code>k8s</code> 用户。</li>
       </ul>
     </section>

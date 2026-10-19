@@ -167,9 +167,9 @@ _ATTACK_TYPE_POLICY = {"syn_flood": "drop", "flood": "rate_limit", "port_scan": 
       <ul>
         <li>父表 <code>vigil_detectionrecord</code>，<code>PARTITION BY RANGE (created_at)</code>，主键 <code>(id, created_at)</code>（分区表要求主键包含分区键）。</li>
         <li>子表 <code>vigil_detectionrecord_YYYY_MM_DD</code>，每个覆盖 [当天 00:00 UTC, 次日 00:00 UTC)。</li>
-        <li>迁移时预建 91 个（过去 89 天 + 今天 + 明天）；之后每天 0 点 crontab 跑 <code>rotate_partitions</code>：建明天的，删 90 天前那天往前 7 天内的。</li>
+        <li>迁移时预建 91 个（过去 89 天 + 今天 + 明天）；之后每天 0 点由 <code>/etc/cron.d/netsentinel</code> 跑 <code>rotate_partitions</code>：建明天的，删 90 天前那天往前 7 天内的。</li>
         <li>索引建在父表上，自动继承：<code>is_attack</code>、<code>model_name</code>、<code>created_at DESC</code>。</li>
-        <li><b>没有对应分区时插入会失败</b>（<code>no partition of relation ... found for row</code>），drainer 丢弃整批。crontab 漏跑一天就会出现。</li>
+        <li><b>没有对应分区时插入会失败</b>（<code>no partition of relation ... found for row</code>），drainer 丢弃整批。定时任务漏跑一天就会出现。</li>
         <li><code>DetectionRecord</code> 模型 <code>managed=False</code>，Django 不会为它生成迁移。</li>
       </ul>
 <pre><code><span class="c"># 有哪些分区、各多少行</span>

@@ -1,7 +1,7 @@
 <template>
   <div v-pre lang="en">
     <h1>Deploying Changes</h1>
-    <div class="meta">Always: edit and commit in the development directory <code>~/github/NetSentinel</code>, push to GitHub, then run <code>scripts/deploy.sh</code> there (your account must be in the <code>netsentinel</code> group). The script pulls GitHub <code>main</code> into <code>/srv/netsentinel/prod</code>, builds and restarts.</div>
+    <div class="meta">Always: edit in the development directory <code>~/github/NetSentinel</code>, then run <code>scripts/deploy.sh</code> there (your account must be in the <code>netsentinel</code> group). Commit on your personal branch, open a PR into <code>merge-dev</code>, then fast-forward <code>prod</code> to it (<code>git push origin origin/merge-dev:prod</code>). The script pulls GitHub <code>prod</code> into <code>/srv/netsentinel/prod</code>, builds and restarts.</div>
 
     <section id="code">
       <h2>Frontend and backend code</h2>

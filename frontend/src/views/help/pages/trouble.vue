@@ -78,7 +78,7 @@
         <tr><td>删除 <code>kafka-controller</code> Pod、任何 Namespace</td><td>controller 是裸 Pod，删了不会重建，只能重建 Kafka</td></tr>
         <tr><td>同时开两条检测入口（A / B / C）</td><td>各自独立消费 Kafka 并写库，同一条流会被记录两次</td></tr>
         <tr><td>在 <code class="vp">/srv/netsentinel/prod</code> 里跑 <code>manage.py runserver</code>，或在没设 <code>VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev</code> 的开发环境跑</td><td>会再启动一个 bridge，和线上同一个 consumer group，分走 Kafka 分区，线上漏收流量</td></tr>
-        <tr><td>在 <code class="vp">/srv/netsentinel/prod</code> 里改代码、<code>git commit</code> 或 <code>git pull</code> GitHub</td><td><code>deploy.sh</code> 检测到生产目录有本地改动会直接拒绝部署；线上只能由 <code>deploy.sh</code> 从 GitHub 的 main 更新</td></tr>
+        <tr><td>在 <code class="vp">/srv/netsentinel/prod</code> 里改代码、<code>git commit</code> 或 <code>git pull</code> GitHub</td><td><code>deploy.sh</code> 检测到生产目录有本地改动会直接拒绝部署；线上只能由 <code>deploy.sh</code> 从 GitHub 的 prod 更新</td></tr>
         <tr><td>把 <code>/etc/cron.d/netsentinel</code> 的 <code>rotate_partitions</code> 改成开发目录</td><td>开发目录默认连 <code>vigil_dev</code>，分区会建到开发库，线上过零点全部写入失败（2026-10-19 出过一次）</td></tr>
         <tr><td><code>sudo bash</code> 跑集群脚本</td><td>kubeconfig 会写到 root 的家目录</td></tr>
         <tr><td><code>docker stop pg</code></td><td>手动停过的容器开机后不会自启</td></tr>

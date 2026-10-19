@@ -247,7 +247,7 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
         <tr><td><code>../.venv/bin/python manage.py users_init</code> / <code>users_clear</code></td><td>初始化 / 清空用户</td></tr>
         <tr><td><code>../.venv/bin/python manage.py autotf_init</code> / <code>autotf_clear</code></td><td>初始化 / 清空 Terraform 数据</td></tr>
         <tr><td><code>../.venv/bin/python manage.py generate_bridge_token [--username vigil-bridge] [--years 10] [--write-env]</code></td><td>生成长期 JWT 并写入 <code>backend/backend/.env</code>（需重启服务生效）</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py rotate_partitions [--database vigil] [--dry-run]</code></td><td>建明天分区、删 90 天前的分区（crontab 每天 0 点跑）</td></tr>
+        <tr><td><code>../.venv/bin/python manage.py rotate_partitions [--database vigil] [--dry-run]</code></td><td>建明天分区、删 90 天前的分区（<code>/etc/cron.d/netsentinel</code> 每天 0 点以 netsentinel 账户跑）</td></tr>
         <tr><td><code>../.venv/bin/python manage.py test kcore autotf</code></td><td>跑单元测试：145 个用例，约 5 分钟（2026-10-18 全部通过）。测试库为临时 SQLite，不影响线上数据</td></tr>
         <tr><td><code>../.venv/bin/python manage.py runserver 8090</code></td><td>开发服务器（只在 <code class="vn">~/github/NetSentinel</code> 里跑；8000 被别的项目占用）。<b>会启动 bridge</b>，见 3.2</td></tr>
       </table></div>

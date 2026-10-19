@@ -123,7 +123,7 @@
 
     <section id="envs">
       <h2>0.5 开发与生产</h2>
-      <p>同一台宿主机上有两份 NetSentinel：<code class="vn">~/github/NetSentinel</code> 是开发目录（平时改代码的地方），<code class="vp">/srv/netsentinel/prod</code> 是线上目录（归 <code>netsentinel</code> 账户和组，GitHub knet-lab/NetSentinel 的 clone，只放已 push 的 main）。两边的数据库、<code>.env</code>、<code>.venv</code>、<code>dist</code> 完全分开。</p>
+      <p>同一台宿主机上有两份 NetSentinel：<code class="vn">~/github/NetSentinel</code> 是开发目录（平时改代码的地方），<code class="vp">/srv/netsentinel/prod</code> 是线上目录（归 <code>netsentinel</code> 账户和组，GitHub knet-lab/NetSentinel 的 clone，停在 prod 分支，只放 GitHub 上 prod 的代码）。两边的数据库、<code>.env</code>、<code>.venv</code>、<code>dist</code> 完全分开。</p>
       <div class="table-wrap"><table>
         <tr><th></th><th>开发 <code class="vn">~/github/NetSentinel</code></th><th>线上 <code class="vp">/srv/netsentinel/prod</code></th></tr>
         <tr><td>后端</td><td><code class="vn">cd ~/github/NetSentinel/backend &amp;&amp; ../.venv/bin/python manage.py runserver 8090</code></td><td>systemd <code>netsentinel</code>，uvicorn :8080</td></tr>
