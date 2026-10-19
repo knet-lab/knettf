@@ -1,10 +1,10 @@
 <template>
   <div v-pre>
-        <h1>已知问题与练习</h1>
+        <h1>9 已知问题与练习</h1>
     <div class="meta">第一部分列出 2026-10-18 核对代码时发现的问题，接手后可按优先级逐个解决。第二部分是一组由浅入深的练习，做完说明你已经掌握了整个项目。</div>
 
     <section id="security">
-      <h2>8.1 安全问题（站点在公网，优先处理）</h2>
+      <h2>9.1 安全问题（站点在公网，优先处理）</h2>
       <div class="table-wrap"><table>
         <tr><th>问题</th><th>位置</th><th>影响</th><th>建议</th></tr>
         <tr><td>数据库密码默认值写在代码里；<code>CORS_ALLOW_ALL_ORIGINS</code>（SECRET_KEY / DEBUG / ALLOWED_HOSTS 已从 .env 读，线上已关 DEBUG）</td><td><code>backend/settings.py</code></td><td>能读仓库的人知道 PostgreSQL 密码；任何站点可跨域调用 API</td><td>改 PostgreSQL 密码并只写进线上 .env（<code>VIGIL_DB_PASSWORD</code>）；限定 CORS 来源</td></tr>
@@ -18,7 +18,7 @@
     </section>
 
     <section id="reliability">
-      <h2>8.2 可靠性问题</h2>
+      <h2>9.2 可靠性问题</h2>
       <div class="table-wrap"><table>
         <tr><th>问题</th><th>位置</th><th>影响</th><th>建议</th></tr>
         <tr><td>bridge 出错后线程退出、不重连</td><td><code>vigil/bridge.py run_bridge()</code></td><td>集群重启 / Kafka 抖动后检测停止，必须人工重启后端</td><td>外层加 while True + 退避重试</td></tr>
@@ -37,7 +37,7 @@
     </section>
 
     <section id="bugs">
-      <h2>8.3 功能缺陷</h2>
+      <h2>9.3 功能缺陷</h2>
       <div class="table-wrap"><table>
         <tr><th>现象</th><th>原因</th><th>改法</th></tr>
         <tr><td>管理后台 Dashboard 的 Total Clusters、Total TF Configs 恒为 0</td><td>前端调用不存在的 <code>/api/autotf/tf-configs/all/</code>；用户序列化器没有 <code>cluster_count</code></td><td>后端加汇总接口，或前端复用 ClustersView / TFConfigsView 的拼接逻辑</td></tr>
@@ -55,7 +55,7 @@
     </section>
 
     <section id="ex1">
-      <h2>8.4 练习一：使用</h2>
+      <h2>9.4 练习一：使用</h2>
       <ol>
         <li>用 admin 登录，新建用户 <code>trainee</code>，再用命令行把它设为管理员，确认 Role 变成 Admin。</li>
         <li>以 trainee 登记实验集群，找到 <code>default</code> 命名空间里 <code>kafka-broker-0</code> 的日志，说出它最后一行在干什么。</li>
@@ -66,7 +66,7 @@
     </section>
 
     <section id="ex2">
-      <h2>8.5 练习二：代码阅读</h2>
+      <h2>9.5 练习二：代码阅读</h2>
       <ol>
         <li>access token 过期的瞬间，页面同时发出 3 个请求，<code>auth.ts</code> 会调用几次刷新接口？为什么？</li>
         <li>浏览器直接打开 <code>https://knettf.com/vigil/log</code>，从 Cloudflare 到 Vue 组件渲染，依次经过了哪些代码？</li>
@@ -90,12 +90,12 @@
     </section>
 
     <section id="ex3">
-      <h2>8.6 练习三：动手改</h2>
+      <h2>9.6 练习三：动手改</h2>
       <ol>
-        <li>按<a href="/help/backend">《后端代码》</a> 3.11 加 <code>/api/vigil/top-sources/</code>，再按<a href="/help/frontend">《前端代码》</a> 2.11 的方式在看板上展示它。</li>
-        <li>修复 Dashboard 恒为 0 的问题（8.3 第一条），写一个后端测试。</li>
+        <li>按<a href="/help/backend#practice">《后端代码》· 实战：新增一个接口</a> 加 <code>/api/vigil/top-sources/</code>，再按<a href="/help/frontend#practice">《前端代码》· 实战</a> 的方式在看板上展示它。</li>
+        <li>修复 Dashboard 恒为 0 的问题（<a href="#bugs">功能缺陷</a> 第一条），写一个后端测试。</li>
         <li>给 <code>run_bridge()</code> 加自动重连：停掉一个 Kafka broker 再恢复，确认无需重启后端就能继续入库。</li>
-        <li>把模型资源缓存到 <code>AdsMLModel</code> 实例里，用 <code>raw_output.inference_ms</code> 对比改前改后的平均耗时（6.7 的 SQL）。</li>
+        <li>把模型资源缓存到 <code>AdsMLModel</code> 实例里，用 <code>raw_output.inference_ms</code> 对比改前改后的平均耗时（<a href="/help/lab#eval">《实验脚本》· 评估常用 SQL</a>）。</li>
         <li>完整做一次计划停机和开机恢复（<a href="/help/power">开关机 · 重建 · 备份</a>），记录每一步花的时间。</li>
         <li>在一个不影响他人的时间窗口，按 <a href="/help/power#rebuild-kafka">重建 Kafka</a>，并确认端到端恢复。</li>
       </ol>

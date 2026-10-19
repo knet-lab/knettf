@@ -31,9 +31,9 @@
       <div class="table-wrap"><table>
         <tr><th>仓库</th><th>内容</th><th>服务器上的目录</th></tr>
         <tr><td><b>NetSentinel</b></td><td>网站本身（前端 + 后端 + 检测模型）</td><td>开发目录 <code>/home/NEWUSER/github/NetSentinel</code>；线上目录 <code>/srv/netsentinel/prod</code></td></tr>
-        <tr><td><b>knetsentinel</b></td><td>实验集群的搭建脚本和发流量的脚本</td><td><code>/srv/netsentinel/knetsentinel</code></td></tr>
+        <tr><td><b>knetsentinel</b></td><td>实验集群的搭建脚本和发流量的脚本</td><td>开发目录 <code>/home/NEWUSER/github/knetsentinel</code>；运行目录 <code>/srv/netsentinel/knetsentinel</code></td></tr>
       </table></div>
-      <p>网站有<b>两份</b>：开发目录用来改代码和试验，线上目录是用户实际在用的。改好的代码要用一条部署命令发布到线上，不能直接在线上目录里改。具体做法在项目手册「改动上线」里。</p>
+      <p>网站有<b>两份</b>：开发目录用来改代码和试验，线上目录是用户实际在用的。改好的代码经 GitHub PR 审查合并后，用 <code>/srv/netsentinel/release.sh</code> 发布到线上，不能直接在线上目录里改。具体做法在项目手册「改动上线」里。</p>
     </section>
 
     <section id="duty">
@@ -44,6 +44,7 @@
         <tr><td>只做一次</td><td>改掉网站默认账号的密码，核对用户</td><td>本教程第 3 步</td></tr>
         <tr><td>每天 5 分钟</td><td>健康检查：确认网站、数据库、集群都正常</td><td>项目手册 · 每日健康检查</td></tr>
         <tr><td>服务器重启后</td><td>手动启动实验集群，再重启网站服务</td><td>项目手册 · 开关机</td></tr>
+        <tr><td>有人离开时</td><td>移交外部账号和口令</td><td>项目手册 · 人员交接</td></tr>
         <tr><td>出问题时</td><td>按看到的现象查原因</td><td>项目手册 · 排障与日志</td></tr>
       </table></div>
       <div class="note">服务器上还跑着别的项目（my-code、pnu-notice 等），不属于 NetSentinel，不要停也不要删。</div>

@@ -17,7 +17,7 @@ const BOOKS: Book[] = [
   { id: 'tutorial', name: '入门教程', lang: 'zh', accent: '#14b8a6', tutorial: true, groups: [
     { name: '按顺序做', pages: [
       { key: 'start', title: '先认识这个项目', desc: '系统做什么、由哪几块组成、日常要做的事' },
-      { key: 'prepare', title: '账户、权限与 GitHub', desc: '服务器账户、组权限、仓库邀请、提交身份' },
+      { key: 'prepare', title: '账户、权限与 GitHub', desc: '服务器账户、组权限、GitHub 组织、密钥与提交设置' },
       { key: 'account', title: '网站账号与令牌', desc: '改默认密码、加管理员、服务令牌' },
       { key: 'firstday', title: '接手第一天', desc: '第一天要做完的事，做完进入项目手册' },
     ] },
@@ -28,17 +28,18 @@ const BOOKS: Book[] = [
       { key: 'deploy', title: '改动上线' },
       { key: 'power', title: '开关机 · 重建 · 备份' },
       { key: 'trouble', title: '排障与日志' },
+      { key: 'handover', title: '人员交接' },
     ] },
     { name: '开发参考', pages: [
-      { key: 'index', title: '系统总览' },
-      { key: 'frontend', title: '前端代码' },
-      { key: 'backend', title: '后端代码' },
-      { key: 'detect', title: '检测链路与模型' },
-      { key: 'infra', title: '集群与 Shell 脚本' },
-      { key: 'lab', title: '实验脚本' },
-      { key: 'api', title: 'API 逐接口' },
-      { key: 'db', title: '数据库与字段' },
-      { key: 'issues', title: '已知问题与练习' },
+      { key: 'index', title: '1 系统总览' },
+      { key: 'frontend', title: '2 前端代码' },
+      { key: 'backend', title: '3 后端代码' },
+      { key: 'detect', title: '4 检测链路与模型' },
+      { key: 'infra', title: '5 集群与 Shell 脚本' },
+      { key: 'lab', title: '6 实验脚本' },
+      { key: 'api', title: '7 API 逐接口' },
+      { key: 'db', title: '8 数据库与字段' },
+      { key: 'issues', title: '9 已知问题与练习' },
     ] },
   ] },
   { id: 'manual-en', name: 'Project Handbook', lang: 'en', accent: '#2563eb', twin: 'manual', groups: [
@@ -51,6 +52,7 @@ const BOOKS: Book[] = [
       { key: 'en-deploy', title: 'Deploying Changes' },
       { key: 'en-power', title: 'Shutdown, Startup & Backup' },
       { key: 'en-trouble', title: 'Troubleshooting & Logs' },
+      { key: 'en-handover', title: 'Handover' },
     ] },
   ] },
   { id: 'web', name: 'Web Guide', lang: 'en', accent: '#8b5cf6', groups: [
@@ -106,12 +108,23 @@ watch(
     await nextTick()
     toc.value = [...(body.value?.querySelectorAll<HTMLElement>('section[id] > h2') ?? [])]
       .map((h) => ({ id: h.parentElement!.id, text: h.textContent ?? '' }))
+    await renderUml()
     scrollToHash(route.hash)
     onScroll()
   },
   { immediate: true },
 )
 watch(() => route.hash, (h) => { if (page.value) scrollToHash(h) })
+
+// 手册里的 UML 图：<pre class="uml"> 写 Mermaid 源码，加载页面后渲染成 SVG；只在有图的页面才加载 mermaid
+async function renderUml() {
+  const nodes = [...(body.value?.querySelectorAll<HTMLElement>('pre.uml:not([data-processed])') ?? [])]
+  if (!nodes.length) return
+  const { default: mermaid } = await import('mermaid')
+  mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict', fontFamily: 'inherit',
+    flowchart: { htmlLabels: true, curve: 'basis' }, sequence: { mirrorActors: false, wrap: true } })
+  await mermaid.run({ nodes })
+}
 
 function onScroll() {
   let id = toc.value[0]?.id ?? ''

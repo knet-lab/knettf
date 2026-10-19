@@ -5,7 +5,10 @@
 
     <section id="branches">
       <h2>Branches and collaboration</h2>
-      <pre><code>personal branch ── PR (reviewed by the other person) ──▶ merge-dev ──fast-forward──▶ prod ──deploy.sh──▶ /srv/netsentinel/prod</code></pre>
+      <pre class="uml">flowchart LR
+  A["Personal branch"] -->|"PR, reviewed by the other person"| B["merge-dev"]
+  B -->|"fast-forward (release.sh)"| C["prod"]
+  C -->|"deploy.sh"| D["/srv/netsentinel/prod"]</pre>
       <div class="table-wrap"><table>
         <tr><th>Branch</th><th>Who changes it, how</th><th>Purpose</th></tr>
         <tr><td>Personal (<code>NEWUSER</code>, …)</td><td>Owner commits and pushes freely</td><td>Your own workspace, named after your Linux user</td></tr>

@@ -6,32 +6,31 @@
 
     <section id="branches">
       <h2>分支与协作规则</h2>
-      <pre><code><span class="c">  开发目录 /home/NEWUSER/github/NetSentinel（每人自己的）               GitHub knet-lab/NetSentinel                       服务器</span>
-
-  ① git switch NEWUSER
-     git pull origin merge-dev   ── 先跟上 merge-dev
-     改代码、本地测试
-     git commit
-     git push origin NEWUSER ───────────────▶  NEWUSER ──┐
-                                                         │ ② 开 PR：base = merge-dev ← compare = NEWUSER
-  B：同样的步骤 ────────────────────────────▶  B 的分支 ─┤    Reviewers 选对方
-                                                         ▼
-                                              ③ 对方审核：Files changed → Review changes
-                                                 ├─ Request changes → 回到 ①，在原分支继续 commit / push，PR 自动更新
-                                                 └─ Approve → 作者点 Merge pull request
-                                                         │
-                                                         ▼
-                                                 merge-dev（默认分支，只经 PR 改动）
-                                                         │
-  ④ 手动发布（在服务器上，PR 合并后）                    │
-     /srv/netsentinel/release.sh -frontend ─── 快进 ────▶ prod（= merge-dev 的同一个提交，不产生新提交）
-        列出 origin/prod..origin/merge-dev，输入 y                │
-                                                                  │ deploy.sh：git pull --ff-only
-                                                                  ▼
-                                                        /srv/netsentinel/prod（停在 prod 分支）
-                                                        构建 / 迁移 → 重启 netsentinel → HTTP 200 → https://knettf.com
-
-  ⑤ 下次开始干活时回到 ①：git pull origin merge-dev 会带回 PR 的合并提交和对方的改动</code></pre>
+      <pre class="uml">sequenceDiagram
+  autonumber
+  actor Dev as 开发者 NEWUSER
+  participant Local as 开发目录<br>/home/NEWUSER/github/NetSentinel
+  participant GH as GitHub<br>knet-lab/NetSentinel
+  actor Rev as 审查人（另一位 owner）
+  participant Rel as /srv/netsentinel/release.sh
+  participant Prod as /srv/netsentinel/prod
+  Dev->>Local: git switch NEWUSER，git pull origin merge-dev（先跟上已合并的改动）
+  Dev->>Local: 改代码、本地测试、git commit
+  Local->>GH: git push origin NEWUSER
+  Dev->>GH: 开 PR：base = merge-dev，compare = NEWUSER，Reviewers 选对方
+  GH->>Rev: Files changed 逐行审查 → Review changes
+  alt Request changes
+    Rev-->>Dev: 要改：在原分支继续 commit、push，PR 自动更新，回到第 2 步
+  else Approve
+    Rev-->>Dev: 同意
+    Dev->>GH: Merge pull request，提交进入 merge-dev
+  end
+  Dev->>Rel: release.sh -frontend（或 -backend、-all）
+  Rel->>GH: 列出 origin/prod..origin/merge-dev，输入 y，把 prod 快进到 merge-dev（不产生新提交）
+  Rel->>Prod: 调用 scripts/deploy.sh
+  Prod->>GH: git pull --ff-only（用运行者自己的 GitHub 密钥）
+  Prod->>Prod: 构建 / 迁移 → 重启 netsentinel → HTTP 200 → https://knettf.com</pre>
+      <p>⑤ 下次开始干活时回到 ①：<code>git pull origin merge-dev</code> 会带回 PR 的合并提交和对方的改动。</p>
       <div class="table-wrap"><table>
         <tr><th>分支</th><th>谁改、怎么改</th><th>作用</th></tr>
         <tr><td>个人分支（<code>NEWUSER</code> 等）</td><td>本人随便 commit / push</td><td>自己的工作区，别人不往里推。每人一个，名字和 Linux 用户名一致</td></tr>

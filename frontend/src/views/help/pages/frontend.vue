@@ -1,6 +1,6 @@
 <template>
   <div v-pre>
-        <h1>前端代码</h1>
+        <h1>2 前端代码</h1>
     <div class="meta">读完你能：在本机跑起前端开发环境，读懂每个页面的代码，知道一个按钮点下去调了哪个接口，会改页面、加页面、构建上线。<br>
       代码根目录 <code class="vn">/home/NEWUSER/github/NetSentinel/frontend/</code>（开发目录；线上的 <code class="vp">/srv/netsentinel/prod/frontend/</code> 只由 <code>deploy.sh</code> 构建，见 <a href="/help/index#envs">开发与生产</a>）。前置知识：会一点 HTML / JavaScript；Vue 不熟也没关系，本章按需讲。</div>
 
@@ -22,37 +22,44 @@
 
     <section id="tree">
       <h2>2.2 目录逐个说明</h2>
-<pre><code>frontend/
-├── package.json         脚本与依赖
-├── pnpm-lock.yaml       锁定版本
-├── vite.config.ts       Vite 配置：插件、@ 别名、开发代理 /api /ws → 127.0.0.1:8090（开发后端；可用环境变量 DEV_BACKEND 覆盖）
-├── .env · .env.production   VITE_API_BASE=/api、VITE_WS_BASE=（空）；.env 不在 Git 中
-├── index.html           唯一的 HTML 壳，里面只有 &lt;div id="app"&gt;
-├── tsconfig*.json       TypeScript 配置（app 与 node 两套）
-├── eslint.config.ts · .oxlintrc.json · .prettierrc.json · .editorconfig
-├── public/              原样复制进 dist/ 的静态文件（不经过打包）
-│   ├── favicon.ico / favicon.png
-│   └── (手册在 src/views/help/pages/)
-├── src/
-│   ├── main.ts          入口：创建 app，装 Pinia、Router、ElementPlus，注册全部图标
-│   ├── App.vue          根组件：决定显不显示顶部导航 + &lt;RouterView/&gt;
-│   ├── router/index.ts  路由表 + 全局守卫（登录 / 管理员）
-│   ├── stores/
-│   │   ├── auth.ts      token、用户信息、apiFetch()、login()、logout()、自动刷新 token
-│   │   └── kcore.ts     每个集群的 namespace 列表缓存
-│   ├── components/
-│   │   ├── NavComponent.vue   顶部导航 + 窄屏抽屉 + Sign Out
-│   │   └── RollingNumber.vue  看板上会“滚动”的数字
-│   ├── views/
-│   │   ├── LoginView.vue      登录
-│   │   ├── KcoreView.vue      Kubernetes（约 1000 行）
-│   │   ├── AutoTFView.vue     Terraform Scan（约 1550 行）
-│   │   ├── VigilView.vue      AI Vigil 看板（约 1530 行）
-│   │   ├── VigilLogView.vue   检测日志（约 570 行）
-│   │   ├── HelpView.vue       三个手册的 iframe 标签页
-│   │   └── admin/             AdminLayout + Dashboard / Users / Clusters / TFConfigs / TFTools
-│   └── assets/          base.css、main.css（全局样式）
-└── dist/                pnpm build 的输出（不进 Git），后端直接提供它</code></pre>
+<ul class="ftree"><li><code class="dir">frontend/</code>
+<ul>
+<li><code>package.json</code><span>脚本与依赖</span></li>
+<li><code>pnpm-lock.yaml</code><span>锁定版本</span></li>
+<li><code>vite.config.ts</code><span>Vite 配置：插件、@ 别名、开发代理 /api /ws → 127.0.0.1:8090（开发后端；可用环境变量 DEV_BACKEND 覆盖）</span></li>
+<li><code>.env · .env.production</code><span>VITE_API_BASE=/api、VITE_WS_BASE=（空）；.env 不在 Git 中</span></li>
+<li><code>index.html</code><span>唯一的 HTML 壳，里面只有 &lt;div id="app"&gt;</span></li>
+<li><code>tsconfig*.json</code><span>TypeScript 配置（app 与 node 两套）</span></li>
+<li><code>eslint.config.ts · .oxlintrc.json · .prettierrc.json · .editorconfig</code></li>
+<li><code class="dir">public/</code><span>原样复制进 dist/ 的静态文件（不经过打包）</span><ul>
+<li><code>favicon.ico / favicon.png</code></li>
+<li><code>(手册在 src/views/help/pages/)</code></li>
+</ul></li>
+<li><code class="dir">src/</code><ul>
+<li><code>main.ts</code><span>入口：创建 app，装 Pinia、Router、ElementPlus，注册全部图标</span></li>
+<li><code>App.vue</code><span>根组件：决定显不显示顶部导航 + &lt;RouterView/&gt;</span></li>
+<li><code>router/index.ts</code><span>路由表 + 全局守卫（登录 / 管理员）</span></li>
+<li><code class="dir">stores/</code><ul>
+<li><code>auth.ts</code><span>token、用户信息、apiFetch()、login()、logout()、自动刷新 token</span></li>
+<li><code>kcore.ts</code><span>每个集群的 namespace 列表缓存</span></li>
+</ul></li>
+<li><code class="dir">components/</code><ul>
+<li><code>NavComponent.vue</code><span>顶部导航 + 窄屏抽屉 + Sign Out</span></li>
+<li><code>RollingNumber.vue</code><span>看板上会“滚动”的数字</span></li>
+</ul></li>
+<li><code class="dir">views/</code><ul>
+<li><code>LoginView.vue</code><span>登录</span></li>
+<li><code>KcoreView.vue</code><span>Kubernetes（约 1000 行）</span></li>
+<li><code>AutoTFView.vue</code><span>Terraform Scan（约 1550 行）</span></li>
+<li><code>VigilView.vue</code><span>AI Vigil 看板（约 1530 行）</span></li>
+<li><code>VigilLogView.vue</code><span>检测日志（约 570 行）</span></li>
+<li><code>HelpView.vue</code><span>三个手册的 iframe 标签页</span></li>
+<li><code class="dir">admin/</code><span>AdminLayout + Dashboard / Users / Clusters / TFConfigs / TFTools</span></li>
+</ul></li>
+<li><code class="dir">assets/</code><span>base.css、main.css（全局样式）</span></li>
+</ul></li>
+<li><code class="dir">dist/</code><span>pnpm build 的输出（不进 Git），后端直接提供它</span></li>
+</ul></li></ul>
     </section>
 
     <section id="run">
@@ -209,7 +216,7 @@ socket.onclose = () =&gt; { wsConnected.value = false }</code></pre>
       <h3>VigilLogView（日志）</h3>
       <ul>
         <li>筛选状态 <code>verdict</code>、<code>filterAttackType</code>、<code>timeFrom</code>、<code>timeTo</code>；分页 <code>limit</code>、<code>offset</code>、<code>total</code>。</li>
-        <li><code>ATTACK_TYPES</code> 是写死的 9 个类型名，必须与模型原型里的名字一致（<a href="/help/detect">《检测链路与模型》</a> 4.6）。换模型后若类型名变了，这里要同步改。</li>
+        <li><code>ATTACK_TYPES</code> 是写死的 9 个类型名，必须与模型原型里的名字一致（<a href="/help/detect#model">《检测链路与模型》· 模型</a>）。换模型后若类型名变了，这里要同步改。</li>
         <li><code>reload()</code> 回到第一页；<code>prevPage()</code> / <code>nextPage()</code> 改 offset；<code>setInterval(loadRecords, 15000)</code>。</li>
       </ul>
       <h3><span class="file">components/RollingNumber.vue</span></h3>

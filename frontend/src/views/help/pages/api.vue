@@ -1,10 +1,10 @@
 <template>
   <div v-pre>
-        <h1>API 逐接口说明</h1>
+        <h1>7 API 逐接口说明</h1>
     <div class="meta">基址：本机 <code>http://localhost:8080</code>，公网 <code>https://knettf.com</code>（cloudflared）。全部路由定义在 <code>backend/backend/urls.py</code> 及各 app 的 <code>urls.py</code>；WebSocket 路由在 <code>backend/asgi.py</code>。</div>
 
     <section id="conv">
-      <h2>1. 通用约定</h2>
+      <h2>7.1 通用约定</h2>
       <h3>认证</h3>
       <ul>
         <li>默认所有 <code>/api/</code> 接口需要 JWT：Header <code>Authorization: Bearer &lt;access&gt;</code>（<code>settings.REST_FRAMEWORK</code> 默认 <code>IsAuthenticated</code>）。</li>
@@ -34,7 +34,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
     </section>
 
     <section id="index">
-      <h2>2. 端点总表</h2>
+      <h2>7.2 端点总表</h2>
       <div class="table-wrap"><table>
         <tr><th>方法</th><th>路径</th><th>作用</th><th>权限</th><th>View</th></tr>
         <tr><td><span class="m m-post">POST</span></td><td><code>/api/auth/token/</code></td><td>登录</td><td>公开</td><td>simplejwt <code>TokenObtainPairView</code></td></tr>
@@ -73,7 +73,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
     </section>
 
     <section id="auth">
-      <h2>3. 认证 auth</h2>
+      <h2>7.3 认证 auth</h2>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-post">POST</span><code>/api/auth/token/</code><span class="perm">公开</span></div>
         <p>请求体（JSON 或 form）：<code>username</code>、<code>password</code>。成功返回<b>未包装</b>的 JSON：</p>
@@ -87,7 +87,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
     </section>
 
     <section id="kcore-user">
-      <h2>4. kcore · 用户</h2>
+      <h2>7.4 kcore · 用户</h2>
       <p>代码：<code>backend/kcore/views.py</code>（UserMe / UserList / UserDetail）→ <code>services.UserService</code> → 模型 <code>User</code>。用户对象输出字段（<code>UserResponseSerializer</code>）：<code>id, username, email, is_staff</code>。</p>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-get">GET</span><code>/api/kcore/users/me/</code><span class="perm">登录</span></div>
@@ -114,7 +114,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
     </section>
 
     <section id="kcore-cluster">
-      <h2>5. kcore · 集群</h2>
+      <h2>7.5 kcore · 集群</h2>
       <p>集群对象输出（<code>KubeClusterResponseSerializer</code>）：<code>id, name, owner{...}, kubeconfig, is_active, last_synced_at, created_at</code>。<b>注意：响应包含完整 kubeconfig 明文</b>。</p>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-get">GET</span><span class="m m-post">POST</span><code>/api/kcore/users/&lt;pk&gt;/clusters/</code><span class="perm">本人或管理员</span></div>
@@ -130,7 +130,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
     </section>
 
     <section id="kcore-res">
-      <h2>6. kcore · K8s 资源</h2>
+      <h2>7.6 kcore · K8s 资源</h2>
       <p>代码：<code>KubeResourceList</code> / <code>KubeResourceDetail</code> / <code>KubeApply</code> → <code>services.KubeResourceService</code> → <code>common/kclient.py KubeClient</code>（kubernetes Python 客户端，用集群记录中的 kubeconfig 建连）。</p>
       <p><code>&lt;type&gt;</code> 取值：<code>namespaces</code>、<code>pods</code>、<code>deployments</code>、<code>services</code>、<code>configmaps</code>、<code>daemonsets</code>。其他值返回 400 <code>Invalid resource type</code>。</p>
       <div class="table-wrap"><table>
@@ -148,7 +148,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
     </section>
 
     <section id="autotf">
-      <h2>7. autotf · Terraform</h2>
+      <h2>7.7 autotf · Terraform</h2>
       <p>代码：<code>backend/autotf/views.py</code> → <code>services.py</code>（TerraformConfigService / TerraformToolService / ScanReportService / ScanService / ApplyService）。</p>
       <h3>配置对象</h3>
       <p>列表（<code>TerraformConfigListSerializer</code>）：<code>id, name, is_scanned, created_at, updated_at, report, last_apply_at, last_apply_status, last_apply_output</code>；详情多一个 <code>file</code>（文件路径）。<code>report</code> 为摘要 <code>{id, status, tools[], scanned_at}</code> 或 <code>null</code>。</p>
@@ -209,7 +209,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
     </section>
 
     <section id="vigil">
-      <h2>8. vigil · 流量检测</h2>
+      <h2>7.8 vigil · 流量检测</h2>
       <p>代码：<code>backend/vigil/views.py</code> → <code>services.py</code> → <code>ml/models/runner.py</code>（模型推理）→ <code>ml/cilium/policy.py</code>（动作建议）→ <code>models.DetectionRecord</code>（写 PostgreSQL）。</p>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-post">POST</span><code>/api/vigil/detect/</code><span class="perm">登录</span></div>
@@ -271,7 +271,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
     </section>
 
     <section id="ws">
-      <h2>9. WebSocket</h2>
+      <h2>7.9 WebSocket</h2>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-ws">WS</span><code>/ws/clusters/&lt;cluster_id&gt;/pods/&lt;namespace&gt;/&lt;pod&gt;/logs/</code><span class="perm">无鉴权</span></div>
         <p>连接后后端开线程调用 <code>read_namespaced_pod_log(follow=True)</code>，每行推送 <code>{"log": "一行日志\n"}</code>；Pod 结束则流结束。前端 <code>KcoreView.vue</code> 使用。</p>
@@ -289,7 +289,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
     </section>
 
     <section id="frontend">
-      <h2>10. 前端页面 → 接口</h2>
+      <h2>7.10 前端页面 → 接口</h2>
       <div class="table-wrap"><table>
         <tr><th>前端路由</th><th>组件</th><th>调用的接口</th><th>权限守卫</th></tr>
         <tr><td><code>/login</code></td><td><code>LoginView.vue</code></td><td><code>auth/token/</code> → <code>kcore/users/me/</code></td><td>公开</td></tr>

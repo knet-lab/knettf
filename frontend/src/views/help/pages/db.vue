@@ -1,10 +1,10 @@
 <template>
   <div v-pre>
-        <h1>数据库与模型字段</h1>
+        <h1>8 数据库与模型字段</h1>
     <div class="meta">表结构依据 <code>models.py</code> 与迁移文件，数量依据 2026-10-16 实际查询。</div>
 
     <section id="dbs">
-      <h2>1. 两个数据库与路由</h2>
+      <h2>8.1 两个数据库与路由</h2>
       <div class="table-wrap"><table>
         <tr><th>别名</th><th>引擎</th><th>位置</th><th>存放</th><th>连接方式</th></tr>
         <tr><td><code>default</code></td><td>SQLite</td><td><code>backend/db.sqlite3</code>（线上 <code class="vp">/srv/netsentinel/prod/backend/</code>，开发 <code class="vn">/home/NEWUSER/github/NetSentinel/backend/</code>，互不相通）</td><td>kcore、autotf、Django 内置（auth、admin、session、contenttypes、migrations）</td><td><code>sqlite3 backend/db.sqlite3</code></td></tr>
@@ -20,23 +20,43 @@
     </section>
 
     <section id="er">
-      <h2>2. 关系图</h2>
-      <pre><code>                 default（SQLite）                                         vigil（PostgreSQL）
-┌──────────────────────┐ 1   N ┌──────────────────────────┐          ┌──────────────────────────────────┐
-│ kcore_user           │──────▶│ kcore_kubecluster        │          │ vigil_detectionrecord            │
-│ (AbstractUser)       │       │ owner_id → user (CASCADE)│          │ PARTITION BY RANGE (created_at)  │
-└──────────┬───────────┘       └──────────────────────────┘          │  ├ vigil_detectionrecord_2026_.. │
-           │ 1                                                          │  ├ …（每天一个）                 │
-           │ N                                                          │  └ vigil_detectionrecord_明天   │
-┌──────────▼────────────────┐ 1   1 ┌──────────────────────┐ N   M ┌──────────────────────┐   └─ 与其他表无外键
-│ autotf_terraformconfig    │──────▶│ autotf_scanreport    │──────▶│ autotf_terraformtool │
-│ owner_id → user (CASCADE) │       │ config_id (CASCADE)  │ (经    │ 全局，管理员维护     │
-└───────────────────────────┘       └──────────────────────┘ autotf_scanreport_tools)</code></pre>
+      <h2>8.2 关系图</h2>
+      <pre class="uml">erDiagram
+  kcore_user ||--o{ kcore_kubecluster : "owner_id, CASCADE"
+  kcore_user ||--o{ autotf_terraformconfig : "owner_id, CASCADE"
+  autotf_terraformconfig ||--|| autotf_scanreport : "config_id, CASCADE"
+  autotf_scanreport }o--o{ autotf_terraformtool : "autotf_scanreport_tools"
+  kcore_user {
+    int id PK
+    string username
+    bool is_staff
+  }
+  kcore_kubecluster {
+    int id PK
+    int owner_id FK
+  }
+  autotf_terraformconfig {
+    int id PK
+    int owner_id FK
+  }
+  autotf_scanreport {
+    int id PK
+    int config_id FK
+  }
+  autotf_terraformtool {
+    int id PK
+    string name "全局，管理员维护"
+  }
+  vigil_detectionrecord {
+    bigint id
+    timestamptz created_at "PARTITION BY RANGE，每天一个分区"
+  }</pre>
+      <p>前五张表在 default 库（SQLite），<code>vigil_detectionrecord</code> 在 vigil 库（PostgreSQL），按天分区（<code>vigil_detectionrecord_YYYY_MM_DD</code>），与其他表没有外键。</p>
       <p>删除用户会级联删除其集群、Terraform 配置及对应报告；删除工具会从报告的多对多关系中移除。</p>
     </section>
 
     <section id="kcore">
-      <h2>3. kcore 表</h2>
+      <h2>8.3 kcore 表</h2>
       <h3>kcore_user（<code>kcore.models.User</code>，<code>AUTH_USER_MODEL</code>）</h3>
       <div class="table-wrap"><table>
         <tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr>
@@ -67,7 +87,7 @@
     </section>
 
     <section id="autotf">
-      <h2>4. autotf 表</h2>
+      <h2>8.4 autotf 表</h2>
       <h3>autotf_terraformconfig（<code>TerraformConfig</code>）</h3>
       <div class="table-wrap"><table>
         <tr><th>字段</th><th>类型</th><th>说明</th></tr>
@@ -118,7 +138,7 @@
     </section>
 
     <section id="vigil">
-      <h2>5. vigil_detectionrecord（PostgreSQL 分区表）</h2>
+      <h2>8.5 vigil_detectionrecord（PostgreSQL 分区表）</h2>
       <p>Django 模型 <code>vigil.models.DetectionRecord</code> 设置了 <code>managed = False</code>：Django 只读写，不建表。表结构由 <code>vigil/migrations/0001_initial.py</code> 中的手写 SQL 创建。</p>
       <div class="table-wrap"><table>
         <tr><th>列</th><th>PG 类型</th><th>非空</th><th>来源 / 含义</th></tr>
@@ -175,7 +195,7 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
     </section>
 
     <section id="features">
-      <h2>6. 35 个流特征（检测输入）</h2>
+      <h2>8.6 35 个流特征（检测输入）</h2>
       <p>一条“流”= 一个 Kafka 消费批次内同一五元组 <code>(src_ip, dst_ip, src_port, dst_port, protocol)</code> 的全部 Hubble 事件。字段在以下五处必须一致：<code>K dataset/aggregate_flows.py</code>、<code>K kafka/vigil_bridge.py</code>、<code>N vigil/bridge.py compute_flow()</code>、<code>N vigil/serializers.py FlowInputSerializer</code>、<code>N vigil/ml/models/base.py DetectionInput</code>（以及 <code>detector/detector.py</code>）。</p>
       <p>“模型使用”列：OCSVM 流水线实际只用 28 列；标“常量剔除”的列在训练集中恒定，被 <code>constant_cols</code> 去掉。</p>
       <div class="table-wrap"><table>
@@ -211,7 +231,7 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
     </section>
 
     <section id="model">
-      <h2>7. 检测模型 ads_ml_ocsvm</h2>
+      <h2>8.7 检测模型 ads_ml_ocsvm</h2>
       <h3>文件</h3>
       <div class="table-wrap"><table>
         <tr><th>文件</th><th>内容</th></tr>
@@ -252,7 +272,7 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
     </section>
 
     <section id="cilium">
-      <h2>8. Cilium 动作策略</h2>
+      <h2>8.8 Cilium 动作策略</h2>
       <p><code>vigil/ml/cilium/policy.py</code>：</p>
       <div class="table-wrap"><table>
         <tr><th>条件</th><th>cilium_action</th></tr>
@@ -265,7 +285,7 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
     </section>
 
     <section id="knet-data">
-      <h2>9. knetsentinel 侧数据文件</h2>
+      <h2>8.9 knetsentinel 侧数据文件</h2>
       <div class="table-wrap"><table>
         <tr><th>文件</th><th>粒度</th><th>列</th><th>生成方式</th></tr>
         <tr><td><code>dataset/dataset.csv</code>、<code>dataset_v1.csv</code></td><td>包级</td><td><code>timestamp, verdict, direction, summary, src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, is_reply, trace_reason, label</code></td><td><code>dataset_collector.py</code> / <code>kafka_read_csv.py</code></td></tr>

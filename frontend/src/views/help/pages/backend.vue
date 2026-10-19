@@ -1,6 +1,6 @@
 <template>
   <div v-pre>
-        <h1>后端代码</h1>
+        <h1>3 后端代码</h1>
     <div class="meta">读完你能：说出一个 HTTP 请求在后端经过的每一步，读懂三个应用的每个文件，会跑管理命令、加接口、改数据库结构。<br>
       代码根目录 <code class="vn">/home/NEWUSER/github/NetSentinel/backend/</code>（开发），线上运行的是 <code class="vp">/srv/netsentinel/prod/backend/</code>（见 <a href="/help/index#envs">开发与生产</a>）。<code>manage.py</code> 命令在对应目录里用 <code>../.venv/bin/python manage.py ...</code> 执行：调试、生成迁移在 <code class="vn">/home/NEWUSER/github/NetSentinel</code>；操作线上数据（改密码、补分区）在 <code class="vp">/srv/netsentinel/prod</code>。逐个接口的参数与响应示例见 <a href="/help/api">API 逐接口</a>，表字段见 <a href="/help/db">数据库与模型字段</a>。</div>
 
@@ -23,24 +23,22 @@
 
     <section id="start">
       <h2>3.2 进程是怎么起来的</h2>
-<pre class="on-prod"><code>systemd（/etc/systemd/system/netsentinel.service，User=netsentinel）
-  WorkingDirectory=<span class="vp">/srv/netsentinel/prod</span>/backend
-  ExecStart=<span class="vp">/srv/netsentinel/prod</span>/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
-  Restart=always  RestartSec=3  MemoryMax=3G  MemorySwapMax=0  TasksMax=500
-      │
-      ▼
-uvicorn 导入 backend/asgi.py
-  ├─ os.environ DJANGO_SETTINGS_MODULE=backend.settings
-  ├─ django.setup()
-  │    ├─ 读 settings.py（读 <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env：DEBUG=False、SECRET_KEY、VIGIL_DB_NAME=vigil …）
-  │    ├─ 加载 INSTALLED_APPS，逐个调用 AppConfig.ready()
-  │    │    └─ vigil/apps.py ready()：_should_start_bridge() 判断 argv[0] 含 uvicorn → True
-  │    │         └─ bridge.start()：起两个守护线程 vigil-drainer、vigil-bridge（<a href="/help/detect">《检测链路与模型》</a>）
-  │    └─ 导入 vigil 时 ml/models/registry.py 加载 AdsMLModel → 日志 “AdsMLModel loaded”
-  └─ application = ProtocolTypeRouter({
-         "http":      get_asgi_application(),          → 普通 Django 请求
-         "websocket": URLRouter(kcore.routing + vigil.routing)  → Channels consumer
-     })</code></pre>
+<pre class="uml">sequenceDiagram
+  participant SD as systemd<br>netsentinel.service
+  participant UV as uvicorn :8080
+  participant ASGI as backend/asgi.py
+  participant DJ as django.setup()
+  participant VG as vigil/apps.py
+  participant BR as bridge 线程
+  SD->>UV: User=netsentinel，WorkingDirectory=/srv/netsentinel/prod/backend<br>ExecStart=/srv/netsentinel/prod/.venv/bin/uvicorn backend.asgi:application<br>Restart=always，MemoryMax=3G，TasksMax=500
+  UV->>ASGI: 导入，设置 DJANGO_SETTINGS_MODULE=backend.settings
+  ASGI->>DJ: django.setup()
+  DJ->>DJ: 读 settings.py 和 backend/backend/.env（DEBUG=False、SECRET_KEY、VIGIL_DB_NAME=vigil）
+  DJ->>VG: AppConfig.ready()
+  VG->>VG: _should_start_bridge()：argv[0] 含 uvicorn → True
+  VG->>BR: bridge.start()：守护线程 vigil-bridge、vigil-drainer
+  DJ->>DJ: 导入 vigil/ml/models/registry.py，加载 AdsMLModel（日志 AdsMLModel loaded）
+  ASGI-->>UV: ProtocolTypeRouter：http → Django，websocket → kcore.routing + vigil.routing</pre>
       <p>只有<b>一个</b> uvicorn 进程（没开 <code>--workers</code>），bridge 线程因此只有一份。如果将来加 workers，每个进程都会起一份 bridge，导致重复消费入库。</p>
       <p><code>_should_start_bridge()</code> 规则：<code>migrate</code>、<code>shell</code>、<code>check</code>、<code>test</code> 等命令不启动；<code>runserver</code> 只在自动重载的子进程（<code>RUN_MAIN=true</code>）启动；<code>argv[0]</code> 含 daphne / uvicorn / gunicorn 时启动。所以你在命令行跑 <code>manage.py shell</code> 不会多出一个 Kafka 消费者，但 <b><code>manage.py runserver</code> 会</b>。开发目录的 <code>.env</code> 设了 <code>VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev</code>，开发 bridge 用自己的 consumer group，拿到一份完整的流量写进 <code>vigil_dev</code>，不影响线上。<b>新建开发环境时一定要设这个变量</b>：不设就默认 <code>vigil-bridge</code>，会和线上分走 Kafka 分区，线上漏收流量。</p>
     </section>
@@ -56,14 +54,14 @@ uvicorn 导入 backend/asgi.py
         <tr><td><code>INSTALLED_APPS</code></td><td>channels、Django 内置、rest_framework、corsheaders、simplejwt、kcore、autotf、vigil</td><td><code>channels</code> 放第一位是 Channels 的要求</td></tr>
         <tr><td><code>MIDDLEWARE</code></td><td>Cors → Security → <b>WhiteNoise</b> → Session → Common → <b>DisableCSRFForAPI</b> → Auth → Messages → Clickjacking</td><td>WhiteNoise 提供前端文件；自定义中间件让 <code>/api/</code>、<code>/auth/</code> 免 CSRF</td></tr>
         <tr><td><code>DATABASES</code></td><td><code>default</code>：SQLite <code>backend/db.sqlite3</code>（各目录自己的）；<code>vigil</code>：PostgreSQL，env <code>VIGIL_DB_NAME</code> / <code>_USER</code> / <code>_PASSWORD</code> / <code>_HOST</code> / <code>_PORT</code>，默认 <code>vigil/vigil123@127.0.0.1:5432/vigil_dev</code></td><td>线上 .env 设 <code>VIGIL_DB_NAME=vigil</code>。<b>忘了设就会连到开发库</b></td></tr>
-        <tr><td><code>DATABASE_ROUTERS</code></td><td><code>backend.db_router.AppRouter</code></td><td>见 3.6</td></tr>
+        <tr><td><code>DATABASE_ROUTERS</code></td><td><code>backend.db_router.AppRouter</code></td><td>见 <a href="#db">两个数据库与路由</a></td></tr>
         <tr><td><code>TIME_ZONE</code> / <code>USE_TZ</code></td><td><code>UTC</code> / <code>True</code></td><td>数据库与 API 一律 UTC，前端转本地时间</td></tr>
         <tr><td><code>WHITENOISE_ROOT</code></td><td><code>frontend/dist</code></td><td>该目录下的文件按原路径对外提供</td></tr>
         <tr><td><code>AUTH_USER_MODEL</code></td><td><code>kcore.User</code></td><td>自定义用户表 <code>kcore_user</code></td></tr>
         <tr><td><code>REST_FRAMEWORK</code></td><td>认证 JWT；默认权限 <code>IsAuthenticated</code>；异常处理 <code>common.exceptions.exception_handler</code></td><td>所以没特别声明的接口都要登录</td></tr>
         <tr><td><code>SIMPLE_JWT</code></td><td>access 2 小时，refresh 7 天，头 <code>Bearer</code></td><td></td></tr>
         <tr><td><code>VIGIL_BRIDGE_TOKEN</code></td><td>env</td><td>入口 B 检测器 WebSocket 的共享密钥</td></tr>
-        <tr><td><code>VIGIL_KAFKA_GROUP_ID</code></td><td>env；默认 <code>vigil-bridge</code>，开发设 <code>vigil-bridge-dev</code></td><td>bridge 的 Kafka consumer group，见 3.2</td></tr>
+        <tr><td><code>VIGIL_KAFKA_GROUP_ID</code></td><td>env；默认 <code>vigil-bridge</code>，开发设 <code>vigil-bridge-dev</code></td><td>bridge 的 Kafka consumer group，见 <a href="#start">进程是怎么起来的</a></td></tr>
         <tr><td><code>CORS_ALLOW_ALL_ORIGINS</code></td><td><code>True</code></td><td></td></tr>
         <tr><td><code>CSRF_TRUSTED_ORIGINS</code></td><td>trycloudflare、localhost:8080，加上 env <code>CSRF_EXTRA_ORIGINS</code>（线上 <code>https://knettf.com</code>）</td><td>只影响 Django admin 这类 session 表单</td></tr>
         <tr><td><code>CHANNEL_LAYERS</code></td><td><code>InMemoryChannelLayer</code></td><td>进程内，不能跨进程广播；目前也没用到 group 广播</td></tr>
@@ -249,7 +247,7 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
         <tr><td><code>../.venv/bin/python manage.py generate_bridge_token [--username vigil-bridge] [--years 10] [--write-env]</code></td><td>生成长期 JWT 并写入 <code>backend/backend/.env</code>（需重启服务生效）</td></tr>
         <tr><td><code>../.venv/bin/python manage.py rotate_partitions [--database vigil] [--dry-run]</code></td><td>建明天分区、删 90 天前的分区（<code>/etc/cron.d/netsentinel</code> 每天 0 点以 netsentinel 账户跑）</td></tr>
         <tr><td><code>../.venv/bin/python manage.py test kcore autotf</code></td><td>跑单元测试：145 个用例，约 5 分钟（2026-10-18 全部通过）。测试库为临时 SQLite，不影响线上数据</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py runserver 8090</code></td><td>开发服务器（只在 <code class="vn">/home/NEWUSER/github/NetSentinel</code> 里跑；8000 被别的项目占用）。<b>会启动 bridge</b>，见 3.2</td></tr>
+        <tr><td><code>../.venv/bin/python manage.py runserver 8090</code></td><td>开发服务器（只在 <code class="vn">/home/NEWUSER/github/NetSentinel</code> 里跑；8000 被别的项目占用）。<b>会启动 bridge</b>，见 <a href="#start">进程是怎么起来的</a></td></tr>
       </table></div>
     </section>
 

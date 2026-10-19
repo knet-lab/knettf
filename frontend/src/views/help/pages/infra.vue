@@ -1,6 +1,6 @@
 <template>
   <div v-pre>
-        <h1>集群与 Shell 脚本</h1>
+        <h1>5 集群与 Shell 脚本</h1>
     <div class="meta">读完你能：画出宿主机、网桥、VM、集群组件的关系；读懂 00 / 01 / 02 / 03 四个脚本每一步在做什么、为什么这样做；看懂 Kafka、Vector、靶机的清单；知道宿主机上 systemd、cloudflared、/etc/cron.d 定时任务、PostgreSQL 容器的配置。<br>
       脚本在 <span class="tag tag-k">K</span> <code>/srv/netsentinel/knetsentinel/kubeadm-cluster/</code>，都以普通用户运行（内部按需 <code>sudo</code>），<b>不要</b> <code>sudo bash</code> 整个脚本（kubeconfig 会写到 root 家目录）。逐步的开关机 / 重建命令见 <a href="/help/power">开关机 · 重建 · 备份</a>。</div>
 

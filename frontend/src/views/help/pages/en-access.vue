@@ -43,13 +43,16 @@ sudo journalctl -u netsentinel -f</code></pre>
     <section id="github">
       <h2>GitHub access</h2>
       <p>Each Linux account on the server maps to one GitHub account and uses its own key and its own commit identity. The Linux user name is also your personal branch name. The original author is Linux <code>soar009</code> = GitHub <code>Wk-P</code>.</p>
-      <pre><code>/home/NEWUSER/github/NetSentinel   edit, commit and push on your branch NEWUSER
-        ▼  PR NEWUSER → merge-dev, reviewed and approved by the other person, then merged
-merge-dev
-        ▼  /srv/netsentinel/release.sh -frontend | -backend | -all  (fast-forward only)
-prod
-        ▼  deploy.sh: git pull with the runner's own GitHub key, build, restart
-/srv/netsentinel/prod</code></pre>
+      <pre class="uml">flowchart LR
+  A["/home/NEWUSER/github/NetSentinel<br>commit and push on branch NEWUSER"] -->|"PR NEWUSER → merge-dev<br>reviewed and approved, then merged"| B["merge-dev"]
+  B -->|"release.sh<br>fast-forward only"| C["prod"]
+  C -->|"deploy.sh<br>git pull with your own key, build, restart"| D["/srv/netsentinel/prod"]
+  classDef dev fill:#f0fff4,stroke:#38a169
+  classDef gh fill:#f8fafc,stroke:#1a202c
+  classDef prod fill:#fff5f5,stroke:#e53e3e
+  class A dev
+  class B,C gh
+  class D prod</pre>
       <p>knetsentinel is the same up to merge-dev; then <code>master</code> is fast-forwarded and <code>/srv/netsentinel/knetsentinel</code> pulled (see Deploying Changes). Review happens only on the PR. So, in order: your GitHub key → clone and create your branch → commit identity → test commit.</p>
       <div class="task"><h4><span class="n">1</span>Join knet-lab and give the server your GitHub key</h4>
         <div class="do"><div>Any Owner invites your GitHub username at <code>https://github.com/orgs/knet-lab/people</code>; accept at <code>https://github.com/orgs/knet-lab/invitation</code>. Then, logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -N "" -C "your-github-email" -f /home/NEWUSER/.ssh/github_ssh_key

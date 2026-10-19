@@ -6,28 +6,30 @@
     <section id="order">
       <h2>排查顺序：从外到内</h2>
       <p>每一层用一条命令确认。上一层不通，就不用往下查了。</p>
-<pre class="on-prod"><code>浏览器打不开 knettf.com
-  ├─ curl localhost:8080 正常？ ── 否 → 后端问题：sudo journalctl -u netsentinel -n 100 看启动报错
-  │                                      （常见：<span class="vp">/srv/netsentinel/prod</span>/.venv 坏了、pg 没起、<span class="vp">/srv/netsentinel/prod</span> 的 .env 缺 ENVIRONMENT、settings 语法错）
-  │                                      （返回 400：用了不在 ALLOWED_HOSTS 里的域名 / IP，改 <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env）
-  └─ 是 → 隧道问题：sudo systemctl status cloudflared-knettf
-
-网页能开，但某个功能报错
-  ├─ 浏览器 F12 → Network，找失败的 /api/ 请求，看状态码和响应里的 message
-  ├─ 401 → token 过期且 refresh 也过期 → 重新登录
-  ├─ 403 → 不是资源的 owner，也不是管理员
-  ├─ 404 → URL 拼错（末尾斜杠？）或对象不存在
-  ├─ 500 → journalctl 看 Traceback
-  └─ Kubernetes 页全部失败 → 集群没开机 / kubeconfig 过期
-
-检测没有新数据
-  Kafka 有数据？（健康检查第 5 步）
-    ├─ 否 → 集群侧：Vector / hubble-relay（kubectl logs）
-    └─ 是 → 后端日志有 bridge error？
-              ├─ 是 → Kafka 恢复后重启后端
-              └─ 否 → 有 drainer failed？
-                        ├─ 是 → 看后面的异常，多数是缺分区
-                        └─ 否 → 发包的源 IP 是不是被当成基础设施流量过滤掉了？</code></pre>
+<h3>网页打不开</h3>
+      <pre class="uml">flowchart TD
+  A(["浏览器打不开 knettf.com"]) --> B{"curl -I http://localhost:8080<br>正常吗？"}
+  B -->|否| C["后端问题<br>sudo journalctl -u netsentinel -n 100 看启动报错"]
+  C --> C1["常见：/srv/netsentinel/prod/.venv 坏了、pg 没起、<br>线上 .env 缺 ENVIRONMENT、settings 语法错"]
+  C --> C2["返回 400：域名或 IP 不在 ALLOWED_HOSTS<br>改 /srv/netsentinel/prod/backend/backend/.env"]
+  B -->|是| D["隧道问题<br>sudo systemctl status cloudflared-knettf"]</pre>
+      <h3>网页能开，某个功能报错</h3>
+      <pre class="uml">flowchart TD
+  A(["某个功能报错"]) --> B["F12 → Network<br>找失败的 /api/ 请求，看状态码和 message"]
+  B -->|401| C["token 和 refresh 都过期 → 重新登录"]
+  B -->|403| D["不是资源的 owner，也不是管理员"]
+  B -->|404| E["URL 拼错（末尾斜杠？）或对象不存在"]
+  B -->|500| F["sudo journalctl -u netsentinel 看 Traceback"]
+  B -->|"Kubernetes 页全部失败"| G["集群没开机，或 kubeconfig 过期"]</pre>
+      <h3>检测没有新数据</h3>
+      <pre class="uml">flowchart TD
+  A(["AI Vigil 没有新记录"]) --> B{"Kafka 有数据吗？<br>（健康检查第 5 步）"}
+  B -->|否| C["集群侧：查 Vector、hubble-relay<br>kubectl logs"]
+  B -->|是| D{"后端日志有 bridge error？"}
+  D -->|是| E["Kafka 恢复后重启后端<br>sudo systemctl restart netsentinel"]
+  D -->|否| F{"有 drainer failed？"}
+  F -->|是| G["看后面的异常，多数是缺分区"]
+  F -->|否| H["发包的源 IP 是否被当成基础设施流量过滤掉了"]</pre>
       <div class="learn">九成情况下，“检测没数据”的原因是 bridge 线程退出了：Kafka 出错时它会直接退出、<b>不会重连</b>，重启后端就好。</div>
     </section>
 

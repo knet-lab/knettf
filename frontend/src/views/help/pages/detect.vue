@@ -1,6 +1,6 @@
 <template>
   <div v-pre>
-        <h1>检测链路与模型</h1>
+        <h1>4 检测链路与模型</h1>
     <div class="meta">读完你能：讲清楚一条 Hubble 事件怎样变成数据库里的一条检测记录；知道 35 个特征各是什么、怎么算的；读懂模型的四个步骤；会换模型、加模型、排查“没有新数据”。<br>
       涉及文件：<span class="tag tag-n">N</span> <code>backend/vigil/</code>、<code>detector/</code>；<span class="tag tag-k">K</span> <code>cilium-vector/vector-5nodes.yaml</code>、<code>kafka/vigil_bridge.py</code>、<code>dataset/aggregate_flows.py</code>。</div>
 
@@ -32,7 +32,7 @@
         <tr><td>在哪运行</td><td>后端进程内的两个线程</td><td>集群内 Pod（命名空间 <code>netsentinel</code>）</td><td>宿主机上手动运行的脚本</td></tr>
         <tr><td>Kafka group</td><td><code>vigil-bridge</code>，从 latest 开始</td><td><code>vigil-detector</code></td><td>脚本参数</td></tr>
         <tr><td>聚合方式</td><td>每次 poll 到的一批消息立即聚合</td><td>累计 <code>PKT_BATCH_SIZE</code>（默认 1 万）个包后聚合</td><td>按 5 元组维护状态，<code>--window</code> 秒无新包则结束这条流</td></tr>
-        <tr><td>在哪推理</td><td>后端 <code>services.detect_batch()</code></td><td>Pod 内自带的推理代码（与 A 的算法<b>不完全相同</b>，见 4.8）</td><td>后端 <code>POST /api/vigil/detect/batch/</code></td></tr>
+        <tr><td>在哪推理</td><td>后端 <code>services.detect_batch()</code></td><td>Pod 内自带的推理代码（与 A 的算法<b>不完全相同</b>，见 <a href="#entryb">入口 B</a>）</td><td>后端 <code>POST /api/vigil/detect/batch/</code></td></tr>
         <tr><td>怎么写库</td><td>直接 ORM</td><td>WebSocket <code>ws/detector/push/</code> 推结果，后端 <code>_save_results()</code> 写库</td><td>经 REST 接口</td></tr>
         <tr><td>认证</td><td>—</td><td><code>Authorization: Bearer &lt;VIGIL_BRIDGE_TOKEN&gt;</code>，与 settings 字符串全等比较</td><td>JWT（<code>--token</code>）</td></tr>
         <tr><td>开关</td><td>没有开关；要关需注释 <code>vigil/apps.py</code> 里的 <code>bridge.start()</code></td><td>部署 / 删除 Deployment</td><td>运行 / 停止脚本</td></tr>
