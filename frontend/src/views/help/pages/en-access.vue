@@ -37,41 +37,52 @@ kubectl get nodes</code></pre></div></div>
       <pre><code>sudo systemctl status netsentinel cloudflared-knettf
 sudo systemctl restart netsentinel
 sudo journalctl -u netsentinel -f</code></pre>
-      <div class="note">Never <code>git commit</code> while switched to <code>soar009</code>: the commit would be recorded under the original author's name.</div>
+      <div class="note">Never <code>git commit</code> while switched to <code>soar009</code>: its global identity is GitHub Wk-P, so the commit would be recorded under the original author's name.</div>
     </section>
 
     <section id="github">
       <h2>GitHub access</h2>
-      <div class="task"><h4><span class="n">1</span>Join the knet-lab organization</h4>
-        <div class="do"><div>Any Owner of <code>knet-lab</code> opens <code>https://github.com/orgs/knet-lab/people</code> → <span class="ui">Invite member</span> and enters your GitHub username. You accept at <code>https://github.com/orgs/knet-lab/invitation</code>.</div></div>
-        <div class="why"><div>Both repositories (<code>knet-lab/NetSentinel</code> and <code>knet-lab/knetsentinel</code>) belong to the lab organization, so one invitation covers both. Keep at least two Owners so access never depends on one person.</div></div>
-        <div class="res"><div>You can see both repositories at <code>https://github.com/knet-lab</code>.</div></div>
-      </div>
-      <div class="task"><h4><span class="n">2</span>Give the server your GitHub key</h4>
-        <div class="do"><div>Logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -C "your-github-email"
+      <p>Each Linux account on the server maps to one GitHub account and uses its own key and its own commit identity. The Linux user name is also your personal branch name. The original author is Linux <code>soar009</code> = GitHub <code>Wk-P</code> (key <code>/home/soar009/.ssh/github_ssh_key</code>).</p>
+      <pre><code>/home/NEWUSER/github/NetSentinel   edit, commit and push on your branch NEWUSER
+        ▼  PR NEWUSER → merge-dev, reviewed and approved by the other person, then merged
+merge-dev
+        ▼  /srv/netsentinel/release.sh -frontend | -backend | -all  (fast-forward only)
+prod
+        ▼  deploy.sh: git pull with the runner's own GitHub key, build, restart
+/srv/netsentinel/prod</code></pre>
+      <p>knetsentinel is the same up to merge-dev; then <code>master</code> is fast-forwarded and <code>/srv/netsentinel/knetsentinel</code> pulled (see Deploying Changes). Review happens only on the PR. So, in order: your GitHub key → clone and create your branch → commit identity → test commit.</p>
+      <div class="task"><h4><span class="n">1</span>Join knet-lab and give the server your GitHub key</h4>
+        <div class="do"><div>Any Owner invites your GitHub username at <code>https://github.com/orgs/knet-lab/people</code>; accept at <code>https://github.com/orgs/knet-lab/invitation</code>. Then, logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -C "your-github-email"
 cat ~/.ssh/id_ed25519.pub
 ssh -T git@github.com</code></pre>Add the printed key in GitHub → Settings → SSH and GPG keys → New SSH key, then run the last line.</div></div>
-        <div class="why"><div>This key is for GitHub only; it is different from the key you use to log in to the server. Generate it under your own account and add it to your own GitHub account. Never copy <code>/home/soar009/.ssh/github_ssh_key</code>: that is the original author's personal key and is removed in step 4.</div></div>
-        <div class="res"><div><code>Hi your-name!</code>. If it says <code>Hi Wk-P!</code>, you are using the original author's key.</div></div>
+        <div class="why"><div>This key is for GitHub only, not for logging in to the server. Never copy <code>/home/soar009/.ssh/github_ssh_key</code>: it is the soar009 account's key for Wk-P.</div></div>
+        <div class="res"><div><code>Hi your-name!</code>. If it says <code>Hi Wk-P!</code>, you are using soar009's key.</div></div>
+      </div>
+      <div class="task"><h4><span class="n">2</span>Clone into your development directory and create your branch</h4>
+        <div class="do"><div><pre><code>sudo usermod -aG netsentinel NEWUSER
+mkdir -p /home/NEWUSER/github
+git clone git@github.com:knet-lab/NetSentinel.git /home/NEWUSER/github/NetSentinel
+git clone git@github.com:knet-lab/knetsentinel.git /home/NEWUSER/github/knetsentinel
+git -C /home/NEWUSER/github/NetSentinel switch -c NEWUSER origin/merge-dev
+git -C /home/NEWUSER/github/NetSentinel push -u origin NEWUSER
+git -C /home/NEWUSER/github/knetsentinel switch -c NEWUSER origin/merge-dev
+git -C /home/NEWUSER/github/knetsentinel push -u origin NEWUSER</code></pre></div></div>
+        <div class="why"><div>Code is only edited here, never in <code>/srv/netsentinel/prod</code> or <code>/srv/netsentinel/knetsentinel</code>. The <code>netsentinel</code> group (log in again afterwards) lets you release into <code>/srv</code>.</div></div>
+        <div class="res"><div>Both repositories cloned; your branch exists on GitHub.</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>Set your commit identity</h4>
         <div class="do"><div><pre><code>git config --global user.name  "Your Name"
-git config --global user.email "your-verified-github-email"</code></pre>Also remove the original author's identity that is stored inside both repositories (run once):<pre><code>sudo -iu soar009
-git config --global user.name  Wk-P
-git config --global user.email weekend2000119@gmail.com
-git -C ~/github/NetSentinel config --local --unset user.name
-git -C ~/github/NetSentinel config --local --unset user.email
-git -C /srv/netsentinel/knetsentinel config --local --unset user.name
-git -C /srv/netsentinel/knetsentinel config --local --unset user.email
-exit</code></pre></div></div>
-        <div class="why"><div>A repository-level identity overrides yours, so every commit would otherwise show <code>Wk-P</code>.</div></div>
-        <div class="res"><div>A test commit and push shows you as the author on GitHub.</div></div>
+git config --global user.email "your-verified-github-email"
+git -C /home/NEWUSER/github/NetSentinel config --local --get-regexp user
+git -C /srv/netsentinel/knetsentinel config --local --get-regexp user</code></pre></div></div>
+        <div class="why"><div>Identity lives only in each account's global config. A repository-level identity would override everyone's; Wk-P's was moved to soar009's global config on 2026-10-19.</div></div>
+        <div class="res"><div>The last two commands print nothing. A test commit pushed on a temporary branch shows you as the author on GitHub.</div></div>
       </div>
       <div class="task"><h4><span class="n">4</span>Check that both accounts can pull from GitHub</h4>
-        <div class="do"><div><p>Production <code>/srv/netsentinel/prod</code> is a git clone; <code>deploy.sh</code> pulls with the SSH key of whoever runs it. <code>soar009</code> uses Wk-P's key, which is kept on purpose; you use the key from step 1. Any owner added later adds their own key the same way.</p>
+        <div class="do"><div><p><code>deploy.sh</code> pulls with the key of whoever runs it: soar009 uses Wk-P's key (kept on purpose), you use the key from step 1.</p>
 <pre><code>git -C /srv/netsentinel/prod fetch origin
 sudo -iu soar009 git -C /srv/netsentinel/prod fetch origin</code></pre></div></div>
-        <div class="why"><div>If Wk-P's key is ever removed from GitHub, pulls as <code>soar009</code> fail; deploy from another owner's account instead.</div></div>
+        <div class="why"><div>If Wk-P's key is ever removed from GitHub, pulls as <code>soar009</code> fail; release from another owner's account instead.</div></div>
         <div class="res"><div>Both fetches succeed.</div></div>
       </div>
     </section>

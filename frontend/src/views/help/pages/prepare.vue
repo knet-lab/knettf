@@ -121,59 +121,75 @@ kubectl get nodes        # 接手人执行，应看到 k8s-master + k8s-node1~4 
     <section id="git">
       <h2>1.3 本地 Git：用自己的身份提交</h2>
 
+      <h3>先看整体流程</h3>
+      <p>服务器上的每个 Linux 账户对应一个 GitHub 账号，用它自己的密钥连 GitHub、用它自己的名字提交。Linux 用户名同时当作个人分支名：</p>
+      <div class="table-wrap"><table>
+        <tr><th>谁</th><th>Linux 账户（= 个人分支名）</th><th>GitHub 账号</th><th>连 GitHub 的密钥</th></tr>
+        <tr><td>原作者</td><td><code>soar009</code></td><td><code>Wk-P</code></td><td><code>/home/soar009/.ssh/github_ssh_key</code></td></tr>
+        <tr><td>接手人</td><td><code>NEWUSER</code>（你自己的）</td><td>你自己的</td><td>你在第 1 步生成的</td></tr>
+      </table></div>
+      <p>一次代码修改从开发到上线经过下面几步，<b>审查只发生在 PR 这一处</b>，之后的分支只做快进、不再改动：</p>
+      <pre><code>/home/NEWUSER/github/NetSentinel        你的开发目录，在个人分支 NEWUSER 上改代码、commit、push
+        │
+        ▼  在 GitHub 开 PR：NEWUSER → merge-dev
+merge-dev                               另一人审查（Files changed → Review changes → Approve）后合并
+        │
+        ▼  /srv/netsentinel/release.sh -frontend | -backend | -all
+prod                                    只从 merge-dev 快进，从不直接提交
+        │
+        ▼  release.sh 接着运行 deploy.sh
+/srv/netsentinel/prod                   用运行者自己的 GitHub 密钥 git pull，构建，重启服务</code></pre>
+      <p>knetsentinel 前半段相同（开发目录 <code>/home/NEWUSER/github/knetsentinel</code> → PR → <code>merge-dev</code>），合并后把 <code>master</code> 快进到 <code>merge-dev</code>，再在运行目录 <code>/srv/netsentinel/knetsentinel</code> 里 <code>git pull --ff-only</code>。两边的具体命令见 <a href="/help/deploy">部署修改</a>。</p>
+      <p>所以下面按顺序做：用你自己的 Linux 账户配 GitHub 密钥（push 和发布时 pull 都用它）→ 从 GitHub 克隆到你的开发目录、建个人分支 → 设置提交身份 → 试一次提交。没 push、没合并到 merge-dev 的提交都不会上线。</p>
+
       <h3>第 1 步：在服务器上给你的账户配 GitHub 密钥</h3>
-      <p>这是你在<b>服务器上</b>用来连 GitHub 的密钥，和 1.1 里登录服务器的密钥不是一个。必须用<b>你自己</b>的账户生成、加到<b>你自己</b>的 GitHub 账号；不要复制或借用 soar009 的 <code>/home/soar009/.ssh/github_ssh_key</code>，那是原作者 Wk-P 的个人密钥，交接完会被撤掉（见第 6 步）。</p>
+      <p>这是你在<b>服务器上</b>用来连 GitHub 的密钥，和 1.1 里登录服务器的密钥不是一个。用<b>你自己</b>的账户生成，加到<b>你自己</b>的 GitHub 账号；不要复制或借用 <code>/home/soar009/.ssh/github_ssh_key</code>，那是 soar009 账户连 GitHub 用的 Wk-P 的密钥。</p>
       <pre><code>ssh-keygen -t ed25519 -C "你的GitHub邮箱"
 cat ~/.ssh/id_ed25519.pub        # 加到 GitHub → Settings → SSH and GPG keys → New SSH key
-ssh -T git@github.com            # 期望 Hi 你的用户名!；若是 Hi Wk-P! 说明在用原作者的密钥</code></pre>
+ssh -T git@github.com            # 期望 Hi 你的GitHub用户名!；若是 Hi Wk-P! 说明在用 soar009 的密钥</code></pre>
 
-      <h3>第 2 步：把两个仓库里写死的 Wk-P 身份移到 soar009 全局（必须做）</h3>
-      <p>现在两个仓库的 <code>.git/config</code> 里都有 <code>user.name=Wk-P</code> / <code>user.email=weekend2000119@gmail.com</code>。仓库级配置优先于个人全局配置，不删的话<b>谁提交都显示 Wk-P</b>。soar009 本身没有全局身份，所以先补上再删：</p>
-      <pre><code>sudo -iu soar009
-git config --global user.name  Wk-P
-git config --global user.email weekend2000119@gmail.com
-for r in ~/github/NetSentinel /srv/netsentinel/knetsentinel; do
-  git -C $r config --local --unset user.name
-  git -C $r config --local --unset user.email
-done
-exit</code></pre>
-      <p>线上目录 <code>/srv/netsentinel/prod</code> 里没有这两项；<code>/srv/netsentinel/knetsentinel</code> 里还有，同样删掉：<code>sudo -u netsentinel git -C /srv/netsentinel/knetsentinel config --local --unset user.name</code>（<code>user.email</code> 同理）。</p>
+      <h3>第 2 步：从 GitHub 克隆到你的开发目录，建个人分支</h3>
+      <p>代码只在自己家目录的开发目录里改，<b>不要</b>在 <code>/srv/netsentinel/prod</code> 或 <code>/srv/netsentinel/knetsentinel</code> 里改。先把自己加进 <code>netsentinel</code> 组（加完重新登录，<code>id</code> 里能看到才算生效），发布时才能写 <code>/srv</code> 下的目录：</p>
+      <pre class="on-prod"><code>sudo usermod -aG netsentinel NEWUSER
+mkdir -p /home/NEWUSER/github
+git clone git@github.com:knet-lab/NetSentinel.git /home/NEWUSER/github/NetSentinel
+git clone git@github.com:knet-lab/knetsentinel.git /home/NEWUSER/github/knetsentinel
+git -C /home/NEWUSER/github/NetSentinel switch -c NEWUSER origin/merge-dev
+git -C /home/NEWUSER/github/NetSentinel push -u origin NEWUSER
+git -C /home/NEWUSER/github/knetsentinel switch -c NEWUSER origin/merge-dev
+git -C /home/NEWUSER/github/knetsentinel push -u origin NEWUSER</code></pre>
 
-      <h3>第 3 步：你的全局身份</h3>
+      <h3>第 3 步：本地仓库的提交设置</h3>
       <pre><code>git config --global user.name  "你的名字"
 git config --global user.email "你在GitHub已验证的邮箱"   # 或 GitHub 提供的 数字+用户名@users.noreply.github.com
 git config --global --list</code></pre>
+      <p>身份只设在各账户的全局配置里，仓库的 <code>.git/config</code> 里不写身份（仓库级配置会覆盖个人配置，谁提交都显示成同一个人）。2026-10-19 已把原来写在仓库里的 Wk-P 身份移到了 soar009 账户的全局配置。确认两个仓库里没有写身份：</p>
+      <pre><code>git -C /home/NEWUSER/github/NetSentinel config --local --get-regexp user     # 应无输出
+git -C /srv/netsentinel/knetsentinel config --local --get-regexp user         # 应无输出</code></pre>
 
-      <h3>第 4 步：在哪里改代码</h3>
-      <p>在自己家目录克隆一份开发，<b>不要</b>在线上目录 <code>/srv/netsentinel/prod</code> 里改代码。先把自己加进 <code>netsentinel</code> 组（加完重新登录，<code>id</code> 里能看到才算生效），<code>deploy.sh</code> 才能写线上目录：</p>
-      <pre class="on-prod"><code>sudo usermod -aG netsentinel NEWUSER
-mkdir -p /home/NEWUSER/github && cd /home/NEWUSER/github
-git clone git@github.com:knet-lab/NetSentinel.git
-git switch -c NEWUSER origin/merge-dev && git push -u origin NEWUSER   # 建自己的个人分支
-# 改完 commit、push，PR 合并到 merge-dev、快进到 prod 后，部署到线上：
-/home/NEWUSER/github/NetSentinel/scripts/deploy.sh -all</code></pre>
-      <p>链路是 你的个人分支 → PR 合并到 <code>merge-dev</code> → 快进到 <code>prod</code> → <code>deploy.sh</code> 在线上目录 <code>/srv/netsentinel/prod</code> 里用<b>你自己的</b> GitHub 密钥 <code>git pull</code>，再构建、重启。没 push 的提交不会上线；线上目录有本地改动时 <code>deploy.sh</code> 会拒绝部署。</p>
-
-      <h3>第 5 步：试一次提交</h3>
+      <h3>第 4 步：试一次提交</h3>
+      <p>用一个临时分支试，不弄脏个人分支。knetsentinel 把路径换成 <code>/home/NEWUSER/github/knetsentinel</code> 再做一遍：</p>
       <pre><code>cd /home/NEWUSER/github/NetSentinel
 git switch -c test/handover
-echo "" >> README.md && git commit -am "test: handover commit"
-git log -1 --format='%an <%ae>'     # 应是你自己
-git push -u origin test/handover
-git switch merge-dev && git push origin --delete test/handover && git branch -D test/handover</code></pre>
+git commit --allow-empty -m "test: handover commit"
+git log -1 --format='%an &lt;%ae&gt;'     # 应是你自己
+git push -u origin test/handover     # GitHub 上作者应是你
+git switch NEWUSER
+git push origin --delete test/handover
+git branch -D test/handover</code></pre>
 
-      <h3>第 6 步：确认两个账户都能从 GitHub pull</h3>
-      <p>线上目录 <code>/srv/netsentinel/prod</code> 本身是 git clone，<code>deploy.sh</code> 在里面 <code>git pull</code> 时用的是<b>运行者自己的</b> SSH 密钥：soar009 运行用 Wk-P 的密钥（<code>/home/soar009/.ssh/github_ssh_key</code>），你运行用你在第 1 步加的密钥。所以两个账户都要能 pull knet-lab 的仓库，<b>Wk-P 的密钥保留</b>，以后再加入的 owner 也照第 1 步加自己的密钥。</p>
+      <h3>第 5 步：确认两个账户都能从 GitHub pull</h3>
+      <p>发布时 <code>deploy.sh</code> 在 <code>/srv/netsentinel/prod</code> 里用<b>运行者自己的</b>密钥 <code>git pull</code>：soar009 运行用 Wk-P 的密钥，你运行用第 1 步的密钥。两个都要能用，Wk-P 的密钥保留；以后再加入的 owner 也按第 1 步加自己的密钥。</p>
       <pre><code>git -C /srv/netsentinel/prod fetch origin                     # 你自己的账户下，不报错即可
 sudo -iu soar009 git -C /srv/netsentinel/prod fetch origin    # soar009 下，同样不报错</code></pre>
-      <div class="note">保留 Wk-P 密钥的代价：能 sudo 的人都能以 Wk-P 的身份操作 GitHub；Wk-P 删掉这把公钥或离开 knet-lab 时，soar009 下的 pull 会失败，此时改由其他 owner 部署即可，线上不受影响。</div>
+      <div class="note">保留 Wk-P 密钥的代价：能 sudo 的人都能以 Wk-P 的身份操作 GitHub。Wk-P 删掉这把公钥或离开 knet-lab 时，soar009 下的 pull 会失败，此时改由其他 owner 发布即可，线上不受影响。</div>
 
       <h3>常见错误</h3>
       <div class="table-wrap"><table>
         <tr><th>现象</th><th>原因</th><th>处理</th></tr>
         <tr><td><code>Permission denied (publickey)</code></td><td>服务器上你账户的公钥没加到 GitHub</td><td>第 1 步</td></tr>
         <tr><td><code>Permission to knet-lab/NetSentinel.git denied to 你的用户名</code></td><td>还没接受 knet-lab 组织的邀请</td><td>1.2</td></tr>
-        <tr><td>提交作者显示 Wk-P</td><td>第 2 步没做，或在 soar009 身份下提交</td><td>第 2 步</td></tr>
+        <tr><td>提交作者显示 Wk-P</td><td>在 soar009 账户下提交了，或仓库 <code>.git/config</code> 里又写了身份</td><td>第 3 步</td></tr>
         <tr><td><code>detected dubious ownership</code></td><td>仓库属于别的账户</td><td><code>git config --global --add safe.directory 仓库路径</code>（线上目录已在系统级配置里加过）</td></tr>
         <tr><td><code>insufficient permission for adding an object</code></td><td>/srv 下有文件不是组可写</td><td><code>sudo chmod -R g+rwX /srv/netsentinel/prod/.git</code>，确认 umask 002</td></tr>
       </table></div>
@@ -189,8 +205,8 @@ sudo -iu soar009 git -C /srv/netsentinel/prod fetch origin    # soar009 下，�
         <tr><td>3</td><td><code>sudo systemctl is-active netsentinel cloudflared-knettf</code>；<code>id</code> 里有 <code>netsentinel</code> 组</td><td><code>active</code></td><td>1.1（缺 sudo 组）</td></tr>
         <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 个节点 <code>Ready</code></td><td>1.1 kubectl</td></tr>
         <tr><td>5</td><td><code>ssh -T git@github.com</code></td><td><code>Hi 你的GitHub用户名!</code></td><td>1.3 第 1 步</td></tr>
-        <tr><td>6</td><td>在两个仓库各试一次提交并 push</td><td>GitHub 上作者是你，不是 Wk-P</td><td>1.2、1.3 第 2–5 步</td></tr>
-        <tr><td>7</td><td><code>git -C /srv/netsentinel/prod fetch origin</code>，自己的账户和 <code>sudo -iu soar009</code> 下各一次</td><td>两次都不报错</td><td>1.3 第 1、6 步</td></tr>
+        <tr><td>6</td><td>在两个仓库各试一次提交并 push</td><td>GitHub 上作者是你，不是 Wk-P</td><td>1.2、1.3 第 2–4 步</td></tr>
+        <tr><td>7</td><td><code>git -C /srv/netsentinel/prod fetch origin</code>，自己的账户和 <code>sudo -iu soar009</code> 下各一次</td><td>两次都不报错</td><td>1.3 第 1、5 步</td></tr>
       </table></div>
     </section>
 
@@ -204,7 +220,7 @@ sudo systemctl restart netsentinel
 sudo journalctl -u netsentinel -f
 cat /etc/cron.d/netsentinel              # 看定时任务
 tail /srv/netsentinel/logs/rotate_partitions.log</code></pre>
-      <div class="note">不要在 <code>sudo -iu soar009</code> 下 <b>git commit</b>：soar009 的仓库 <code>.git/config</code> 写死了 <code>user.name=Wk-P</code>，提交会记到原作者名下（见 1.3 第 2 步）。my-code 的服务仍是 soar009 的 user 服务（<code>sudo -iu soar009 systemctl --user ...</code>），不归你管。</div>
+      <div class="note">不要在 <code>sudo -iu soar009</code> 下 <b>git commit</b>：soar009 账户的全局身份是它的 GitHub 账号 Wk-P，提交会记到原作者名下（见 1.3 整体流程）。my-code 的服务仍是 soar009 的 user 服务（<code>sudo -iu soar009 systemctl --user ...</code>），不归你管。</div>
     </section>
 
     <section id="day1">
