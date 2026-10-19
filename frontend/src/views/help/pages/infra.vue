@@ -143,28 +143,30 @@ kubectl exec kafka-broker-0 -- /opt/kafka/bin/kafka-console-consumer.sh --bootst
 
     <section id="hostsvc">
       <h2>5.10 宿主机上的服务（NetSentinel 侧）</h2>
-      <h3>后端：<code>~/.config/systemd/user/netsentinel.service</code></h3>
+      <h3>后端：<code>/etc/systemd/system/netsentinel.service</code>（源文件 <code>deploy/systemd/netsentinel.service</code>）</h3>
 <pre class="on-prod"><code>[Service]
-WorkingDirectory=/home/soar009/netsentinel-prod/backend      <span class="c"># 线上目录 <span class="vp">~/netsentinel-prod</span>，不是开发目录</span>
+User=netsentinel        Group=netsentinel  UMask=0002
+WorkingDirectory=/srv/netsentinel/prod/backend      <span class="c"># 线上目录，不是开发目录</span>
 Environment=DJANGO_SETTINGS_MODULE=backend.settings
-ExecStart=/home/soar009/netsentinel-prod/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
+ExecStart=/srv/netsentinel/prod/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
 Restart=always          RestartSec=3       <span class="c"># 挂了 3 秒后自动拉起</span>
 TimeoutStopSec=8        KillMode=mixed     <span class="c"># 停止时先 SIGTERM，8 秒后强杀</span>
 TasksMax=500  MemoryMax=3G  MemorySwapMax=0 <span class="c"># 超 3G 内存直接被杀（然后自动重启）</span>
 [Install]
-WantedBy=default.target</code></pre>
-      <p>用户服务要在用户未登录时也运行，需要 <code>loginctl enable-linger soar009</code>（已开）。改了 unit 文件后 <code>systemctl --user daemon-reload</code>。</p>
-      <h3>公网：<code>cloudflared-knettf.service</code> + <code>~/.cloudflared/netsentinel.yml</code></h3>
-<pre><code>tunnel: 491d938b-...           credentials-file: ~/.cloudflared/491d938b-....json
+WantedBy=multi-user.target</code></pre>
+      <p>系统服务，开机自启，不依赖任何人登录。改了 unit 文件后 <code>sudo systemctl daemon-reload</code>。<code>/etc/sudoers.d/netsentinel</code>（源文件 <code>deploy/sudoers.netsentinel</code>）允许 <code>netsentinel</code> 账户免密码 restart / status 这两个服务、看它们的日志。</p>
+      <h3>公网：<code>cloudflared-knettf.service</code> + <code>/etc/cloudflared/knettf/config.yml</code></h3>
+<p>系统服务，以 <code>netsentinel</code> 账户运行；源文件 <code>deploy/systemd/cloudflared-knettf.service</code> 和 <code>deploy/cloudflared-knettf.yml</code>。</p>
+<pre><code>tunnel: 491d938b-...           credentials-file: /etc/cloudflared/knettf/491d938b-....json
 ingress:
   - hostname: knettf.com   service: http://localhost:8080
   - service: http_status:404</code></pre>
       <p>Cloudflare 侧需要 knettf.com 的 DNS 指向这个隧道。WebSocket 经隧道可以正常工作。</p>
       <h3>PostgreSQL：Docker 容器 <code>pg</code></h3>
       <p>镜像 <code>postgres</code>（当前 18.4），<code>--restart unless-stopped</code>，端口 <code>5432:5432</code>，数据卷挂在 <code>/var/lib/postgresql</code>。库 / 用户 / 密码 <code>vigil / vigil / vigil123</code>。注意 <code>unless-stopped</code>：你手动 <code>docker stop pg</code> 后，开机<b>不会</b>自动启动它。</p>
-      <h3>crontab</h3>
-<pre class="on-prod"><code>0 0 * * * <span class="vp">~/netsentinel-prod</span>/.venv/bin/python <span class="vp">~/netsentinel-prod</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /tmp/rotate_partitions.log 2&gt;&amp;1</code></pre>
-      <p>必须用 <code class="vp">~/netsentinel-prod</code>：开发目录 <code class="vn">~/github/NetSentinel</code> 的默认库是 <code>vigil_dev</code>，用它跑分区会建错库。按宿主机本地时间 0 点执行，而分区边界是 UTC。只要每天都跑，明天的分区总会提前建好。<code>/tmp</code> 下的日志重启后清空。</p>
+      <h3>定时任务：<code>/etc/cron.d/netsentinel</code>（源文件 <code>deploy/cron.netsentinel</code>）</h3>
+<pre class="on-prod"><code>0 0 * * * netsentinel <span class="vp">/srv/netsentinel/prod</span>/.venv/bin/python <span class="vp">/srv/netsentinel/prod</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /srv/netsentinel/logs/rotate_partitions.log 2&gt;&amp;1</code></pre>
+      <p>必须用 <code class="vp">/srv/netsentinel/prod</code>：开发目录 <code class="vn">~/github/NetSentinel</code> 的默认库是 <code>vigil_dev</code>，用它跑分区会建错库。按宿主机本地时间 0 点执行，而分区边界是 UTC。只要每天都跑，明天的分区总会提前建好。</p>
     </section>
 
     <section id="bootstrap">
@@ -191,35 +193,43 @@ printf 'ENVIRONMENT=linux_development\nVIGIL_KAFKA_GROUP_ID=vigil-bridge-dev\n' 
 printf 'VITE_API_BASE=/api\nVITE_WS_BASE=\n' &gt; <span class="vn">~/github/NetSentinel</span>/frontend/.env
 cd <span class="vn">~/github/NetSentinel</span>/backend &amp;&amp; ../.venv/bin/python manage.py migrate &amp;&amp; ../.venv/bin/python manage.py migrate --database=vigil
 
-<span class="c"># —— N：线上目录 <span class="vp">~/netsentinel-prod</span> ——</span>
-git clone <span class="vn">~/github/NetSentinel</span> <span class="vp">~/netsentinel-prod</span>                                   <span class="c"># origin 指向开发目录，deploy.sh 从这里 pull</span>
-cd <span class="vp">~/netsentinel-prod</span> &amp;&amp; uv sync --frozen
-cp -a <span class="vn">~/github/NetSentinel</span>/backend/vigil/ml/ads_ml <span class="vp">~/netsentinel-prod</span>/backend/vigil/ml/   <span class="c"># 模型不在 Git 里</span>
-cp <span class="vn">~/github/NetSentinel</span>/frontend/.env <span class="vp">~/netsentinel-prod</span>/frontend/.env
+<span class="c"># —— N：线上目录 <span class="vp">/srv/netsentinel/prod</span> ——</span>
+sudo groupadd --system netsentinel &amp;&amp; sudo useradd --system -g netsentinel -d /srv/netsentinel -s /usr/sbin/nologin netsentinel
+sudo usermod -aG netsentinel $USER                                    <span class="c"># 之后重新登录</span>
+sudo install -d -o netsentinel -g netsentinel -m 2775 /srv/netsentinel /srv/netsentinel/logs
+git clone git@github.com:knet-lab/NetSentinel.git <span class="vp">/srv/netsentinel/prod</span>   <span class="c"># deploy.sh 从 GitHub pull</span>
+sudo chown -R netsentinel:netsentinel <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; sudo chmod -R g+rwX <span class="vp">/srv/netsentinel/prod</span>
+git -C <span class="vp">/srv/netsentinel/prod</span> config core.sharedRepository group
+cd <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; uv sync --frozen
+cp -a <span class="vn">~/github/NetSentinel</span>/backend/vigil/ml/ads_ml <span class="vp">/srv/netsentinel/prod</span>/backend/vigil/ml/   <span class="c"># 模型不在 Git 里</span>
+cp <span class="vn">~/github/NetSentinel</span>/frontend/.env <span class="vp">/srv/netsentinel/prod</span>/frontend/.env
 <span class="c"># 线上 .env：ENVIRONMENT=linux_development、DEBUG=False、SECRET_KEY=&lt;随机&gt;、</span>
 <span class="c"># ALLOWED_HOSTS=knettf.com,localhost,127.0.0.1,192.168.100.1、CSRF_EXTRA_ORIGINS=https://knettf.com、VIGIL_DB_NAME=vigil</span>
 python3 -c "import secrets;print('SECRET_KEY='+secrets.token_urlsafe(50))"   <span class="c"># 生成 SECRET_KEY</span>
-vi <span class="vp">~/netsentinel-prod</span>/backend/backend/.env &amp;&amp; chmod 600 <span class="vp">~/netsentinel-prod</span>/backend/backend/.env
-cd <span class="vp">~/netsentinel-prod</span>/backend
+vi <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env &amp;&amp; chmod 600 <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env
+cd <span class="vp">/srv/netsentinel/prod</span>/backend
 ../.venv/bin/python manage.py migrate
 ../.venv/bin/python manage.py migrate --database=vigil
 ../.venv/bin/python manage.py users_init
 ../.venv/bin/python manage.py autotf_init
 ../.venv/bin/python manage.py generate_bridge_token --write-env
 ../.venv/bin/python manage.py collectstatic --noinput
-cd <span class="vp">~/netsentinel-prod</span>/frontend &amp;&amp; pnpm install --frozen-lockfile &amp;&amp; pnpm build
+cd <span class="vp">/srv/netsentinel/prod</span>/frontend &amp;&amp; pnpm install --frozen-lockfile &amp;&amp; pnpm build
 
 <span class="c"># —— N：服务 ——</span>
-systemctl --user daemon-reload
-systemctl --user enable --now netsentinel cloudflared-knettf
-loginctl enable-linger $USER
-(crontab -l; echo "0 0 * * * <span class="vp">~/netsentinel-prod</span>/.venv/bin/python <span class="vp">~/netsentinel-prod</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /tmp/rotate_partitions.log 2&gt;&amp;1") | crontab -
+<span class="c"># cloudflared 凭证 JSON 放到 /etc/cloudflared/knettf/（属主 netsentinel，权限 400）</span>
+sudo install -m 644 <span class="vn">~/github/NetSentinel</span>/deploy/systemd/*.service /etc/systemd/system/
+sudo install -m 644 <span class="vn">~/github/NetSentinel</span>/deploy/cron.netsentinel /etc/cron.d/netsentinel
+sudo install -m 440 <span class="vn">~/github/NetSentinel</span>/deploy/sudoers.netsentinel /etc/sudoers.d/netsentinel
+sudo install -o root -g netsentinel -m 640 <span class="vn">~/github/NetSentinel</span>/deploy/cloudflared-knettf.yml /etc/cloudflared/knettf/config.yml
+sudo systemctl daemon-reload
+sudo systemctl enable --now netsentinel cloudflared-knettf
 
 <span class="c"># —— 联通 ——</span>
-systemctl --user restart netsentinel      <span class="c"># Kafka 就绪后重启，bridge 才能连上</span>
+sudo systemctl restart netsentinel      <span class="c"># Kafka 就绪后重启，bridge 才能连上</span>
 <span class="c"># 网页登录 → Kubernetes → Add，粘贴 ~/.kube/config</span>
 cd ~/knetsentinel &amp;&amp; sudo .venv/bin/python3 traffic/spoof_attack.py --packets 50   <span class="c"># 端到端验证</span></code></pre>
-      <p>systemd unit 和 cloudflared 配置不在任何仓库里，新机器上要从备份恢复（<a href="/help/power#backup">备份与恢复</a>）或照 5.10 重写；cloudflared 隧道凭证 JSON 需要在 Cloudflare 账号里重新生成。</p>
+      <p>systemd unit、cron、sudoers 和 cloudflared 配置都在仓库的 <code>deploy/</code> 目录里；cloudflared 隧道凭证 JSON 不在仓库里，要从备份恢复（<a href="/help/power#backup">备份与恢复</a>）或在 Cloudflare 账号里重新生成。</p>
     </section>
   </div>
 </template>
