@@ -67,7 +67,7 @@
         <tr><td>模型最近一次推理</td><td><code class="vp">/srv/netsentinel/prod/backend/vigil/ml/ads_ml/results/Anomaly_Detection_Report.csv</code></td><td></td></tr>
         <tr><td>Vector / Kafka / hubble-relay</td><td><code>kubectl -n kube-system logs -l app=vector --tail=50</code>；<code>kubectl logs kafka-broker-0</code>；<code>kubectl -n kube-system logs deploy/hubble-relay</code></td><td></td></tr>
         <tr><td>入口 B 检测器</td><td><code>kubectl -n netsentinel logs deploy/netsentinel-detector -f</code></td><td><code>connected to Django</code></td></tr>
-        <tr><td>knetsentinel 脚本</td><td><code>~/knetsentinel/logs/</code>、<code>~/knetsentinel/kafka/*.log</code>、<code>~/knetsentinel/traffic_request/*.log</code>、<code>~/knetsentinel/simulation/monitor/send.log</code></td><td></td></tr>
+        <tr><td>knetsentinel 脚本</td><td><code>/srv/netsentinel/knetsentinel/logs/</code>、<code>/srv/netsentinel/knetsentinel/kafka/*.log</code>、<code>/srv/netsentinel/knetsentinel/traffic_request/*.log</code>、<code>/srv/netsentinel/knetsentinel/simulation/monitor/send.log</code></td><td></td></tr>
       </table></div>
     </section>
 

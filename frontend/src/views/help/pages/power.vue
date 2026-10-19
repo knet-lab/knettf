@@ -24,7 +24,7 @@
         <div class="res"><div>没有输出。有的话 <code>sudo kill &lt;pid&gt;</code>。</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>清理伪造源 IP</h4>
-        <div class="do"><div><pre><code>cd ~/knetsentinel && sudo .venv/bin/python3 traffic/handle_addr.py --action delete
+        <div class="do"><div><pre><code>cd /srv/netsentinel/knetsentinel && sudo .venv/bin/python3 traffic/handle_addr.py --action delete
 ip -4 addr show virbr-k8s | grep inet</code></pre></div></div>
         <div class="why"><div>发包脚本会临时把 .20-.29、.50-.64 等地址加到网桥上。残留的地址会让下次实验的标签和流量混在一起。</div></div>
         <div class="res"><div>只剩 <code>192.168.100.1/24</code>。</div></div>
@@ -86,7 +86,7 @@ kubectl -n kube-system rollout status ds/vector --timeout=300s</code></pre></div
       <div class="task"><h4><span class="n">6</span>核对 MetalLB 地址没变</h4>
         <div class="do"><div><pre><code>kubectl get svc -A | grep LoadBalancer</code></pre></div></div>
         <div class="why"><div>后端连 Kafka 用的地址是写死在 <code>bridge.py</code> 里的 .200-.203，地址一变，bridge 就连不上。</div></div>
-        <div class="res"><div>kafka-0~3-external = 192.168.100.200~203；my-nginx = .204；targets = .210~.214。<br><span class="bad">Kafka 地址变了</span>：重跑 <code>~/knetsentinel/kubeadm-cluster/03-deploy-5nodes.sh</code>，并改 <code>bridge.py</code> 的 <code>KAFKA_BOOTSTRAP</code>。</div></div>
+        <div class="res"><div>kafka-0~3-external = 192.168.100.200~203；my-nginx = .204；targets = .210~.214。<br><span class="bad">Kafka 地址变了</span>：重跑 <code>/srv/netsentinel/knetsentinel/kubeadm-cluster/03-deploy-5nodes.sh</code>，并改 <code>bridge.py</code> 的 <code>KAFKA_BOOTSTRAP</code>。</div></div>
       </div>
       <div class="task"><h4><span class="n">7</span>重启后端，让 bridge 重新连上 Kafka</h4>
         <div class="do"><div><pre class="on-prod"><code>sudo systemctl restart netsentinel
@@ -95,7 +95,7 @@ sleep 20; sudo journalctl -u netsentinel --since '-1 min' | grep -E 'AdsMLModel|
         <div class="res"><div>能看到 <code>AdsMLModel loaded</code>、<code>vigil bridge + drainer threads started</code>、<code>bridge starting → bootstrap=...</code>，没有 <code>bridge error</code>。</div></div>
       </div>
       <div class="task" id="verify"><h4><span class="n">8</span>端到端验证</h4>
-        <div class="do"><div><pre><code>cd ~/knetsentinel && sudo .venv/bin/python3 traffic/spoof_attack.py --packets 200
+        <div class="do"><div><pre><code>cd /srv/netsentinel/knetsentinel && sudo .venv/bin/python3 traffic/spoof_attack.py --packets 200
 sleep 15
 docker exec pg psql -U vigil vigil -c "select created_at, src_ip, is_attack, attack_type from vigil_detectionrecord order by created_at desc limit 5;"</code></pre></div></div>
         <div class="why"><div>前面每一步只证明各自那一环正常；从发包到入库走一遍，才能证明整条链路是通的。</div></div>
@@ -118,19 +118,19 @@ docker exec pg psql -U vigil vigil -c "select created_at, src_ip, is_attack, att
 
       <h3 id="rebuild-kafka">重建 Kafka</h3>
       <div class="task"><h4><span class="n">1</span>导出需要保留的数据</h4>
-        <div class="do"><div><pre><code>cd ~/knetsentinel && uv run python kafka/kafka_read_csv.py --output backup_$(date +%F).csv --max-attack 1000000 --max-normal 1000000</code></pre></div></div>
+        <div class="do"><div><pre><code>cd /srv/netsentinel/knetsentinel && uv run python kafka/kafka_read_csv.py --output backup_$(date +%F).csv --max-attack 1000000 --max-normal 1000000</code></pre></div></div>
         <div class="why"><div>删掉 PVC 后，topic 里的数据就没了。</div></div>
         <div class="res"><div>生成 CSV（不需要保留数据时可以跳过这一步）。</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>删除 Kafka 资源和 PVC</h4>
-        <div class="do"><div><pre><code>kubectl delete -f ~/knetsentinel/kafka-svc/kafka-5nodes.yaml --ignore-not-found
+        <div class="do"><div><pre><code>kubectl delete -f /srv/netsentinel/knetsentinel/kafka-svc/kafka-5nodes.yaml --ignore-not-found
 kubectl delete pvc -l app=kafka-broker --ignore-not-found
 kubectl get pods,pvc | grep kafka</code></pre></div></div>
         <div class="why"><div>controller 元数据丢失后，broker 用旧 PVC 往往注册失败，全部删掉重来最稳妥。</div></div>
         <div class="res"><div>最后一条没有输出。</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>重新部署、核对地址、重启后端</h4>
-        <div class="do"><div><pre class="on-prod"><code>cd ~/knetsentinel/kubeadm-cluster && bash 03-deploy-5nodes.sh
+        <div class="do"><div><pre class="on-prod"><code>cd /srv/netsentinel/knetsentinel/kubeadm-cluster && bash 03-deploy-5nodes.sh
 kubectl get svc | grep 'kafka-.-external'
 sudo systemctl restart netsentinel</code></pre></div></div>
         <div class="why"><div>03 脚本是幂等的：先建 Service 拿到 MetalLB IP，再部署 controller、broker、Vector。后端要重启，bridge 才会连上新的 Kafka。</div></div>
@@ -147,13 +147,13 @@ sudo systemctl stop netsentinel</code></pre></div></div>
         <div class="res"><div>备份文件已生成，服务 inactive。</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>按顺序跑 00 → 01 → 02 → 03</h4>
-        <div class="do"><div><pre><code>cd ~/knetsentinel/kubeadm-cluster
+        <div class="do"><div><pre><code>cd /srv/netsentinel/knetsentinel/kubeadm-cluster
 bash 00-clear.sh            # 不可逆：删 VM、网桥、磁盘、kubeconfig、/etc/hosts 条目
 bash 01-setup-vms.sh        # 网桥 + 5 台 VM
 bash 02-setup-cluster.sh    # kubeadm + Cilium/Hubble + MetalLB + local-path
 bash 03-deploy-5nodes.sh    # Kafka + Vector + my-nginx
-kubectl apply -f ~/knetsentinel/cluster-setup/targets.yaml
-kubectl apply -f ~/knetsentinel/cluster-setup/host-firewall-ccnp.yaml</code></pre>以普通用户运行，<b>不要</b> <code>sudo bash</code>（kubeconfig 会写到 root 的家目录）。</div></div>
+kubectl apply -f /srv/netsentinel/knetsentinel/cluster-setup/targets.yaml
+kubectl apply -f /srv/netsentinel/knetsentinel/cluster-setup/host-firewall-ccnp.yaml</code></pre>以普通用户运行，<b>不要</b> <code>sudo bash</code>（kubeconfig 会写到 root 的家目录）。</div></div>
         <div class="why"><div>每一步都依赖上一步的产物（详见 <a href="/help/index#order">系统总览 · 构建顺序</a>）。01 需要 ≥ 420GB 空闲磁盘和外网。</div></div>
         <div class="res"><div>5 个节点 Ready，Kafka 地址 .200-.203。MetalLB webhook 偶尔会拒绝 IP 池，重跑 02 即可。</div></div>
       </div>
@@ -201,8 +201,8 @@ cd <span class="vn">~/github/NetSentinel</span> &amp;&amp; scripts/deploy.sh -al
       <h2>备份与恢复</h2>
       <div class="table-wrap"><table>
         <tr><th>对象</th><th>备份命令</th><th>恢复</th></tr>
-        <tr><td>default 库</td><td><code class="vp">sqlite3 /srv/netsentinel/prod/backend/db.sqlite3 ".backup '/srv/netsentinel/prod/backend/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"</code></td><td>停服务 → 覆盖 <code>db.sqlite3</code> → 启服务</td></tr>
-        <tr><td>vigil 库</td><td><code>docker exec pg pg_dump -U vigil -Fc vigil &gt; ~/vigil_$(date +%F).dump</code></td><td>见下方</td></tr>
+        <tr><td>default 库</td><td><code class="vp">sqlite3 /srv/netsentinel/prod/backend/db.sqlite3 ".backup '/srv/netsentinel/backups/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"</code></td><td>停服务 → 覆盖 <code>db.sqlite3</code> → 启服务</td></tr>
+        <tr><td>vigil 库</td><td><code>docker exec pg pg_dump -U vigil -Fc vigil &gt; /srv/netsentinel/backups/vigil_$(date +%F).dump</code></td><td>见下方</td></tr>
         <tr><td>上传的 .tf 文件</td><td><code class="vp">tar czf tf_$(date +%F).tgz -C /srv/netsentinel/prod/backend terraform</code></td><td>解压回 <code>backend/</code></td></tr>
         <tr><td>后端 .env</td><td><code class="vp">cp /srv/netsentinel/prod/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td><td>复制回去，重启后端</td></tr>
         <tr><td>模型文件</td><td><code class="vp">tar czf ads_ml_$(date +%F).tgz -C /srv/netsentinel/prod/backend/vigil/ml ads_ml/trained ads_ml/config.yaml</code></td><td>解压回去，重启后端</td></tr>
@@ -213,7 +213,7 @@ cd <span class="vn">~/github/NetSentinel</span> &amp;&amp; scripts/deploy.sh -al
       </table></div>
       <h3>恢复 vigil 库</h3>
 <pre class="on-prod"><code>sudo systemctl stop netsentinel
-docker exec -i pg pg_restore -U vigil -d vigil --clean --if-exists &lt; ~/vigil_2026-10-16.dump
+docker exec -i pg pg_restore -U vigil -d vigil --clean --if-exists &lt; /srv/netsentinel/backups/vigil_2026-10-16.dump
 sudo systemctl start netsentinel
 docker exec pg psql -U vigil vigil -Atc "select count(*) from vigil_detectionrecord;"</code></pre>
       <p>恢复之后检查明天的分区还在不在（<a href="/help/health">健康检查</a> 第 3 步）：备份里可能没有新日期的分区。</p>

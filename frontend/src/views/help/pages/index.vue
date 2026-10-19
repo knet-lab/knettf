@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>系统总览</h1>
     <div class="meta">开发参考的第一页：系统由哪两个项目组成、数据怎么流动、东西放在哪、从零搭起来的顺序、两个项目之间的契约。改代码之前先读这一页。<br>
-      <span class="tag tag-k">K</span> = knetsentinel（<code>~/knetsentinel</code>），<span class="tag tag-n">N</span> = NetSentinel（开发目录 <code class="vn">~/github/NetSentinel</code>，线上目录 <code class="vp">/srv/netsentinel/prod</code>），<span class="tag tag-b">K+N</span> = 两边都涉及。改代码在 <code class="vn">~/github/NetSentinel</code>，看线上数据、日志、模型在 <code class="vp">/srv/netsentinel/prod</code>，见 <a href="#envs">0.5 开发与生产</a>。用自己的账户登录时 <code>~</code> 是你自己的家目录，路径见 <a href="/help/prepare">接手准备</a>。</div>
+      <span class="tag tag-k">K</span> = knetsentinel（<code>/srv/netsentinel/knetsentinel</code>），<span class="tag tag-n">N</span> = NetSentinel（开发目录 <code class="vn">~/github/NetSentinel</code>，线上目录 <code class="vp">/srv/netsentinel/prod</code>），<span class="tag tag-b">K+N</span> = 两边都涉及。改代码在 <code class="vn">~/github/NetSentinel</code>，看线上数据、日志、模型在 <code class="vp">/srv/netsentinel/prod</code>，见 <a href="#envs">0.5 开发与生产</a>。用自己的账户登录时 <code>~</code> 是你自己的家目录，路径见 <a href="/help/prepare">接手准备</a>。</div>
 
     <section id="what">
       <h2>0.1 这个系统做什么</h2>
@@ -100,7 +100,7 @@
         <tr><td>vigil 数据库</td><td>Docker 容器 <code>pg</code>，<code>127.0.0.1:5432</code>，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>，用户 <code>vigil</code></td><td>PostgreSQL：检测记录（按天分区）</td></tr>
         <tr><td>模型文件</td><td><code class="vp">/srv/netsentinel/prod/backend/vigil/ml/ads_ml/trained/</code></td><td>OCSVM 流水线、攻击原型、训练数据</td></tr>
         <tr><td>后端服务定义</td><td><code>deploy/systemd/netsentinel.service</code></td><td>装到 <code>/etc/systemd/system/</code> 的系统服务，以 <code>netsentinel</code> 账户运行</td></tr>
-        <tr><td>集群脚本</td><td><code>~/knetsentinel/kubeadm-cluster/</code></td><td>00 清理 / 01 建 VM / 02 装集群 / 03 部署数据管道</td></tr>
+        <tr><td>集群脚本</td><td><code>/srv/netsentinel/knetsentinel/kubeadm-cluster/</code></td><td>00 清理 / 01 建 VM / 02 装集群 / 03 部署数据管道</td></tr>
         <tr><td>集群凭证</td><td><code>~/.kube/config</code></td><td>宿主机上 <code>kubectl</code> 用它；登记集群时把它的内容贴到网页上</td></tr>
         <tr><td>VM 磁盘</td><td><code>~/vm-images/</code></td><td>5 个 qcow2 + Ubuntu 22.04 cloud image</td></tr>
       </table></div>
@@ -134,7 +134,7 @@
         <tr><td>Kafka consumer group</td><td><code>vigil-bridge-dev</code>（开发 <code>.env</code> 设置）</td><td><code>vigil-bridge</code>（默认值）</td></tr>
         <tr><td>定时任务</td><td>无</td><td><code>/etc/cron.d/netsentinel</code> 每天 0 点 <code>rotate_partitions</code></td></tr>
       </table></div>
-      <p>上线流程：在 <code class="vn">~/github/NetSentinel</code> 改代码、<code>git commit</code> 并 <code>git push</code> 到 GitHub → <code class="vn">cd ~/github/NetSentinel &amp;&amp; scripts/deploy.sh -all</code>。脚本在 <code class="vp">/srv/netsentinel/prod</code> 里从 GitHub <code>git pull</code>、<code>uv sync</code>、构建、迁移、重启，详见 <a href="/help/deploy">改动上线</a>。没 push 的改动不会上线。运行 <code>deploy.sh</code> 的账户必须在 <code>netsentinel</code> 组里（加组后要重新登录）。</p>
+      <p>上线流程：在 <code class="vn">~/github/NetSentinel</code> 的个人分支上改代码、<code>git commit</code>、<code>git push</code> → GitHub 上开 PR 合并到 <code>merge-dev</code>（对方审核）→ <code>/srv/netsentinel/release.sh -all</code>（或 <code>-frontend</code> / <code>-backend</code>）把 <code>prod</code> 快进到 <code>merge-dev</code> 并部署。部署脚本在 <code class="vp">/srv/netsentinel/prod</code> 里从 GitHub <code>git pull</code> prod、<code>uv sync</code>、构建、迁移、重启，流程图见 <a href="/help/deploy#branches">改动上线</a>。没合并进 merge-dev 并发布到 prod 的改动不会上线。运行 <code>deploy.sh</code> 的账户必须在 <code>netsentinel</code> 组里（加组后要重新登录）。</p>
       <div class="note"><b>规则</b>：不要在 <code class="vp">/srv/netsentinel/prod</code> 里改代码或 commit（下次部署 <code>git pull --ff-only</code> 会失败）；查线上数据、日志、模型结果、跑运维命令（改密码、补分区等）用 <code class="vp">/srv/netsentinel/prod</code>；开发调试只用 <code class="vn">~/github/NetSentinel</code>。开发后端一定要带 <code>vigil-bridge-dev</code> 这个 group，否则会和线上分走 Kafka 分区，线上漏收流量。</div>
     </section>
 
@@ -180,7 +180,7 @@
         <tr><td>0</td><td>宿主机准备</td><td>—</td><td>KVM 可用、sudo、≥420GB 磁盘、外网、kubectl / helm / docker / uv / pnpm / terraform 等工具</td><td>—</td><td>运行环境</td><td>后续脚本中途失败</td></tr>
         <tr><td>1</td><td>建 VM</td><td><span class="tag tag-k">K</span></td><td><code>bash kubeadm-cluster/01-setup-vms.sh</code></td><td>0</td><td>网桥 <code>virbr-k8s</code>、5 台 VM、SSH 可登录</td><td>—</td></tr>
         <tr><td>2</td><td>装集群</td><td><span class="tag tag-k">K</span></td><td><code>bash kubeadm-cluster/02-setup-cluster.sh</code></td><td>1：VM 可 SSH 且能出网</td><td><code>~/.kube/config</code>、5 节点 Ready、Cilium/Hubble、MetalLB 池 .200-.250、默认 StorageClass</td><td>先装 MetalLB 再装 Cilium：节点 NotReady，MetalLB 无法调度；IP 池过早 apply 会被 webhook 拒绝（重跑 02 即可）</td></tr>
-        <tr><td>3</td><td>数据管道</td><td><span class="tag tag-k">K</span></td><td><code>bash kubeadm-cluster/03-deploy-5nodes.sh</code></td><td>2：MetalLB、local-path、hubble-relay 就绪（脚本会先检查）</td><td>Kafka 外部地址 .200-.203:9094、topic <code>ebpf-net-logs</code> 有数据、<code>~/knetsentinel/.env</code>、<code>/etc/hosts</code></td><td>ConfigMap 晚于 broker 建立：broker 拿不到外部地址而启动失败；Vector 早于 Kafka：写入失败不断重试</td></tr>
+        <tr><td>3</td><td>数据管道</td><td><span class="tag tag-k">K</span></td><td><code>bash kubeadm-cluster/03-deploy-5nodes.sh</code></td><td>2：MetalLB、local-path、hubble-relay 就绪（脚本会先检查）</td><td>Kafka 外部地址 .200-.203:9094、topic <code>ebpf-net-logs</code> 有数据、<code>/srv/netsentinel/knetsentinel/.env</code>、<code>/etc/hosts</code></td><td>ConfigMap 晚于 broker 建立：broker 拿不到外部地址而启动失败；Vector 早于 Kafka：写入失败不断重试</td></tr>
         <tr><td>4</td><td>靶机与策略</td><td><span class="tag tag-k">K</span></td><td><code>kubectl apply -f cluster-setup/targets.yaml</code>；<code>host-firewall-ccnp.yaml</code></td><td>2（MetalLB）</td><td>靶机 .210-.214；宿主机流量可被 Hubble 看到</td><td>缺 targets：<code>simulation/</code> 发包无目标</td></tr>
         <tr><td>5</td><td>后端依赖与数据库</td><td><span class="tag tag-n">N</span></td><td><code>uv sync</code>；确认容器 <code>pg</code> 运行（库 / 用户 vigil）；<code>manage.py migrate</code>；<code>manage.py migrate --database=vigil</code></td><td>0；<code>backend/backend/.env</code> 中有 <code>ENVIRONMENT</code></td><td><code>db.sqlite3</code> 表结构；<code>vigil_detectionrecord</code> 分区表 + 91 个分区</td><td>漏了 vigil 迁移：检测写库全部失败；pg 未启动：migrate 报连接错误</td></tr>
         <tr><td>6</td><td>初始化数据</td><td><span class="tag tag-n">N</span></td><td><code>manage.py users_init</code> → <code>autotf_init</code> → <code>generate_bridge_token --write-env</code></td><td>5（表已建）</td><td>admin 等账号、5 个扫描工具、<code>VIGIL_BRIDGE_TOKEN</code> 写入 <code>backend/backend/.env</code></td><td>autotf_init 时扫描工具未安装：版本记为 unknown，扫描时报 tool not found；token 在服务启动后才生成：需重启服务才能读到</td></tr>
@@ -259,7 +259,6 @@
 │   │       └── ads_ml/        ★ main.py · config.yaml · trained/（模型文件）· utils/ · results/
 │   ├── db.sqlite3             ★ default 库：用户、集群、Terraform 配置与报告、Django 内置表
 │   ├── autotf.sqlite3 · vigil.sqlite3   旧库文件，当前配置未使用
-│   ├── db_backup_20261011_023307/     ★ SQLite 备份
 │   ├── terraform/             ★ 上传的 .tf 文件（FileField upload_to='terraform/'，相对 WorkingDirectory）
 │   └── docs/                    autotf 需求 / 开发文档、kcore 接口文档、开发日志
 ├── frontend/
@@ -278,8 +277,8 @@
 ├── structure/                   架构图 SVG、数据库图 HTML、设计文档 PDF
 └── p.md · p1.md · policy.md     笔记</code></pre>
       </details>
-      <details><summary><span class="tag tag-k">K</span> ~/knetsentinel</summary>
-<pre><code>~/knetsentinel/
+      <details><summary><span class="tag tag-k">K</span> /srv/netsentinel/knetsentinel</summary>
+<pre><code>/srv/netsentinel/knetsentinel/
 ├── pyproject.toml · uv.lock · .python-version
 ├── .venv/                     ☆ 发包 / 采集用环境（scapy、confluent-kafka、aiohttp、websockets）
 ├── .env                       ★ Kafka 外部地址 BOOTSTRAP_SERVERS / GROUP_ID / TOPICS（03 脚本重写）

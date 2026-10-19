@@ -17,7 +17,7 @@
     <section id="shutdown">
       <h2>Planned shutdown</h2>
       <div class="task"><h4><span class="n">1</span>Stop experiment scripts and remove spoofed IPs</h4>
-        <div class="do"><div>Press Ctrl+C in every experiment terminal, then:<pre><code>cd ~/knetsentinel && sudo .venv/bin/python3 traffic/handle_addr.py --action delete
+        <div class="do"><div>Press Ctrl+C in every experiment terminal, then:<pre><code>cd /srv/netsentinel/knetsentinel && sudo .venv/bin/python3 traffic/handle_addr.py --action delete
 ip -4 addr show virbr-k8s | grep inet</code></pre></div></div>
         <div class="why"><div>Leftover spoofed addresses mix up the labels of the next experiment.</div></div>
         <div class="res"><div>Only <code>192.168.100.1/24</code> remains.</div></div>
@@ -69,8 +69,8 @@ sudo journalctl -u netsentinel --since '-1 min' | grep -E 'AdsMLModel|bridge|dra
       <h2>Backup</h2>
       <div class="table-wrap"><table>
         <tr><th>What</th><th>Command</th></tr>
-        <tr><td>Users / clusters / Terraform</td><td><code>sqlite3 /srv/netsentinel/prod/backend/db.sqlite3 ".backup '/home/soar009/db_backup_$(date +%F).sqlite3'"</code></td></tr>
-        <tr><td>Detection records</td><td><code>docker exec pg pg_dump -U vigil -Fc vigil > ~/vigil_$(date +%F).dump</code></td></tr>
+        <tr><td>Users / clusters / Terraform</td><td><code>sqlite3 /srv/netsentinel/prod/backend/db.sqlite3 ".backup '/srv/netsentinel/backups/db_backup_$(date +%F).sqlite3'"</code></td></tr>
+        <tr><td>Detection records</td><td><code>docker exec pg pg_dump -U vigil -Fc vigil > /srv/netsentinel/backups/vigil_$(date +%F).dump</code></td></tr>
         <tr><td>Secrets</td><td><code>cp /srv/netsentinel/prod/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td></tr>
         <tr><td>Lab scripts</td><td><code>tar czf /srv/netsentinel/backups/knetsentinel_$(date +%F).tgz -C /srv/netsentinel --exclude='knetsentinel/.venv' knetsentinel</code></td></tr>
         <tr><td>Daily job</td><td><code>/etc/cron.d/netsentinel</code> (source <code>deploy/cron.netsentinel</code> in the repo)</td></tr>

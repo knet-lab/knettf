@@ -201,7 +201,7 @@ kubectl create ns netsentinel --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n netsentinel create secret generic detector-secret \
   --from-literal=django-token="$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env | cut -d= -f2-)" \
   --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f ~/knetsentinel/detector/detector-deployment.yaml
+kubectl apply -f /srv/netsentinel/knetsentinel/detector/detector-deployment.yaml
 kubectl -n netsentinel logs deploy/netsentinel-detector -f     <span class="c"># 应看到 connected to Django</span></code></pre>
       <p>同时要关掉入口 A（注释 <code>vigil/apps.py</code> 的 <code>bridge.start()</code> 并重启后端），否则重复入库。后端日志里看到 <code>detector pod connected</code> 和 <code>detector push: saved N result(s)</code> 即正常；WebSocket 被以 4401 关闭 = token 不一致。</p>
     </section>
@@ -209,7 +209,7 @@ kubectl -n netsentinel logs deploy/netsentinel-detector -f     <span class="c">#
     <section id="entryc">
       <h2>4.10 入口 C：宿主机脚本 <span class="tag tag-k">K</span> <code>kafka/vigil_bridge.py</code></h2>
       <p>按 5 元组维护 <code>FlowState</code>，一条流超过 <code>--window</code>（默认 5 秒）没有新包就结束，凑够 <code>--batch-size</code>（默认 20）条就 <code>POST {backend}/api/vigil/detect/batch/</code>。切流方式与训练数据一致，适合做对比实验。</p>
-<pre class="on-prod"><code>cd ~/knetsentinel
+<pre class="on-prod"><code>cd /srv/netsentinel/knetsentinel
 TOKEN=$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env | cut -d= -f2-)   <span class="c"># 10 年有效的 JWT</span>
 uv run python kafka/vigil_bridge.py --backend http://localhost:8080 --token "$TOKEN" --window 5 --batch-size 20</code></pre>
       <p>同样要先关入口 A。</p>

@@ -2,13 +2,36 @@
   <div v-pre>
         <h1>改动上线</h1>
     <div class="meta">改了代码或配置之后，怎么让它在线上生效、会影响谁、怎么确认成功。<br>
-      流程固定为：在开发目录 <code class="vn">~/github/NetSentinel</code> 的<b>个人分支</b>上改、<code>git commit</code>、<code>git push</code> → 在 GitHub 开 PR 合并到 <code>merge-dev</code> → 确认后把 <code>merge-dev</code> 原样快进到 <code>prod</code> → 跑 <code>scripts/deploy.sh</code>，脚本把 GitHub 上的 <code>prod</code> 拉到线上目录 <code class="vp">/srv/netsentinel/prod</code> 再构建、重启。两个目录的分工见 <a href="/help/index#envs">开发与生产</a>。其他改动按后面几节逐项做。</div>
+      流程固定为：在开发目录 <code class="vn">~/github/NetSentinel</code> 的<b>个人分支</b>上改、<code>git commit</code>、<code>git push</code> → 在 GitHub 开 PR 合并到 <code>merge-dev</code> → 对方审核后合并 → 运行 <code>/srv/netsentinel/release.sh</code>，把 <code>merge-dev</code> 原样快进到 <code>prod</code> 并调用 <code>scripts/deploy.sh</code>，部署脚本把 GitHub 上的 <code>prod</code> 拉到线上目录 <code class="vp">/srv/netsentinel/prod</code> 再构建、重启。两个目录的分工见 <a href="/help/index#envs">开发与生产</a>。其他改动按后面几节逐项做。</div>
 
     <section id="branches">
       <h2>分支与协作规则</h2>
-      <pre><code>soar009 ──┐
-          ├── PR（对方审核）──▶ merge-dev ──快进──▶ prod ──deploy.sh──▶ /srv/netsentinel/prod
-B 的分支 ─┘                   （默认分支）           （线上版本）</code></pre>
+      <pre><code><span class="c">  开发目录 ~/github/NetSentinel（每人自己的）               GitHub knet-lab/NetSentinel                       服务器</span>
+
+  ① git switch soar009
+     git pull origin merge-dev   ── 先跟上 merge-dev
+     改代码、本地测试
+     git commit
+     git push origin soar009 ───────────────▶  soar009 ──┐
+                                                         │ ② 开 PR：base = merge-dev ← compare = soar009
+  B：同样的步骤 ────────────────────────────▶  B 的分支 ─┤    Reviewers 选对方
+                                                         ▼
+                                              ③ 对方审核：Files changed → Review changes
+                                                 ├─ Request changes → 回到 ①，在原分支继续 commit / push，PR 自动更新
+                                                 └─ Approve → 作者点 Merge pull request
+                                                         │
+                                                         ▼
+                                                 merge-dev（默认分支，只经 PR 改动）
+                                                         │
+  ④ 手动发布（在服务器上，PR 合并后）                    │
+     /srv/netsentinel/release.sh -frontend ─── 快进 ────▶ prod（= merge-dev 的同一个提交，不产生新提交）
+        列出 origin/prod..origin/merge-dev，输入 y                │
+                                                                  │ deploy.sh：git pull --ff-only
+                                                                  ▼
+                                                        /srv/netsentinel/prod（停在 prod 分支）
+                                                        构建 / 迁移 → 重启 netsentinel → HTTP 200 → https://knettf.com
+
+  ⑤ 下次开始干活时回到 ①：git pull origin merge-dev 会带回 PR 的合并提交和对方的改动</code></pre>
       <div class="table-wrap"><table>
         <tr><th>分支</th><th>谁改、怎么改</th><th>作用</th></tr>
         <tr><td>个人分支（<code>soar009</code> 等）</td><td>本人随便 commit / push</td><td>自己的工作区，别人不往里推。每人一个，名字和 Linux 用户名一致</td></tr>
@@ -89,8 +112,8 @@ git push origin origin/merge-dev:prod             # 只能快进，不能快进�
     <section id="models">
       <h2>数据库结构（models.py）</h2>
       <div class="task"><h4><span class="n">1</span>先备份</h4>
-        <div class="do"><div><pre class="on-prod"><code>sqlite3 <span class="vp">/srv/netsentinel/prod</span>/backend/db.sqlite3 ".backup '<span class="vp">/srv/netsentinel/prod</span>/backend/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"
-docker exec pg pg_dump -U vigil -Fc vigil &gt; ~/vigil_$(date +%F).dump     # 改 vigil 表时</code></pre></div></div>
+        <div class="do"><div><pre class="on-prod"><code>sqlite3 <span class="vp">/srv/netsentinel/prod</span>/backend/db.sqlite3 ".backup '/srv/netsentinel/backups/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"
+docker exec pg pg_dump -U vigil -Fc vigil &gt; /srv/netsentinel/backups/vigil_$(date +%F).dump     # 改 vigil 表时</code></pre></div></div>
         <div class="why"><div>迁移中途失败可能让表处于改了一半的状态，有备份才能退回去。</div></div>
         <div class="res"><div>生成备份文件，大小不为 0。</div></div>
       </div>
@@ -159,7 +182,7 @@ kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code></pre><
         <tr><td>systemd unit 文件</td><td><code>sudo systemctl daemon-reload</code> → restart</td><td>不 reload 的话 systemd 还在用旧定义；<code>systemctl cat netsentinel</code> 可确认</td></tr>
         <tr><td>cloudflared 配置</td><td><code>sudo systemctl restart cloudflared-knettf</code></td><td>公网会中断几秒</td></tr>
         <tr><td>Kafka 地址变了</td><td>改 <code>vigil/bridge.py</code> 的 <code>KAFKA_BOOTSTRAP</code>（入口 B 改 ConfigMap）→ <code>deploy.sh -backend</code></td><td>地址是写死在代码里的；成功后日志有 <code>bridge starting</code> 且没有 <code>bridge error</code></td></tr>
-        <tr><td>Vector 配置</td><td><code>kubectl apply -f ~/knetsentinel/cilium-vector/vector-5nodes.yaml</code> → <code>kubectl -n kube-system rollout restart ds/vector</code></td><td>重启期间的 Hubble 事件丢失，不会补发</td></tr>
+        <tr><td>Vector 配置</td><td><code>kubectl apply -f /srv/netsentinel/knetsentinel/cilium-vector/vector-5nodes.yaml</code> → <code>kubectl -n kube-system rollout restart ds/vector</code></td><td>重启期间的 Hubble 事件丢失，不会补发</td></tr>
         <tr><td>单个 Kafka broker</td><td><code>kubectl delete pod kafka-broker-N</code>，等它 Running 了再处理下一个</td><td>min.insync.replicas=2，同时停两个以上会导致写入失败；数据在 PVC 上，不会丢</td></tr>
         <tr><td>Kafka controller</td><td><b>不要删</b></td><td>它是裸 Pod + emptyDir，删了不会重建，元数据丢失，只能 <a href="/help/power#rebuild-kafka">重建 Kafka</a></td></tr>
         <tr><td>hubble-relay / Cilium</td><td><code>kubectl -n kube-system rollout restart deploy/hubble-relay</code>（或 <code>ds/cilium</code>）</td><td>Vector 5 秒后自动重连；重启 Cilium 网络会短暂抖动</td></tr>

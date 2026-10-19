@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>每日健康检查</h1>
     <div class="meta">每天一次，约 5 分钟：命令行 2 分钟 + 网页 3 分钟。每一步写明怎么做、为什么查它、正常应该看到什么；结果对不上就按该步的处理办法走，处理不了再去 <a href="/help/trouble">排障与日志</a>。<br>
-      前提：已通过 <a href="/help/prepare#ready">准备完成验收</a>。服务还在 soar009 名下时，先 <code>sudo -iu soar009</code>（见 <a href="/help/prepare#transition">接手准备 2.1</a>）。</div>
+      前提：已通过 <a href="/help/prepare#ready">准备完成验收</a>。服务以 <code>netsentinel</code> 账户运行，用自己的账户加 <code>sudo</code> 操作，不需要切到 soar009。</div>
 
     <section id="cli">
       <h2>命令行检查（按顺序，从外到内）</h2>
@@ -46,7 +46,7 @@ kubectl get pods -A | grep -vE 'Running|Completed'</code></pre></div></div>
       </div>
 
       <div class="task"><h4><span class="n">6</span>磁盘空间</h4>
-        <div class="do"><div><pre class="on-prod"><code>df -h / /home ~/vm-images /home/docker-data | sort -u
+        <div class="do"><div><pre class="on-prod"><code>df -h / /home /home/soar009/vm-images /home/docker-data | sort -u
 du -sh <span class="vp">/srv/netsentinel/prod</span>/backend/vigil/ml/ads_ml/results</code></pre></div></div>
         <div class="why"><div>pg 数据、Kafka、VM 磁盘都在本机。磁盘满会让数据库和集群同时出问题。<code>results/</code> 下的推理报告每条推理追加一行，会持续变大。</div></div>
         <div class="res"><div>使用率低于 85%。<br><span class="bad">超过</span>：先清 <code>/tmp</code>、旧日志、<code>results/</code> 下的 CSV。</div></div>
