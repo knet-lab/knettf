@@ -52,7 +52,7 @@ exit</code></pre>
         <div class="do"><div>Logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -C "your-github-email"
 cat ~/.ssh/id_ed25519.pub
 ssh -T git@github.com</code></pre>Add the printed key in GitHub → Settings → SSH and GPG keys → New SSH key, then run the last line.</div></div>
-        <div class="why"><div>This key is for GitHub only; it is different from the key you use to log in to the server.</div></div>
+        <div class="why"><div>This key is for GitHub only; it is different from the key you use to log in to the server. Generate it under your own account and add it to your own GitHub account. Never copy <code>/home/soar009/.ssh/github_ssh_key</code>: that is the original author's personal key and is removed in step 4.</div></div>
         <div class="res"><div><code>Hi your-name!</code>. If it says <code>Hi Wk-P!</code>, you are using the original author's key.</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>Set your commit identity</h4>
@@ -67,6 +67,29 @@ git -C ~/knetsentinel config --local --unset user.email
 exit</code></pre></div></div>
         <div class="why"><div>A repository-level identity overrides yours, so every commit would otherwise show <code>Wk-P</code>.</div></div>
         <div class="res"><div>A test commit and push shows you as the author on GitHub.</div></div>
+      </div>
+      <div class="task"><h4><span class="n">4</span>Replace the original author's key on soar009</h4>
+        <div class="do"><div><code>soar009</code> currently reaches GitHub with Wk-P's personal key, and deployment pulls depend on it. Replace it with one read-only deploy key per repository (GitHub does not allow the same deploy key on two repositories):<pre><code>sudo -iu soar009
+ssh-keygen -t ed25519 -N "" -C "soar009 deploy NetSentinel"  -f /home/soar009/.ssh/deploy_netsentinel
+ssh-keygen -t ed25519 -N "" -C "soar009 deploy knetsentinel" -f /home/soar009/.ssh/deploy_knetsentinel
+cat /home/soar009/.ssh/deploy_netsentinel.pub
+cat /home/soar009/.ssh/deploy_knetsentinel.pub</code></pre>Add each printed key at <code>https://github.com/knet-lab/NetSentinel/settings/keys</code> and <code>https://github.com/knet-lab/knetsentinel/settings/keys</code> → <span class="ui">Add deploy key</span>, leaving <span class="ui">Allow write access</span> unchecked. Then replace the <code>Host github.com</code> block in <code>/home/soar009/.ssh/config</code> with:<pre><code>Host github-netsentinel
+    HostName github.com
+    User git
+    IdentityFile /home/soar009/.ssh/deploy_netsentinel
+    IdentitiesOnly yes
+
+Host github-knetsentinel
+    HostName github.com
+    User git
+    IdentityFile /home/soar009/.ssh/deploy_knetsentinel
+    IdentitiesOnly yes</code></pre>and point the remotes at them:<pre><code>git -C /home/soar009/github/NetSentinel remote set-url origin git@github-netsentinel:knet-lab/NetSentinel.git
+git -C /home/soar009/knetsentinel        remote set-url origin git@github-knetsentinel:knet-lab/knetsentinel.git
+git -C /home/soar009/github/NetSentinel fetch origin
+git -C /home/soar009/knetsentinel        fetch origin
+exit</code></pre>When both fetches succeed, run <code>sudo rm /home/soar009/.ssh/github_ssh_key</code> and ask Wk-P to delete the matching key under GitHub → Settings → SSH and GPG keys.</div></div>
+        <div class="why"><div>Deployment must not depend on a person who has left. A read-only deploy key belongs to the repository, not to anyone's account.</div></div>
+        <div class="res"><div>Both fetches work as <code>soar009</code>, and <code>soar009</code> can no longer push.</div></div>
       </div>
     </section>
 

@@ -120,7 +120,7 @@ kubectl get nodes        # 接手人执行，应看到 k8s-master + k8s-node1~4 
       <h2>1.3 本地 Git：用自己的身份提交</h2>
 
       <h3>第 1 步：在服务器上给你的账户配 GitHub 密钥</h3>
-      <p>这是你在<b>服务器上</b>用来连 GitHub 的密钥，和 1.1 里登录服务器的密钥不是一个。</p>
+      <p>这是你在<b>服务器上</b>用来连 GitHub 的密钥，和 1.1 里登录服务器的密钥不是一个。必须用<b>你自己</b>的账户生成、加到<b>你自己</b>的 GitHub 账号；不要复制或借用 soar009 的 <code>/home/soar009/.ssh/github_ssh_key</code>，那是原作者 Wk-P 的个人密钥，交接完会被撤掉（见第 6 步）。</p>
       <pre><code>ssh-keygen -t ed25519 -C "你的GitHub邮箱"
 cat ~/.ssh/id_ed25519.pub        # 加到 GitHub → Settings → SSH and GPG keys → New SSH key
 ssh -T git@github.com            # 期望 Hi 你的用户名!；若是 Hi Wk-P! 说明在用原作者的密钥</code></pre>
@@ -162,6 +162,38 @@ git log -1 --format='%an <%ae>'     # 应是你自己
 git push -u origin test/handover
 git switch main && git push origin --delete test/handover && git branch -D test/handover</code></pre>
 
+      <h3>第 6 步：soar009 改用部署密钥，撤掉 Wk-P 的个人密钥（交接收尾，必须做）</h3>
+      <p>现在 soar009 连 GitHub 用的是 Wk-P 的个人密钥（<code>sudo -iu soar009 ssh -T git@github.com</code> 会显示 <code>Hi Wk-P!</code>），部署时的 <code>git pull</code> 都靠它。换成两把<b>只读部署密钥</b>，每个仓库一把（GitHub 不允许同一把部署密钥加到两个仓库）：</p>
+      <pre><code>sudo -iu soar009
+ssh-keygen -t ed25519 -N "" -C "soar009 deploy NetSentinel"  -f /home/soar009/.ssh/deploy_netsentinel
+ssh-keygen -t ed25519 -N "" -C "soar009 deploy knetsentinel" -f /home/soar009/.ssh/deploy_knetsentinel
+cat /home/soar009/.ssh/deploy_netsentinel.pub    # 加到 https://github.com/knet-lab/NetSentinel/settings/keys → Add deploy key，不勾 Allow write access
+cat /home/soar009/.ssh/deploy_knetsentinel.pub   # 加到 https://github.com/knet-lab/knetsentinel/settings/keys，同上</code></pre>
+      <p>把 <code>/home/soar009/.ssh/config</code> 里原来的 <code>Host github.com</code> 段整段换成：</p>
+      <pre><code>Host github-netsentinel
+    HostName github.com
+    User git
+    IdentityFile /home/soar009/.ssh/deploy_netsentinel
+    IdentitiesOnly yes
+
+Host github-knetsentinel
+    HostName github.com
+    User git
+    IdentityFile /home/soar009/.ssh/deploy_knetsentinel
+    IdentitiesOnly yes</code></pre>
+      <p>再改 remote 并验证（仍在 soar009 下）：</p>
+      <pre><code>git -C /home/soar009/github/NetSentinel remote set-url origin git@github-netsentinel:knet-lab/NetSentinel.git
+git -C /home/soar009/knetsentinel        remote set-url origin git@github-knetsentinel:knet-lab/knetsentinel.git
+git -C /home/soar009/github/NetSentinel fetch origin    # 不报错即可
+git -C /home/soar009/knetsentinel        fetch origin
+exit</code></pre>
+      <p>两边 fetch 都通过后：</p>
+      <ol>
+        <li>删掉旧密钥：<code>sudo rm /home/soar009/.ssh/github_ssh_key</code>（若有同名 .pub 一并删）。</li>
+        <li>请 Wk-P 在自己 GitHub 的 <b>Settings → SSH and GPG keys</b> 里删掉对应这台服务器的那把公钥。</li>
+      </ol>
+      <p>之后 soar009 只能 pull 不能 push，正好符合「soar009 下不提交」的规矩；改代码一律用你自己的账户和密钥。</p>
+
       <h3>常见错误</h3>
       <div class="table-wrap"><table>
         <tr><th>现象</th><th>原因</th><th>处理</th></tr>
@@ -198,7 +230,7 @@ systemctl --user restart netsentinel
 journalctl --user -u netsentinel -f
 crontab -l                               # 看定时任务
 exit</code></pre>
-      <div class="note">在 <code>sudo -iu soar009</code> 下<b>不要 git commit</b>：两个仓库的 <code>.git/config</code> 都写死了 <code>user.name=Wk-P</code>，提交会记到原作者名下（见 1.3 第 2 步）。<code>git pull</code> 可以。</div>
+      <div class="note">在 <code>sudo -iu soar009</code> 下<b>不要 git commit</b>：两个仓库的 <code>.git/config</code> 都写死了 <code>user.name=Wk-P</code>，提交会记到原作者名下（见 1.3 第 2 步）。<code>git pull</code> 可以（用的是第 6 步的只读部署密钥）。</div>
     </section>
 
     <section id="day1">
