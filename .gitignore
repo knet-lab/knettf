@@ -26,7 +26,9 @@ docs/
 *.done
 traffic_request/record_send_uuid.txt
 
-# 旧的 minikube 脚本，路径已失效，不再维护
-cluster-setup/
+# cluster-setup：只纳入在用的 targets.yaml、host-firewall-ccnp.yaml；minikube 旧脚本不纳入
+cluster-setup/*
+!cluster-setup/targets.yaml
+!cluster-setup/host-firewall-ccnp.yaml
 traffic_scripts
 simulation/monitor/monitor_report_*.txt
