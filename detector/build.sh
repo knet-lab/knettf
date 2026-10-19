@@ -12,6 +12,14 @@ rsync -a --delete \
     --exclude "*.pyc" \
     "$ADS_ML_SRC/" "$SCRIPT_DIR/ads_ml/"
 
+# 模型文件以线上当前版本为准（与入口 A 用同一份）；没有版本目录时沿用 ads_ml/ 里的
+MODEL_DIR="${ADS_ML_MODEL_DIR:-/srv/netsentinel/models/ads_ml/current}"
+if [ -f "$MODEL_DIR/config.yaml" ]; then
+    echo "using model $(readlink -f "$MODEL_DIR")"
+    rsync -a --delete "$MODEL_DIR/trained/" "$SCRIPT_DIR/ads_ml/trained/"
+    cp "$MODEL_DIR/config.yaml" "$SCRIPT_DIR/ads_ml/config.yaml"
+fi
+
 echo "building image..."
 docker build -t soar009/netsentinel-detector:latest "$SCRIPT_DIR"
 

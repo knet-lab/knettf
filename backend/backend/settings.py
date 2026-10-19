@@ -174,6 +174,10 @@ SIMPLE_JWT = {
 
 VIGIL_BRIDGE_TOKEN = env.str("VIGIL_BRIDGE_TOKEN", default=None)
 VIGIL_KAFKA_GROUP_ID = env.str("VIGIL_KAFKA_GROUP_ID", default="vigil-bridge")
+# 要加载的检测模型（BaseDetectionModel 子类的完整路径，逗号分隔）；新增 / 替换模型只改这里
+VIGIL_MODELS = env.list("VIGIL_MODELS", default=["vigil.ml.models.ads_ml_model.AdsMLModel"])
+# ads_ml 模型的 config.yaml；模型文件路径相对它所在目录。线上指向 /srv/netsentinel/models/ads_ml/current/config.yaml
+VIGIL_ADS_ML_CONFIG = env.str("VIGIL_ADS_ML_CONFIG", default=str(BASE_DIR / "vigil" / "ml" / "ads_ml" / "config.yaml"))
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True
