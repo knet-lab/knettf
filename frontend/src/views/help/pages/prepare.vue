@@ -1,8 +1,8 @@
 <template>
   <div v-pre>
-        <h1>接手准备：Linux 账户、权限与 Git</h1>
-    <div class="meta">分三个阶段：<b>一 准备工作</b>（申请账户、权限、Git，止于“准备完成验收”）→ <b>二 正式接手</b>（从验收通过开始）→ <b>三 后续</b>（可选）。先看 <a href="#roadmap">全流程一览</a>。<br>
-      本页所有命令、路径、IP 都是按这台机器实际情况写的（2026-10 核对）。命令里的 <code>NEWUSER</code> 指接手人<b>自己新建的</b>账户，执行时替换成你的用户名。</div>
+        <h1>账户、权限与 GitHub</h1>
+    <div class="meta">申请你自己的 Linux 账户和权限、加入 GitHub 组织、配好密钥和提交身份，最后用 1.4 验收。这一步还不碰线上服务。<br>
+      本页所有命令、路径、IP 都是按这台机器实际情况写的。命令里的 <code>NEWUSER</code> 指接手人<b>自己新建的</b>账户，执行时替换成你的用户名。</div>
 
     <section id="machine">
       <h2>先了解：这台机器的现状</h2>
@@ -52,19 +52,6 @@
         NetSentinel 只用 8080（线上后端）、5432（容器 <code>pg</code>），开发时另用 8090（开发后端）和 5173（Vite）。</div>
     </section>
 
-    <section id="roadmap">
-      <h2>全流程一览</h2>
-      <div class="table-wrap"><table>
-        <tr><th>阶段</th><th>内容</th><th>做完的标志</th></tr>
-        <tr><td><b>一 准备工作</b><br>（只做一次，必做）</td><td>1.1 申请 Linux 账户 → 1.2 加入 GitHub 仓库 → 1.3 配置 Git → 1.4 验收</td><td><a href="#ready">准备完成验收</a> 7 项全部通过</td></tr>
-        <tr><td><b>二 正式接手</b><br>（验收通过后开始）</td><td>2.1 学会操作服务 → 2.2 接手第一天 → 之后每天 <a href="/help/health">健康检查</a></td><td>第一天清单做完，之后进入日常</td></tr>
-        <tr><td><b>三 交接</b><br>（有人离开时）</td><td>3.1 外部账号与口令移交 → 锁定离开者的账户</td><td>离开者的账户锁定后线上照常</td></tr>
-      </table></div>
-      <div class="note">验收没通过之前<b>不要</b>开始阶段二：账户、权限、Git 身份没配好就操作服务，容易出现权限错误或提交记到别人名下。</div>
-    </section>
-
-    <div class="phase"><div class="phase-n">阶段一</div><div><b>准备工作</b><br>让你有自己的账户、权限和 Git 身份。这一阶段还不碰线上服务。</div></div>
-
     <section id="user">
       <h2>1.1 账户与权限</h2>
       <div class="danger"><b>禁止用 <code>cis</code> 账户接手。</b><code>cis</code> 是装机时的共用账户，权限过大（sudo + docker + libvirt），用它操作出了问题查不到是谁做的，也没法单独收回某个人的权限。接手人必须<b>新建自己的 Linux 账户</b>，按下面流程申请权限；不要借用 <code>cis</code> 或 <code>soar009</code> 的密码、密钥。</div>
@@ -84,7 +71,7 @@ sudo usermod -aG sudo,docker,libvirt NEWUSER           # 只加批准的组
 id NEWUSER</code></pre>
       <div class="table-wrap"><table>
         <tr><th>组</th><th>在这台机器上能做什么</th><th>何时批准</th></tr>
-        <tr><td><code>sudo</code></td><td>完全管理员；可以 <code>sudo -iu soar009</code> 操作原作者的服务（见 2.1）</td><td>负责运维、要重启服务时</td></tr>
+        <tr><td><code>sudo</code></td><td>完全管理员；可以用 <code>sudo systemctl</code> 管理 NetSentinel 的服务（见 <a href="/help/firstday">接手第一天</a>）</td><td>负责运维、要重启服务时</td></tr>
         <tr><td><code>docker</code></td><td>管理 <code>pg</code> 容器；注意也能看到/停掉 pnu-notice、emotion-talk 等别人的容器</td><td>要操作数据库时</td></tr>
         <tr><td><code>libvirt</code></td><td><code>virsh -c qemu:///system list</code> 管理 5 台 k8s 虚拟机</td><td>要开关/重建集群时</td></tr>
       </table></div>
@@ -217,7 +204,7 @@ git branch -D test/handover</code></pre>
     </section>
 
     <section id="ready">
-      <h2>1.4 准备完成验收（阶段一到此结束）</h2>
+      <h2>1.4 准备完成验收</h2>
       <p>用<b>你自己的账户</b>登录服务器，逐条执行。7 条都符合，准备工作才算结束；任何一条不符合，回到对应小节。</p>
       <div class="table-wrap"><table>
         <tr><th>#</th><th>检查</th><th>应该看到</th><th>不符合回到</th></tr>
@@ -231,37 +218,8 @@ git branch -D test/handover</code></pre>
       </table></div>
     </section>
 
-    <div class="phase"><div class="phase-n">阶段二</div><div><b>正式接手</b><br>验收通过后从这里开始。你开始负责线上服务。</div></div>
-
-    <section id="transition">
-      <h2>2.1 日常怎么操作服务</h2>
-      <p>后端和隧道是系统服务，以 <code>netsentinel</code> 账户运行，用你自己的账户加 sudo 操作，不用切到 soar009：</p>
-      <pre class="on-prod"><code>sudo systemctl status netsentinel cloudflared-knettf
-sudo systemctl restart netsentinel
-sudo journalctl -u netsentinel -f
-cat /etc/cron.d/netsentinel              # 看定时任务
-tail /srv/netsentinel/logs/rotate_partitions.log</code></pre>
-      <div class="note">不要在 <code>sudo -iu soar009</code> 下 <b>git commit</b>，提交会记到原作者 Wk-P 名下。my-code 的服务是 soar009 的 user 服务（<code>sudo -iu soar009 systemctl --user ...</code>），不归你管。</div>
-    </section>
-
-    <section id="day1">
-      <h2>2.2 接手第一天</h2>
-      <p>按顺序做一次，之后转入每天的 <a href="/help/health">健康检查</a>。</p>
-      <ol>
-        <li>完整做一遍 <a href="/help/health">每日健康检查</a>，记下各项的正常值，作为以后对比的基线。</li>
-        <li>改掉网站默认账号 admin / alice / bob 的密码（<a href="/help/account">账号与令牌</a>）——它们写在代码里，等于公开。</li>
-        <li>在网站管理后台 Users 里核对账号，删掉或停用陌生账号。</li>
-        <li>读一遍 <a href="/help/trouble#dont">不要做的事</a> 和 <a href="/help/power">开关机与恢复</a>，知道宿主机重启后要做什么。</li>
-        <li>确认已经从原作者那里当面拿到：网页管理员账号、线上 <code>.env</code> 里的 token、PostgreSQL 密码（见 3.1 第 5 条）。</li>
-        <li>读 <a href="/help/index#envs">开发与生产</a>：知道哪个目录是线上、怎么用 <code>release.sh</code> 上线。</li>
-      </ol>
-      <div class="learn">做到这里，你已经正式接手。阶段三在以后有人离开时再做。</div>
-    </section>
-
-    <div class="phase"><div class="phase-n">阶段三</div><div><b>交接</b><br>任何一个 owner 离开时做，保证剩下的人仍能管住所有外部账号。</div></div>
-
     <section id="offboard">
-      <h2>3.1 有人离开时的交接</h2>
+      <h2>1.5 有人离开时的交接</h2>
       <ol>
         <li><a href="#ready">准备完成验收</a> 全部通过。</li>
         <li>GitHub：knet-lab 组织里保持至少两个 Owner，离开者移出前确认其余 Owner 已在（1.2）。</li>
