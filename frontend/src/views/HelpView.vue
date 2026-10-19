@@ -1,38 +1,39 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, shallowRef, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Monitor, Tools, Reading, FirstAidKit, Upload, SwitchButton, Warning, ArrowRight } from '@element-plus/icons-vue'
+import { Monitor, Tools, Reading, FirstAidKit, Upload, SwitchButton, Warning, ArrowRight, ArrowLeft, Check } from '@element-plus/icons-vue'
 import './help/guide.css'
 
 // 手册页面：src/views/help/pages/<key>.vue，路由 /help/<key>
 const loaders = import.meta.glob<{ default: Component }>('./help/pages/*.vue')
 const load = (key: string) => loaders[`./help/pages/${key}.vue`]
 
-const GROUPS = [
-  { name: '使用网站', accent: '#3b82f6', pages: [
-    { key: 'use', title: '网页使用' },
-    { key: 'en', title: 'User Manual (English)' },
+// 接手路线：前 7 页按顺序读（带步骤号），开发参考按需查
+type HelpPage = { key: string; title: string; desc: string }
+const GROUPS: { name: string; hint: string; accent: string; ordered: boolean; pages: HelpPage[] }[] = [
+  { name: '接手路线', hint: '按顺序做，一步一页', accent: '#14b8a6', ordered: true, pages: [
+    { key: 'use', title: '学会用网站', desc: '登录、看检测结果、管理用户' },
+    { key: 'prepare', title: '拿到账户与 Git', desc: '服务器登录、仓库权限、密码位置' },
+    { key: 'health', title: '每日健康检查', desc: '每天 5 分钟，确认系统在正常工作' },
+    { key: 'deploy', title: '改动上线', desc: '把开发环境的修改发布到线上' },
+    { key: 'power', title: '开关机 · 重建 · 备份', desc: '停电、重启、数据备份时照做' },
+    { key: 'account', title: '账号与令牌', desc: '加人、改密码、换令牌' },
+    { key: 'trouble', title: '排障与日志', desc: '出问题时按现象查找处理办法' },
   ] },
-  { name: '运维', accent: '#14b8a6', pages: [
-    { key: 'prepare', title: '接手准备：账户与 Git' },
-    { key: 'health', title: '每日健康检查' },
-    { key: 'deploy', title: '改动上线' },
-    { key: 'power', title: '开关机 · 重建 · 备份' },
-    { key: 'account', title: '账号与令牌' },
-    { key: 'trouble', title: '排障与日志' },
-  ] },
-  { name: '开发参考', accent: '#8b5cf6', pages: [
-    { key: 'index', title: '系统总览' },
-    { key: 'frontend', title: '前端代码' },
-    { key: 'backend', title: '后端代码' },
-    { key: 'detect', title: '检测链路与模型' },
-    { key: 'infra', title: '集群与 Shell 脚本' },
-    { key: 'lab', title: '实验脚本' },
-    { key: 'api', title: 'API 逐接口' },
-    { key: 'db', title: '数据库与字段' },
-    { key: 'issues', title: '已知问题与练习' },
+  { name: '开发参考', hint: '改程序时再看，不必按顺序', accent: '#8b5cf6', ordered: false, pages: [
+    { key: 'index', title: '系统总览', desc: '各部分如何连在一起' },
+    { key: 'frontend', title: '前端代码', desc: '' },
+    { key: 'backend', title: '后端代码', desc: '' },
+    { key: 'detect', title: '检测链路与模型', desc: '' },
+    { key: 'infra', title: '集群与 Shell 脚本', desc: '' },
+    { key: 'lab', title: '实验脚本', desc: '' },
+    { key: 'api', title: 'API 逐接口', desc: '' },
+    { key: 'db', title: '数据库与字段', desc: '' },
+    { key: 'issues', title: '已知问题与练习', desc: '' },
   ] },
 ]
+const STEPS = GROUPS[0]!.pages
+const ALL = GROUPS.flatMap((g) => g.pages)
 
 const route = useRoute()
 const router = useRouter()
@@ -42,20 +43,20 @@ const body = ref<HTMLElement | null>(null)
 const toc = ref<{ id: string; text: string }[]>([])
 const activeId = ref('')
 
-const tabs = [
-  { key: '', label: '从这里开始', to: '/help' },
-  { key: 'guide', label: '中文手册', to: '/help/use' },
-  { key: 'en', label: 'User Manual (English)', to: '/help/en' },
-]
-const accent = computed(() => GROUPS.find((g) => g.pages.some((p) => p.key === pageKey.value))?.accent ?? '#3b82f6')
-const activeTab = computed(() => (!pageKey.value ? '' : pageKey.value === 'en' ? 'en' : 'guide'))
+const group = computed(() => GROUPS.find((g) => g.pages.some((p) => p.key === pageKey.value)))
+const accent = computed(() => group.value?.accent ?? '#3b82f6')
+const stepNo = computed(() => STEPS.findIndex((p) => p.key === pageKey.value) + 1)
 
-// 页底：同组内的上一页 / 下一页（英文版不参与）
+// 页底上一页 / 下一页：沿整条阅读顺序走（接手路线 → 开发参考），英文版不参与
 const pager = computed(() => {
-  const g = GROUPS.find((x) => x.pages.some((p) => p.key === pageKey.value))
-  const list = g ? g.pages.filter((p) => p.key !== 'en') : []
-  const i = list.findIndex((p) => p.key === pageKey.value)
-  return i < 0 ? { prev: undefined, next: undefined } : { prev: list[i - 1], next: list[i + 1] }
+  const i = ALL.findIndex((p) => p.key === pageKey.value)
+  return i < 0 ? { prev: undefined, next: undefined } : { prev: ALL[i - 1], next: ALL[i + 1] }
+})
+const nextLabel = computed(() => {
+  const n = pager.value.next
+  if (!n) return ''
+  const k = STEPS.findIndex((p) => p.key === n.key)
+  return k >= 0 ? `下一步 · 第 ${k + 1} 步` : stepNo.value === STEPS.length ? '接手路线已走完 · 进入开发参考' : '下一篇'
 })
 
 function scrollToHash(hash: string) {
@@ -159,20 +160,9 @@ const parts = [
 
 <template>
   <div class="help-wrapper">
-    <div class="help-tabs">
-      <RouterLink
-        v-for="t in tabs"
-        :key="t.key"
-        :to="t.to"
-        :class="['help-tab', { active: activeTab === t.key }]"
-      >
-        {{ t.label }}
-      </RouterLink>
-    </div>
-
     <div v-if="!pageKey" class="help-home">
       <header class="hh-hero">
-        <div class="hh-eyebrow">NetSentinel Handbook</div>
+        <div class="hh-top"><span class="hh-eyebrow">NetSentinel Handbook</span><RouterLink to="/help/en" class="hh-en">English manual<el-icon><ArrowRight /></el-icon></RouterLink></div>
         <h1>帮助中心</h1>
         <p>这本手册写给接手 NetSentinel 的管理员。系统的使用、日常维护和出问题时的处理都由你一个人负责，不需要一次全部看懂。先按下面的「接手路线」从第 1 步做到第 4 步；以后每天只做第 3 步，出问题时看第 4 步。</p>
         <ol class="path">
@@ -212,14 +202,19 @@ const parts = [
 
     <div v-else class="guide" :style="{ '--accent': accent }">
       <aside class="sidebar">
-        <div class="sidebar-logo">NetSentinel 手册<span>使用 · 运维 · 开发</span></div>
-        <template v-for="g in GROUPS" :key="g.name">
-          <div class="nav-section" :style="{ '--dot': g.accent }">{{ g.name }}</div>
-          <template v-for="p in g.pages" :key="p.key">
-            <RouterLink :to="`/help/${p.key}`" :class="['nav-page', { current: p.key === pageKey }]" :style="{ '--accent': g.accent }">
-              {{ p.title }}
+        <div class="sb-head">
+          <RouterLink to="/help" class="sb-home"><el-icon><ArrowLeft /></el-icon>手册首页</RouterLink>
+          <RouterLink to="/help/en" :class="['sb-lang', { on: pageKey === 'en' }]">EN</RouterLink>
+        </div>
+        <div v-for="g in GROUPS" :key="g.name" :class="['sb-group', { ordered: g.ordered }]" :style="{ '--g': g.accent }">
+          <div class="sb-title">{{ g.name }}<span>{{ g.hint }}</span></div>
+          <div v-for="(p, i) in g.pages" :key="p.key" :class="['sb-item', { current: p.key === pageKey, done: g.ordered && stepNo > i + 1 }]">
+            <RouterLink :to="`/help/${p.key}`" class="sb-link">
+              <span v-if="g.ordered" class="sb-no"><el-icon v-if="stepNo > i + 1"><Check /></el-icon><template v-else>{{ i + 1 }}</template></span>
+              <span v-else class="sb-dot" />
+              <span class="sb-text">{{ p.title }}</span>
             </RouterLink>
-            <template v-if="p.key === pageKey">
+            <div v-if="p.key === pageKey && toc.length" class="sb-toc">
               <RouterLink
                 v-for="t in toc"
                 :key="t.id"
@@ -229,19 +224,28 @@ const parts = [
               >
                 {{ t.text }}
               </RouterLink>
-            </template>
-          </template>
-        </template>
+            </div>
+          </div>
+        </div>
       </aside>
       <div ref="body" class="guide-body" @scroll.passive="onScroll" @click="onClick">
         <main class="main">
-          <component :is="page" v-if="page" />
-          <div class="pager">
-            <RouterLink v-if="pager.prev" :to="`/help/${pager.prev.key}`">← {{ pager.prev.title }}</RouterLink>
-            <span v-else />
-            <RouterLink v-if="pager.next" :to="`/help/${pager.next.key}`">{{ pager.next.title }} →</RouterLink>
-            <span v-else />
+          <div v-if="stepNo" class="stepbar">
+            <div class="sb-meta"><b>接手路线 · 第 {{ stepNo }} 步</b><span>共 {{ STEPS.length }} 步</span></div>
+            <div class="sb-track"><i v-for="(s, i) in STEPS" :key="s.key" :class="{ on: i < stepNo }" /></div>
           </div>
+          <div v-else-if="group" class="stepbar ref"><div class="sb-meta"><b>开发参考</b><span>改程序时再看，日常维护不需要读</span></div></div>
+          <component :is="page" v-if="page" />
+          <nav v-if="pageKey !== 'en'" class="pager">
+            <RouterLink v-if="pager.prev" :to="`/help/${pager.prev.key}`" class="pg prev">
+              <small><el-icon><ArrowLeft /></el-icon>上一篇</small><strong>{{ pager.prev.title }}</strong>
+            </RouterLink>
+            <span v-else />
+            <RouterLink v-if="pager.next" :to="`/help/${pager.next.key}`" class="pg next">
+              <small>{{ nextLabel }}<el-icon><ArrowRight /></el-icon></small><strong>{{ pager.next.title }}</strong>
+              <span v-if="pager.next.desc">{{ pager.next.desc }}</span>
+            </RouterLink>
+          </nav>
         </main>
       </div>
     </div>
@@ -255,36 +259,6 @@ const parts = [
   flex-direction: column;
   overflow: hidden;
 }
-
-.help-tabs {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  padding: 8px 12px 0;
-  background: #0f172a;
-}
-
-.help-tab {
-  padding: 8px 16px;
-  font-size: 13px;
-  color: #94a3b8;
-  background: transparent;
-  border: none;
-  border-radius: 6px 6px 0 0;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.help-tab:hover {
-  color: #e2e8f0;
-}
-
-.help-tab.active {
-  background: #f1f5f9;
-  color: #0f172a;
-  font-weight: 600;
-}
-
 
 .help-home {
   flex: 1;
@@ -315,6 +289,9 @@ const parts = [
   mask-image: linear-gradient(180deg, #000 20%, transparent 90%);
 }
 .hh-hero > * { position: relative; z-index: 1; }
+.hh-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.hh-en { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #94a3b8; text-decoration: none; }
+.hh-en:hover { color: #fff; }
 .hh-eyebrow {
   display: inline-block;
   font-size: 12px;
@@ -325,7 +302,6 @@ const parts = [
   padding: 4px 12px;
   border: 1px solid rgba(94,234,212,.35);
   border-radius: 999px;
-  margin-bottom: 18px;
 }
 .hh-hero h1 {
   margin: 0 0 12px;
