@@ -69,22 +69,56 @@ const continueTo = computed(() => {
 </script>
 
 <style scoped>
-.home { height: 100%; overflow-y: auto; background: #f0f4f8; color: #2d3748; padding-bottom: 32px; }
-.hero { text-align: center; padding: 48px 16px 24px; }
-.hero h1 { font-size: 28px; color: #1a202c; margin: 0 0 10px; }
-.hero p { font-size: 15px; color: #718096; margin: 0; }
-.cta { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
-.cta .el-button + .el-button { margin-left: 0; }
-.hero .hint { margin-top: 12px; font-size: 13px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; max-width: 1000px; margin: 0 auto; padding: 16px; }
-.card { position: relative; display: flex; gap: 14px; align-items: flex-start; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
-.card:hover { border-color: #3b82f6; box-shadow: 0 4px 14px rgba(59,130,246,.15); transform: translateY(-1px); }
-.ico { flex-shrink: 0; font-size: 20px; width: 40px; height: 40px; border-radius: 10px; }
-.txt { min-width: 0; padding-right: 56px; }
-.card b { display: block; font-size: 15px; color: #1a202c; margin-bottom: 4px; }
-.card span { font-size: 13px; color: #718096; line-height: 1.5; }
-.card em { position: absolute; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 3px; font-style: normal; font-size: 11px; background: #faf5ff; color: #6b46c1; padding: 1px 8px; border-radius: 10px; }
+.home { height: 100%; overflow-y: auto; background: #f1f5f9; color: #2d3748; }
+
+/* 满宽深色 hero */
+.hero {
+  position: relative; overflow: hidden; text-align: center;
+  padding: clamp(56px, 9vh, 112px) 24px clamp(96px, 13vh, 150px);
+  background:
+    radial-gradient(ellipse 60% 80% at 15% 0%, rgba(59,130,246,.35), transparent 60%),
+    radial-gradient(ellipse 50% 70% at 90% 100%, rgba(139,92,246,.30), transparent 60%),
+    linear-gradient(160deg, #0f172a 0%, #1d2535 100%);
+  color: #e2e8f0;
+}
+.hero::after { /* 细网格纹理 */
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+}
+.hero > * { position: relative; z-index: 1; }
+.hero h1 { font-size: clamp(30px, 4.2vw, 56px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: #fff; margin: 0 auto 18px; max-width: 18ch; }
+.hero p { font-size: clamp(15px, 1.3vw, 19px); color: #94a3b8; margin: 0 auto; max-width: 60ch; line-height: 1.6; }
+.cta { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; margin-top: 36px; }
+.cta .el-button { height: 48px; padding: 0 28px; font-size: 16px; border-radius: 10px; }
+.cta .el-button + .el-button { margin-left: 0; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.25); color: #e2e8f0; }
+.cta .el-button + .el-button:hover { background: rgba(255,255,255,.14); }
+.hero .hint { margin-top: 16px; font-size: 14px; color: #94a3b8; }
+.hero .hint b { color: #e2e8f0; }
+
+/* 卡片上移压住 hero 底边，宽屏多列 */
+.grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;
+  width: min(1440px, 100% - 48px); margin: -72px auto 0; padding-bottom: 48px; position: relative; z-index: 2;
+}
+.card {
+  position: relative; display: flex; gap: 18px; align-items: flex-start; background: #fff;
+  border: 1px solid #e2e8f0; border-radius: 14px; padding: 26px 24px; min-height: 120px;
+  text-decoration: none; color: inherit; box-shadow: 0 8px 24px rgba(15,23,42,.06);
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.card:hover { border-color: #3b82f6; box-shadow: 0 14px 32px rgba(37,99,235,.16); transform: translateY(-3px); }
+.ico { flex-shrink: 0; font-size: 26px; width: 52px; height: 52px; border-radius: 12px; }
+.txt { min-width: 0; padding-right: 64px; }
+.card b { display: block; font-size: 18px; color: #0f172a; margin-bottom: 6px; }
+.card span { font-size: 14px; color: #64748b; line-height: 1.6; }
+.card em { position: absolute; top: 14px; right: 14px; display: inline-flex; align-items: center; gap: 3px; font-style: normal; font-size: 12px; background: #faf5ff; color: #6b46c1; padding: 2px 10px; border-radius: 10px; }
 .card em.open { background: #e6fffa; color: #2c7a7b; }
 .card em.locked { background: #f1f5f9; color: #64748b; }
-@media (max-width: 600px) { .hero { padding-top: 28px; } .hero h1 { font-size: 22px; } }
+@media (min-width: 1100px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 600px) {
+  .grid { width: calc(100% - 32px); grid-template-columns: 1fr; margin-top: -56px; }
+  .card { padding: 20px 18px; }
+}
 </style>
