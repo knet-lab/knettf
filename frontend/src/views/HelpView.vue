@@ -264,7 +264,7 @@ const parts = [
   flex: 1;
   overflow-y: auto;
   background: #f0f4f8;
-  padding: 32px 40px;
+  padding: 32px max(40px, calc((100% - 1160px) / 2));
   color: #1a202c;
 }
 
