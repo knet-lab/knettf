@@ -153,7 +153,7 @@ def detect_batch(flows, model_name=None):
 <pre class="uml">classDiagram
   direction LR
   class BaseDetectionModel {
-    <<abstract>>
+    &lt;&lt;abstract&gt;&gt;
     +name str
     +predict(flow DetectionInput) DetectionResult
     +predict_batch(flows) list~DetectionResult~
