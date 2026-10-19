@@ -2,7 +2,7 @@
 # NetSentinel 部署脚本
 # 用法: scripts/deploy.sh [-frontend] [-backend] [-all]
 #   -frontend  pnpm install + pnpm build（不用重启服务）
-#   -backend   装依赖 → manage.py check → migrate(default) → 重启 netsentinel → 检查 8080
+#   -backend   uv sync → manage.py check → migrate(default) → 重启 netsentinel → 检查 8080
 #   -all       两者都做（先后端，再前端）
 # 生产目录是 ~/netsentinel-prod（本仓库的 clone），只部署已提交的 main：
 # 先在开发目录 git commit，脚本会在生产目录 git pull 后再构建/重启。
@@ -47,9 +47,10 @@ sync_code() {
 }
 
 deploy_backend() {
-  log "后端：安装依赖"
-  [ -x "$PY" ] || die "找不到 $PY，先按手册创建 .venv"
-  "$PY" -m pip install -q -r "$ROOT/backend/requirements.txt"
+  log "后端：uv sync（按 uv.lock 安装依赖）"
+  command -v uv >/dev/null || PATH="$HOME/.local/bin:$PATH"
+  command -v uv >/dev/null || die "找不到 uv"
+  uv sync --frozen --project "$ROOT"
 
   cd "$ROOT/backend"
   log "后端：manage.py check"

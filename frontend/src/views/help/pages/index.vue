@@ -262,7 +262,7 @@
       </details>
       <details><summary><span class="tag tag-k">K</span> ~/knetsentinel</summary>
 <pre><code>~/knetsentinel/
-├── pyproject.toml · uv.lock · .python-version · requirements.txt(旧，不维护)
+├── pyproject.toml · uv.lock · .python-version
 ├── .venv/                     ☆ 发包 / 采集用环境（scapy、confluent-kafka、aiohttp、websockets）
 ├── .env                       ★ Kafka 外部地址 BOOTSTRAP_SERVERS / GROUP_ID / TOPICS（03 脚本重写）
 ├── README.md                    最完整的环境说明（19KB）

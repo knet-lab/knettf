@@ -63,8 +63,8 @@ systemctl --user restart netsentinel</code></pre></div></div>
     <section id="deps">
       <h2>依赖</h2>
       <div class="task"><h4><span class="n">1</span>Python 依赖</h4>
-        <div class="do"><div>把包加进 <code>backend/requirements.txt</code>，然后：<pre><code>cd $N && scripts/deploy.sh -backend</code></pre>整个 <code>.venv</code> 要重建时先停服务：<pre><code>systemctl --user stop netsentinel
-cd $N && rm -rf .venv && python3.12 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
+        <div class="do"><div>在开发目录 <code>uv add 包名</code> 并提交，然后：<pre><code>cd $N && scripts/deploy.sh -backend</code></pre>整个 <code>.venv</code> 要重建时先停服务：<pre><code>systemctl --user stop netsentinel
+cd $N && rm -rf .venv && uv sync --frozen
 systemctl --user start netsentinel</code></pre></div></div>
         <div class="why"><div>服务配置了 <code>Restart=always</code>：<code>.venv</code> 不完整时它每 3 秒重启失败一次，日志会被刷满，所以重建前要先停。</div></div>
         <div class="res"><div>服务 active，返回 200。</div></div>

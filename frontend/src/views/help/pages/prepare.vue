@@ -20,7 +20,7 @@
         <tr><th>资源</th><th>位置</th><th>说明</th></tr>
         <tr><td>平台代码</td><td><code>/home/soar009/github/NetSentinel</code></td><td>GitHub <code>Wk-P/NetSentinel</code>（SSH 远程，分支 main）</td></tr>
         <tr><td>集群/检测代码</td><td><code>/home/soar009/knetsentinel</code></td><td>GitHub <code>Wk-P/knetsentinel</code>（<b>HTTPS</b> 远程，分支 master）——是第二个独立仓库</td></tr>
-        <tr><td>Python 环境</td><td><code>NetSentinel/.venv</code>（python3.12 -m venv 创建）</td><td>依赖见 <code>backend/requirements.txt</code></td></tr>
+        <tr><td>Python 环境</td><td><code>NetSentinel/.venv</code>（uv 管理）</td><td>依赖见 <code>pyproject.toml</code> / <code>uv.lock</code></td></tr>
         <tr><td>Terraform 扫描工具</td><td><code>/home/soar009/terraform/.venv/bin/checkov</code></td><td>路径写死在 <code>backend/autotf/services.py:267</code> 和 <code>autotf_init.py:63-64</code></td></tr>
         <tr><td>后端服务</td><td><code>~/.config/systemd/user/netsentinel.service</code></td><td>uvicorn 监听 8080，user 级服务，已开 linger</td></tr>
         <tr><td>隧道</td><td><code>cloudflared-knettf.service</code> + <code>~/.cloudflared/netsentinel.yml</code></td><td>knettf.com → localhost:8080</td></tr>
@@ -248,7 +248,7 @@ sed -i 's#/home/soar009/terraform#/srv/netsentinel/terraform#g' \
 grep -rIn --exclude-dir={.git,node_modules,.venv,dist} /home/soar009 . ../knetsentinel ../terraform
 
 # 两个 venv 都写死了旧路径，必须重建
-rm -rf .venv && python3.12 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
+rm -rf .venv && uv sync --frozen
 cd ../terraform && rm -rf .venv && python3.12 -m venv .venv && .venv/bin/pip install checkov
 
 sudo git config --system --add safe.directory /srv/netsentinel/NetSentinel
