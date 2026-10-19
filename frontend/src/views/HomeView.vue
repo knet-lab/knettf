@@ -2,24 +2,24 @@
   <div class="home">
     <header class="home-top">
       <span class="brand">NetSentinel</span>
-      <el-button v-if="auth.isLoggedIn" type="primary" @click="router.push(auth.isAdmin ? '/admin/dashboard' : '/kcore')">进入控制台</el-button>
-      <el-button v-else type="primary" @click="router.push('/login')">登录</el-button>
+      <el-button v-if="auth.isLoggedIn" type="primary" @click="router.push(auth.isAdmin ? '/admin/dashboard' : '/kcore')">Open Console</el-button>
+      <el-button v-else type="primary" @click="router.push('/login')">Sign In</el-button>
     </header>
 
     <section class="hero">
-      <h1>Kubernetes 集群网络安全平台</h1>
-      <p>集群管理、Terraform 自动化部署、基于 Hubble 流量的实时异常检测。</p>
+      <h1>Kubernetes Network Security Platform</h1>
+      <p>Cluster management, Terraform automation, and real-time anomaly detection on Hubble flows.</p>
     </section>
 
     <section class="grid">
       <a v-for="c in cards" :key="c.to" class="card" @click.prevent="go(c.to)" :href="c.to">
         <b>{{ c.title }}</b>
         <span>{{ c.desc }}</span>
-        <em v-if="c.admin">管理员</em>
+        <em v-if="c.admin">Admin</em>
       </a>
     </section>
 
-    <footer class="home-foot">功能页需要登录；未登录点击卡片会先跳到登录页，登录后回到所选页面。</footer>
+    <footer class="home-foot">Sign in required. Pick a card and you will return to it after signing in.</footer>
   </div>
 </template>
 
@@ -31,12 +31,12 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const cards = [
-  { to: '/kcore', title: 'Kubernetes 集群', desc: '查看和管理集群、节点与工作负载' },
-  { to: '/autotf', title: 'AutoTF', desc: '用 Terraform 配置生成并部署基础设施' },
-  { to: '/vigil', title: 'Vigil 实时检测', desc: '流量实时监控与异常告警' },
-  { to: '/vigil/log', title: '检测记录', desc: '历史检测结果查询' },
-  { to: '/help', title: '使用与运维手册', desc: '使用说明、部署、排障' },
-  { to: '/admin/dashboard', title: '管理后台', desc: '用户、集群、TF 配置管理', admin: true },
+  { to: '/kcore', title: 'Kubernetes Clusters', desc: 'View and manage clusters, nodes and workloads' },
+  { to: '/autotf', title: 'AutoTF', desc: 'Generate and deploy infrastructure from Terraform configs' },
+  { to: '/vigil', title: 'Vigil Live Detection', desc: 'Real-time traffic monitoring and anomaly alerts' },
+  { to: '/vigil/log', title: 'Detection Log', desc: 'Search past detection results' },
+  { to: '/help', title: 'Manual', desc: 'Usage, deployment and troubleshooting' },
+  { to: '/admin/dashboard', title: 'Admin Console', desc: 'Manage users, clusters and TF configs', admin: true },
 ]
 
 function go(to: string) {
