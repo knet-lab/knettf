@@ -32,13 +32,13 @@
         <li>出网网卡 <code>enp6s0</code>（02 脚本写死在 <code>HOST_NIC</code>，换机器要改；<code>ip route get 1.1.1.1</code> 查）。</li>
         <li><code>/home/vm-images</code> 所在分区可用 ≥ 420GB（01 脚本检查；master 120G + 4×60G，qcow2 稀疏分配，实际占用小得多）。</li>
         <li>工具：<code>virtinst qemu-utils genisoimage wget python3</code>（01 自动装）、<code>kubectl</code>、<code>helm</code>（02 自动装）、<code>docker</code>、<code>uv</code>、<code>pnpm</code>、<code>terraform</code>、<code>tflint</code>、<code>tfsec</code>、<code>trivy</code>、checkov（在 <code>/srv/netsentinel/tools/checkov</code>，依赖见 <code>deploy/checkov-requirements.txt</code>）、<code>hubble</code> CLI（可选）。</li>
-        <li>SSH 密钥 <code>~/.ssh/id_rsa</code>（01 没有就生成），公钥会写进每台 VM 的 <code>k8s</code> 用户。</li>
+        <li>SSH 密钥 <code>/home/NEWUSER/.ssh/id_rsa</code>（01 没有就生成），公钥会写进每台 VM 的 <code>k8s</code> 用户。</li>
       </ul>
     </section>
 
     <section id="s00">
       <h2>5.3 00-clear.sh：彻底清理（不可逆）</h2>
-      <p>按顺序：杀掉 hubble <code>port-forward</code>、minikube tunnel 后台进程 → <code>virsh destroy/undefine</code> 5 台 VM → 删网络 virbr-k8s → 删 <code>/home/vm-images</code> 下 VM 磁盘 → 删 cloud image → 删 <code>/tmp/cidata-*</code>、<code>/tmp/k8s-network.xml</code> → 删 <code>~/.kube/config</code> → 从 <code>/etc/hosts</code> 删 k8s 相关行 → 从 <code>known_hosts</code> 删 .10-.14。</p>
+      <p>按顺序：杀掉 hubble <code>port-forward</code>、minikube tunnel 后台进程 → <code>virsh destroy/undefine</code> 5 台 VM → 删网络 virbr-k8s → 删 <code>/home/vm-images</code> 下 VM 磁盘 → 删 cloud image → 删 <code>/tmp/cidata-*</code>、<code>/tmp/k8s-network.xml</code> → 删 <code>/home/NEWUSER/.kube/config</code> → 从 <code>/etc/hosts</code> 删 k8s 相关行 → 从 <code>known_hosts</code> 删 .10-.14。</p>
       <div class="danger">执行后集群、Kafka 中的数据、kubeconfig 全部消失。执行前按 <a href="/help/power#rebuild-cluster">重建整个集群</a> 第 1 步备份 <code>/srv/netsentinel/knetsentinel</code> 整个目录（脚本在 Git 里，但 <code>dataset/</code>、<code>logs/</code>、<code>*.csv</code> 这些数据不在）。</div>
     </section>
 
@@ -70,7 +70,7 @@
         <tr><td>2</td><td><code>hostnamectl set-hostname</code> 强制设一次</td><td>cloud-init 偶尔不及时，节点名错了 kubeadm join 会冲突</td></tr>
         <tr><td>3</td><td>每个节点：关 swap；加载 <code>overlay</code>、<code>br_netfilter</code>；sysctl 开桥接 iptables 和转发；装 containerd 并设 <code>SystemdCgroup = true</code>；加 pkgs.k8s.io v1.28 源；装并 <code>apt-mark hold</code> kubelet kubeadm kubectl</td><td>K8s 节点的标准前置；<code>SystemdCgroup</code> 必须与 kubelet 一致，否则 Pod 反复重启</td></tr>
         <tr><td>4</td><td>master 上 <code>kubeadm init --apiserver-advertise-address=.10 --pod-network-cidr=10.244.0.0/16 --skip-phases=addon/kube-proxy</code>（已有 admin.conf 则跳过）</td><td><b>跳过 kube-proxy</b>，因为 Cilium 要完全替代它</td></tr>
-        <tr><td>5</td><td>scp master 的 kubeconfig 到宿主机 <code>~/.kube/config</code>，server 改为 <code>https://192.168.100.10:6443</code>，等 kubectl 可用</td><td>之后所有 kubectl / helm 都在宿主机执行</td></tr>
+        <tr><td>5</td><td>scp master 的 kubeconfig 到宿主机 <code>/home/NEWUSER/.kube/config</code>，server 改为 <code>https://192.168.100.10:6443</code>，等 kubectl 可用</td><td>之后所有 kubectl / helm 都在宿主机执行</td></tr>
         <tr><td>6</td><td>生成 join 命令（token 24 小时），未加入的 worker 执行 join</td><td></td></tr>
         <tr><td>7</td><td>宿主机没有 helm 就安装</td><td></td></tr>
         <tr><td>8</td><td>helm 装 Cilium：<code>kubeProxyReplacement=true</code>、<code>k8sServiceHost=.10</code>、<code>k8sServicePort=6443</code>、<code>hubble.enabled</code>、<code>hubble.relay.enabled</code>、relay Service ClusterIP <code>4245</code>、<code>hubble.ui.enabled</code>、<code>bpf.monitorAggregation=medium</code>、<code>mtu=1450</code>；再 patch <code>hubble-relay</code> Service 端口为 4245</td><td>没有 kube-proxy 时 Cilium 无法通过 ClusterIP 找到 API server，所以要直接给 IP；Vector 写死连 <code>:4245</code>；MTU 1450 给封装留余量</td></tr>
@@ -166,7 +166,7 @@ ingress:
       <p>镜像 <code>postgres</code>（当前 18.4），<code>--restart unless-stopped</code>，端口 <code>5432:5432</code>，数据卷挂在 <code>/var/lib/postgresql</code>。库 / 用户 / 密码 <code>vigil / vigil / vigil123</code>。注意 <code>unless-stopped</code>：你手动 <code>docker stop pg</code> 后，开机<b>不会</b>自动启动它。</p>
       <h3>定时任务：<code>/etc/cron.d/netsentinel</code>（源文件 <code>deploy/cron.netsentinel</code>）</h3>
 <pre class="on-prod"><code>0 0 * * * netsentinel <span class="vp">/srv/netsentinel/prod</span>/.venv/bin/python <span class="vp">/srv/netsentinel/prod</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /srv/netsentinel/logs/rotate_partitions.log 2&gt;&amp;1</code></pre>
-      <p>必须用 <code class="vp">/srv/netsentinel/prod</code>：开发目录 <code class="vn">~/github/NetSentinel</code> 的默认库是 <code>vigil_dev</code>，用它跑分区会建错库。按宿主机本地时间 0 点执行，而分区边界是 UTC。只要每天都跑，明天的分区总会提前建好。</p>
+      <p>必须用 <code class="vp">/srv/netsentinel/prod</code>：开发目录 <code class="vn">/home/NEWUSER/github/NetSentinel</code> 的默认库是 <code>vigil_dev</code>，用它跑分区会建错库。按宿主机本地时间 0 点执行，而分区边界是 UTC。只要每天都跑，明天的分区总会提前建好。</p>
     </section>
 
     <section id="bootstrap">
@@ -186,23 +186,23 @@ docker run -d --name pg --restart unless-stopped -p 5432:5432 \
   -e POSTGRES_USER=vigil -e POSTGRES_PASSWORD=vigil123 -e POSTGRES_DB=vigil postgres
 docker exec pg psql -U vigil -c "CREATE DATABASE vigil_dev"      <span class="c"># 开发库</span>
 
-<span class="c"># —— N：开发目录 <span class="vn">~/github/NetSentinel</span> ——</span>
-git clone git@github.com:knet-lab/NetSentinel.git <span class="vn">~/github/NetSentinel</span>
-cd <span class="vn">~/github/NetSentinel</span> &amp;&amp; uv sync
-printf 'ENVIRONMENT=linux_development\nVIGIL_KAFKA_GROUP_ID=vigil-bridge-dev\n' &gt; <span class="vn">~/github/NetSentinel</span>/backend/backend/.env
-printf 'VITE_API_BASE=/api\nVITE_WS_BASE=\n' &gt; <span class="vn">~/github/NetSentinel</span>/frontend/.env
-cd <span class="vn">~/github/NetSentinel</span>/backend &amp;&amp; ../.venv/bin/python manage.py migrate &amp;&amp; ../.venv/bin/python manage.py migrate --database=vigil
+<span class="c"># —— N：开发目录 <span class="vn">/home/NEWUSER/github/NetSentinel</span> ——</span>
+git clone git@github.com:knet-lab/NetSentinel.git <span class="vn">/home/NEWUSER/github/NetSentinel</span>
+cd <span class="vn">/home/NEWUSER/github/NetSentinel</span> &amp;&amp; uv sync
+printf 'ENVIRONMENT=linux_development\nVIGIL_KAFKA_GROUP_ID=vigil-bridge-dev\n' &gt; <span class="vn">/home/NEWUSER/github/NetSentinel</span>/backend/backend/.env
+printf 'VITE_API_BASE=/api\nVITE_WS_BASE=\n' &gt; <span class="vn">/home/NEWUSER/github/NetSentinel</span>/frontend/.env
+cd <span class="vn">/home/NEWUSER/github/NetSentinel</span>/backend &amp;&amp; ../.venv/bin/python manage.py migrate &amp;&amp; ../.venv/bin/python manage.py migrate --database=vigil
 
 <span class="c"># —— N：线上目录 <span class="vp">/srv/netsentinel/prod</span> ——</span>
 sudo groupadd --system netsentinel &amp;&amp; sudo useradd --system -g netsentinel -d /srv/netsentinel -s /usr/sbin/nologin netsentinel
-sudo usermod -aG netsentinel $USER                                    <span class="c"># 之后重新登录</span>
+sudo usermod -aG netsentinel NEWUSER                                    <span class="c"># 之后重新登录</span>
 sudo install -d -o netsentinel -g netsentinel -m 2775 /srv/netsentinel /srv/netsentinel/logs
 git clone git@github.com:knet-lab/NetSentinel.git <span class="vp">/srv/netsentinel/prod</span>   <span class="c"># deploy.sh 从 GitHub pull</span>
 sudo chown -R netsentinel:netsentinel <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; sudo chmod -R g+rwX <span class="vp">/srv/netsentinel/prod</span>
 git -C <span class="vp">/srv/netsentinel/prod</span> config core.sharedRepository group
 cd <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; uv sync --frozen
-cp -a <span class="vn">~/github/NetSentinel</span>/backend/vigil/ml/ads_ml <span class="vp">/srv/netsentinel/prod</span>/backend/vigil/ml/   <span class="c"># 模型不在 Git 里</span>
-cp <span class="vn">~/github/NetSentinel</span>/frontend/.env <span class="vp">/srv/netsentinel/prod</span>/frontend/.env
+cp -a <span class="vn">/home/NEWUSER/github/NetSentinel</span>/backend/vigil/ml/ads_ml <span class="vp">/srv/netsentinel/prod</span>/backend/vigil/ml/   <span class="c"># 模型不在 Git 里</span>
+cp <span class="vn">/home/NEWUSER/github/NetSentinel</span>/frontend/.env <span class="vp">/srv/netsentinel/prod</span>/frontend/.env
 <span class="c"># 线上 .env：ENVIRONMENT=linux_development、DEBUG=False、SECRET_KEY=&lt;随机&gt;、</span>
 <span class="c"># ALLOWED_HOSTS=knettf.com,localhost,127.0.0.1,192.168.100.1、CSRF_EXTRA_ORIGINS=https://knettf.com、VIGIL_DB_NAME=vigil</span>
 python3 -c "import secrets;print('SECRET_KEY='+secrets.token_urlsafe(50))"   <span class="c"># 生成 SECRET_KEY</span>
@@ -218,16 +218,16 @@ cd <span class="vp">/srv/netsentinel/prod</span>/frontend &amp;&amp; pnpm instal
 
 <span class="c"># —— N：服务 ——</span>
 <span class="c"># cloudflared 凭证 JSON 放到 /etc/cloudflared/knettf/（属主 netsentinel，权限 400）</span>
-sudo install -m 644 <span class="vn">~/github/NetSentinel</span>/deploy/systemd/*.service /etc/systemd/system/
-sudo install -m 644 <span class="vn">~/github/NetSentinel</span>/deploy/cron.netsentinel /etc/cron.d/netsentinel
-sudo install -m 440 <span class="vn">~/github/NetSentinel</span>/deploy/sudoers.netsentinel /etc/sudoers.d/netsentinel
-sudo install -o root -g netsentinel -m 640 <span class="vn">~/github/NetSentinel</span>/deploy/cloudflared-knettf.yml /etc/cloudflared/knettf/config.yml
+sudo install -m 644 <span class="vn">/home/NEWUSER/github/NetSentinel</span>/deploy/systemd/*.service /etc/systemd/system/
+sudo install -m 644 <span class="vn">/home/NEWUSER/github/NetSentinel</span>/deploy/cron.netsentinel /etc/cron.d/netsentinel
+sudo install -m 440 <span class="vn">/home/NEWUSER/github/NetSentinel</span>/deploy/sudoers.netsentinel /etc/sudoers.d/netsentinel
+sudo install -o root -g netsentinel -m 640 <span class="vn">/home/NEWUSER/github/NetSentinel</span>/deploy/cloudflared-knettf.yml /etc/cloudflared/knettf/config.yml
 sudo systemctl daemon-reload
 sudo systemctl enable --now netsentinel cloudflared-knettf
 
 <span class="c"># —— 联通 ——</span>
 sudo systemctl restart netsentinel      <span class="c"># Kafka 就绪后重启，bridge 才能连上</span>
-<span class="c"># 网页登录 → Kubernetes → Add，粘贴 ~/.kube/config</span>
+<span class="c"># 网页登录 → Kubernetes → Add，粘贴 /home/NEWUSER/.kube/config</span>
 cd /srv/netsentinel/knetsentinel &amp;&amp; sudo .venv/bin/python3 traffic/spoof_attack.py --packets 50   <span class="c"># 端到端验证</span></code></pre>
       <p>systemd unit、cron、sudoers 和 cloudflared 配置都在仓库的 <code>deploy/</code> 目录里；cloudflared 隧道凭证 JSON 不在仓库里，要从备份恢复（<a href="/help/power#backup">备份与恢复</a>）或在 Cloudflare 账号里重新生成。</p>
     </section>

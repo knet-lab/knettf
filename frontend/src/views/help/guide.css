@@ -138,8 +138,8 @@
 .guide pre.on-dev::before, .guide pre.on-prod::before, .guide pre.on-both::before {
   display: block; margin: 0 -16px 10px; padding: 3px 12px; font-size: 11.5px; font-weight: 700; font-family: inherit;
 }
-.guide pre.on-dev::before { content: '开发环境 · 在开发目录 ~/github/NetSentinel 执行，不影响线上'; background: #22543d; color: #c6f6d5; }
-.guide pre.on-prod::before { content: '线上环境 · 在线上目录 ~/netsentinel-prod 执行，直接影响 knettf.com'; background: #742a2a; color: #fed7d7; }
+.guide pre.on-dev::before { content: '开发环境 · 在开发目录 /home/NEWUSER/github/NetSentinel 执行，不影响线上'; background: #22543d; color: #c6f6d5; }
+.guide pre.on-prod::before { content: '线上环境 · 在线上目录 /srv/netsentinel 下执行，直接影响 knettf.com'; background: #742a2a; color: #fed7d7; }
 .guide pre.on-both::before { content: '开发 → 线上 · 先开发目录，后线上目录'; background: #44337a; color: #e9d8fd; }
 .guide .tag-dev { background: #c6f6d5; color: #22543d; }
 .guide .tag-prod { background: #fed7d7; color: #9b2c2c; }

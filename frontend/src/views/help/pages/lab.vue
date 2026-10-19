@@ -94,7 +94,7 @@ tail -f send.log read.log</code></pre>
 cd /srv/netsentinel/knetsentinel &amp;&amp; sudo .venv/bin/python3 simulation/simulate_3.py
 
 <span class="c"># 离线评估：必须用 NetSentinel 的 venv，因为要导入 Django 和模型</span>
-cd /srv/netsentinel/knetsentinel/simulation &amp;&amp; <span class="vn">~/github/NetSentinel</span>/.venv/bin/python simulate_4.py</code></pre>
+cd /srv/netsentinel/knetsentinel/simulation &amp;&amp; <span class="vn">/home/NEWUSER/github/NetSentinel</span>/.venv/bin/python simulate_4.py</code></pre>
       <p>注意 .170-.184 不在 bridge 的标签规则里，仿真流量的 label 为空，算准确率时要用源 IP 自己判断。</p>
     </section>
 

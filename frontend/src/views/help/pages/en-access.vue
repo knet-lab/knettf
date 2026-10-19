@@ -8,7 +8,7 @@
       <div class="danger">Never use the shared <code>cis</code> account. It has every permission, and nothing done with it can be traced to a person.</div>
       <div class="task"><h4><span class="n">1</span>Request the account</h4>
         <div class="do"><div>Send the lab head your user name, your SSH public key, and which groups you need and why. Create the key on your own computer:<pre><code>ssh-keygen -t ed25519 -C "NEWUSER@cis-Z10PE-D8-WS"
-cat ~/.ssh/id_ed25519.pub</code></pre></div></div>
+cat /home/NEWUSER/.ssh/id_ed25519.pub</code></pre></div></div>
         <div class="why"><div>The server only accepts SSH keys, not passwords. The approval should be written (email or chat) and kept.</div></div>
         <div class="res"><div>Written approval.</div></div>
       </div>
@@ -53,7 +53,7 @@ prod
       <p>knetsentinel is the same up to merge-dev; then <code>master</code> is fast-forwarded and <code>/srv/netsentinel/knetsentinel</code> pulled (see Deploying Changes). Review happens only on the PR. So, in order: your GitHub key → clone and create your branch → commit identity → test commit.</p>
       <div class="task"><h4><span class="n">1</span>Join knet-lab and give the server your GitHub key</h4>
         <div class="do"><div>Any Owner invites your GitHub username at <code>https://github.com/orgs/knet-lab/people</code>; accept at <code>https://github.com/orgs/knet-lab/invitation</code>. Then, logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -C "your-github-email"
-cat ~/.ssh/id_ed25519.pub
+cat /home/NEWUSER/.ssh/id_ed25519.pub
 ssh -T git@github.com</code></pre>Add the printed key in GitHub → Settings → SSH and GPG keys → New SSH key, then run the last line.</div></div>
         <div class="why"><div>This key is for GitHub only, not for logging in to the server. Never copy <code>/home/soar009/.ssh/github_ssh_key</code>: it is the soar009 account's key for Wk-P.</div></div>
         <div class="res"><div><code>Hi your-name!</code>. If it says <code>Hi Wk-P!</code>, you are using soar009's key.</div></div>
@@ -78,12 +78,11 @@ git -C /srv/netsentinel/knetsentinel config --local --get-regexp user</code></pr
         <div class="why"><div>Identity lives only in each account's global config. A repository-level identity would override everyone's; Wk-P's was moved to soar009's global config on 2026-10-19.</div></div>
         <div class="res"><div>The last two commands print nothing. A test commit pushed on a temporary branch shows you as the author on GitHub.</div></div>
       </div>
-      <div class="task"><h4><span class="n">4</span>Check that both accounts can pull from GitHub</h4>
-        <div class="do"><div><p><code>deploy.sh</code> pulls with the key of whoever runs it: soar009 uses Wk-P's key (kept on purpose), you use the key from step 1.</p>
-<pre><code>git -C /srv/netsentinel/prod fetch origin
-sudo -iu soar009 git -C /srv/netsentinel/prod fetch origin</code></pre></div></div>
-        <div class="why"><div>If Wk-P's key is ever removed from GitHub, pulls as <code>soar009</code> fail; release from another owner's account instead.</div></div>
-        <div class="res"><div>Both fetches succeed.</div></div>
+      <div class="task"><h4><span class="n">4</span>Check that you can release (pull in the production directory)</h4>
+        <div class="do"><div><p><code>release.sh</code> → <code>deploy.sh</code> runs <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the GitHub key of <b>whoever runs it</b>: you use <code>/home/NEWUSER/.ssh/id_ed25519</code> from step 1; soar009 uses <code>github_ssh_key</code> (Wk-P, kept on purpose).</p>
+<pre><code>git -C /srv/netsentinel/prod fetch origin     # as NEWUSER</code></pre></div></div>
+        <div class="why"><div><code>Permission denied (publickey)</code> → step 1. <code>insufficient permission</code> / <code>dubious ownership</code> → not yet in group <code>netsentinel</code> or not logged in again. If Wk-P's key is ever removed, only soar009 can no longer release; production is unaffected.</div></div>
+        <div class="res"><div>The fetch succeeds.</div></div>
       </div>
     </section>
 
@@ -97,7 +96,7 @@ sudo -iu soar009 git -C /srv/netsentinel/prod fetch origin</code></pre></div></d
         <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 nodes <code>Ready</code></td></tr>
         <tr><td>5</td><td><code>ssh -T git@github.com</code></td><td><code>Hi your-name!</code></td></tr>
         <tr><td>6</td><td>Commit and push a test branch in both repositories</td><td>GitHub shows you as the author</td></tr>
-        <tr><td>7</td><td><code>git -C /srv/netsentinel/prod fetch origin</code> as yourself and as <code>soar009</code></td><td>Both succeed</td></tr>
+        <tr><td>7</td><td><code>git -C /srv/netsentinel/prod fetch origin</code> as yourself</td><td>Succeeds</td></tr>
       </table></div>
     </section>
   </div>

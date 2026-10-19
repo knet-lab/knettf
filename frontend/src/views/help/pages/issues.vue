@@ -99,7 +99,7 @@
         <li>完整做一次计划停机和开机恢复（<a href="/help/power">开关机 · 重建 · 备份</a>），记录每一步花的时间。</li>
         <li>在一个不影响他人的时间窗口，按 <a href="/help/power#rebuild-kafka">重建 Kafka</a>，并确认端到端恢复。</li>
       </ol>
-      <div class="ok">全部做完，你就能独立负责这个项目了。遇到手册与代码不一致的地方，以代码为准，并更新本手册（<code>frontend/src/views/help/pages/</code>，改完 <code>scripts/deploy.sh -frontend</code>）。</div>
+      <div class="ok">全部做完，你就能独立负责这个项目了。遇到手册与代码不一致的地方，以代码为准，并更新本手册（<code>frontend/src/views/help/pages/</code>，改完走 PR，合并后 <code>/srv/netsentinel/release.sh -frontend</code>）。</div>
     </section>
   </div>
 </template>

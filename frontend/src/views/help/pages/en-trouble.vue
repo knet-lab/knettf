@@ -18,7 +18,7 @@
       <h2>Symptoms</h2>
       <div class="table-wrap"><table>
         <tr><th>Symptom</th><th>Cause → fix</th></tr>
-        <tr><td>White page / 404 for <code>/assets/*.js</code></td><td>Not built or not restarted → <code>cd ~/github/NetSentinel && scripts/deploy.sh -frontend</code></td></tr>
+        <tr><td>White page / 404 for <code>/assets/*.js</code></td><td>Not built or not restarted → <code>/srv/netsentinel/prod/scripts/deploy.sh -frontend</code> (redeploys current prod)</td></tr>
         <tr><td>Logged out right after sign-in</td><td>Session expired (7 days) → sign in again, clear the site's local storage</td></tr>
         <tr><td><code>bridge error</code> in the log</td><td>Kafka unreachable → fix Kafka, then <code>sudo systemctl restart netsentinel</code></td></tr>
         <tr><td><code>drainer failed</code> + <code>no partition of relation</code></td><td>Missing day partition → <code>cd /srv/netsentinel/prod/backend && ../.venv/bin/python manage.py rotate_partitions --database vigil</code></td></tr>

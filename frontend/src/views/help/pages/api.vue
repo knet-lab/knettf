@@ -118,7 +118,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
       <p>集群对象输出（<code>KubeClusterResponseSerializer</code>）：<code>id, name, owner{...}, kubeconfig, is_active, last_synced_at, created_at</code>。<b>注意：响应包含完整 kubeconfig 明文</b>。</p>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-get">GET</span><span class="m m-post">POST</span><code>/api/kcore/users/&lt;pk&gt;/clusters/</code><span class="perm">本人或管理员</span></div>
-        <p>POST 请求：<code>{"name":"lab","kubeconfig":"&lt;~/.kube/config 全文&gt;"}</code>；同一用户下 name 唯一。创建时不校验 kubeconfig 能否连通，连不上的错误会在调用资源接口时才出现（502）。</p>
+        <p>POST 请求：<code>{"name":"lab","kubeconfig":"&lt;/home/NEWUSER/.kube/config 全文&gt;"}</code>；同一用户下 name 唯一。创建时不校验 kubeconfig 能否连通，连不上的错误会在调用资源接口时才出现（502）。</p>
         <pre><code>curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   http://localhost:8080/api/kcore/users/1/clusters/ \
   -d "$(python3 -c 'import json,os;print(json.dumps({"name":"lab","kubeconfig":open(os.path.expanduser("~/.kube/config")).read()}))')"</code></pre>

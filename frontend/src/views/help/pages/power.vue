@@ -140,8 +140,8 @@ sudo systemctl restart netsentinel</code></pre></div></div>
       <h3 id="rebuild-cluster">重建整个集群</h3>
       <div class="task"><h4><span class="n">1</span>备份并停后端</h4>
         <div class="do"><div><pre class="on-prod"><code>tar czf /srv/netsentinel/backups/knetsentinel_backup_$(date +%F).tgz -C /srv/netsentinel --exclude='knetsentinel/.venv' knetsentinel
-kubectl get svc -A -o wide &gt; ~/svc_before_rebuild.txt
-cp ~/.kube/config ~/kubeconfig_before_rebuild
+kubectl get svc -A -o wide &gt; /home/NEWUSER/svc_before_rebuild.txt
+cp /home/NEWUSER/.kube/config /home/NEWUSER/kubeconfig_before_rebuild
 sudo systemctl stop netsentinel</code></pre></div></div>
         <div class="why"><div>00 脚本会删掉 VM 磁盘和 kubeconfig。先停后端，免得重建期间 bridge 不停地报错。</div></div>
         <div class="res"><div>备份文件已生成，服务 inactive。</div></div>
@@ -160,7 +160,7 @@ kubectl apply -f /srv/netsentinel/knetsentinel/cluster-setup/host-firewall-ccnp.
       <div class="task"><h4><span class="n">3</span>让 NetSentinel 对上新集群</h4>
         <div class="do"><div><ol>
           <li><code>sudo systemctl start netsentinel</code></li>
-          <li>登录网页 → 删掉旧的集群记录 → 用同样的名字重新添加，粘贴新的 <code>~/.kube/config</code>。</li>
+          <li>登录网页 → 删掉旧的集群记录 → 用同样的名字重新添加，粘贴新的 <code>/home/NEWUSER/.kube/config</code>。</li>
           <li>用了入口 B 的话，重建 Secret <code>detector-secret</code> 并部署检测器（<a href="/help/detect">检测链路</a> 入口 B 一节）。</li>
           <li>做一次 <a href="#verify">端到端验证</a>。</li>
         </ol></div></div>
@@ -193,8 +193,8 @@ sudo systemctl start netsentinel</code></pre>
       <h3 id="rebuild-env">重建运行环境</h3>
 <pre class="on-both"><code>sudo systemctl stop netsentinel
 cd <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; rm -rf .venv frontend/node_modules frontend/dist &amp;&amp; uv sync --frozen
-cd <span class="vn">~/github/NetSentinel</span> &amp;&amp; scripts/deploy.sh -all       # 一定从 <span class="vn">~/github/NetSentinel</span> 跑</code></pre>
-      <p>这几个目录都可以重新生成，不会丢数据。开发目录 <code class="vn">~/github/NetSentinel</code> 的环境坏了同理：<code class="vn">cd ~/github/NetSentinel &amp;&amp; rm -rf .venv &amp;&amp; uv sync --frozen</code>，不影响线上。</p>
+/srv/netsentinel/prod/scripts/deploy.sh -all       # 重新部署当前 prod，不发布新提交</code></pre>
+      <p>这几个目录都可以重新生成，不会丢数据。开发目录 <code class="vn">/home/NEWUSER/github/NetSentinel</code> 的环境坏了同理：<code class="vn">cd /home/NEWUSER/github/NetSentinel &amp;&amp; rm -rf .venv &amp;&amp; uv sync --frozen</code>，不影响线上。</p>
     </section>
 
     <section id="backup">
@@ -204,10 +204,10 @@ cd <span class="vn">~/github/NetSentinel</span> &amp;&amp; scripts/deploy.sh -al
         <tr><td>default 库</td><td><code class="vp">sqlite3 /srv/netsentinel/prod/backend/db.sqlite3 ".backup '/srv/netsentinel/backups/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"</code></td><td>停服务 → 覆盖 <code>db.sqlite3</code> → 启服务</td></tr>
         <tr><td>vigil 库</td><td><code>docker exec pg pg_dump -U vigil -Fc vigil &gt; /srv/netsentinel/backups/vigil_$(date +%F).dump</code></td><td>见下方</td></tr>
         <tr><td>上传的 .tf 文件</td><td><code class="vp">tar czf tf_$(date +%F).tgz -C /srv/netsentinel/prod/backend terraform</code></td><td>解压回 <code>backend/</code></td></tr>
-        <tr><td>后端 .env</td><td><code class="vp">cp /srv/netsentinel/prod/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td><td>复制回去，重启后端</td></tr>
+        <tr><td>后端 .env</td><td><code class="vp">cp /srv/netsentinel/prod/backend/backend/.env /home/NEWUSER/netsentinel_env_$(date +%F)</code></td><td>复制回去，重启后端</td></tr>
         <tr><td>模型文件</td><td><code class="vp">tar czf ads_ml_$(date +%F).tgz -C /srv/netsentinel/prod/backend/vigil/ml ads_ml/trained ads_ml/config.yaml</code></td><td>解压回去，重启后端</td></tr>
         <tr><td>knetsentinel 全部</td><td><code>tar czf /srv/netsentinel/backups/knetsentinel_$(date +%F).tgz -C /srv/netsentinel --exclude='knetsentinel/.venv' knetsentinel</code></td><td>解压，<code>uv sync</code></td></tr>
-        <tr><td>kubeconfig</td><td><code>cp ~/.kube/config ~/kubeconfig_$(date +%F)</code></td><td>集群没重建时才有用</td></tr>
+        <tr><td>kubeconfig</td><td><code>cp /home/NEWUSER/.kube/config /home/NEWUSER/kubeconfig_$(date +%F)</code></td><td>集群没重建时才有用</td></tr>
         <tr><td>systemd / cloudflared</td><td><code>sudo tar czf /srv/netsentinel/backups/sys_$(date +%F).tgz /etc/systemd/system/netsentinel.service /etc/systemd/system/cloudflared-knettf.service /etc/cloudflared/knettf /etc/cron.d/netsentinel /etc/sudoers.d/netsentinel</code></td><td>解压，<code>sudo systemctl daemon-reload</code></td></tr>
         <tr><td>定时任务</td><td>在上一行的 <code>/etc/cron.d/netsentinel</code> 里，源文件 <code>deploy/cron.netsentinel</code></td><td>解压或从仓库重装</td></tr>
       </table></div>

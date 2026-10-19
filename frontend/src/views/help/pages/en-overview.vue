@@ -8,7 +8,7 @@
       <p>NetSentinel captures network traffic inside a self-built Kubernetes lab cluster, uses a machine-learning model to flag attacks, and shows the results on <code>https://knettf.com</code>. The site can also manage clusters and scan Terraform configs for security problems.</p>
       <div class="table-wrap"><table>
         <tr><th>Project</th><th>What it is</th><th>Directory on the server</th></tr>
-        <tr><td><b>NetSentinel</b></td><td>The platform: Django backend (apps <code>kcore</code>, <code>autotf</code>, <code>vigil</code>), Vue 3 frontend, OCSVM detection model</td><td>Development: <code>~/github/NetSentinel</code><br>Production: <code>/srv/netsentinel/prod</code></td></tr>
+        <tr><td><b>NetSentinel</b></td><td>The platform: Django backend (apps <code>kcore</code>, <code>autotf</code>, <code>vigil</code>), Vue 3 frontend, OCSVM detection model</td><td>Development: <code>/home/NEWUSER/github/NetSentinel</code><br>Production: <code>/srv/netsentinel/prod</code></td></tr>
         <tr><td><b>knetsentinel</b></td><td>The lab: scripts that build 5 KVM VMs, install Kubernetes, Cilium/Hubble, Kafka and Vector, and send normal / attack traffic</td><td><code>/srv/netsentinel/knetsentinel</code></td></tr>
       </table></div>
     </section>
@@ -43,7 +43,7 @@
     <section id="envs">
       <h2>Development vs. production</h2>
       <div class="env-cards">
-        <div class="env-card dev"><h4>Development · ~/github/NetSentinel</h4><ul><li>Edit and commit code here</li><li>Run with <code>runserver 8090</code> + <code>pnpm dev</code></li><li>Uses database <code>vigil_dev</code></li></ul></div>
+        <div class="env-card dev"><h4>Development · /home/NEWUSER/github/NetSentinel</h4><ul><li>Edit and commit code here</li><li>Run with <code>runserver 8090</code> + <code>pnpm dev</code></li><li>Uses database <code>vigil_dev</code></li></ul></div>
         <div class="env-card prod"><h4>Production · /srv/netsentinel/prod</h4><ul><li>What knettf.com serves</li><li>Owned by account <code>netsentinel</code>; updated only by <code>scripts/deploy.sh</code> from GitHub <code>prod</code></li><li>Never edit or commit here</li></ul></div>
       </div>
     </section>

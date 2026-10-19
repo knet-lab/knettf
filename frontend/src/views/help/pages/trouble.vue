@@ -37,7 +37,7 @@
         <tr><th>现象</th><th>检查</th><th>原因 → 处理</th></tr>
         <tr><td>网页打不开</td><td><code>sudo systemctl status netsentinel</code>；<code>sudo journalctl -u netsentinel -n 100</code></td><td><code>.venv</code> 损坏、PostgreSQL 不可用、settings 语法错误 → 修好后重启</td></tr>
         <tr><td>公网打不开、本机正常</td><td><code>sudo journalctl -u cloudflared-knettf -n 50</code></td><td>隧道断开 → 重启隧道；检查 <code>/etc/cloudflared/knettf/config.yml</code></td></tr>
-        <tr><td>白屏 / 404</td><td><code class="vp">ls /srv/netsentinel/prod/frontend/dist/index.html</code>；浏览器开发者工具看 <code>/assets/*.js</code> 是否 404</td><td>dist 不存在 → <code class="vn">cd ~/github/NetSentinel &amp;&amp; scripts/deploy.sh -frontend</code>；dist 在但 js 404 → 构建后没重启（DEBUG=False 时 WhiteNoise 只在启动时扫描），<code>sudo systemctl restart netsentinel</code></td></tr>
+        <tr><td>白屏 / 404</td><td><code class="vp">ls /srv/netsentinel/prod/frontend/dist/index.html</code>；浏览器开发者工具看 <code>/assets/*.js</code> 是否 404</td><td>dist 不存在 → <code>/srv/netsentinel/prod/scripts/deploy.sh -frontend</code>（重新部署当前 prod）；dist 在但 js 404 → 构建后没重启（DEBUG=False 时 WhiteNoise 只在启动时扫描），<code>sudo systemctl restart netsentinel</code></td></tr>
         <tr><td>登录后马上掉线</td><td>F12 看 <code>/api/auth/token/refresh/</code></td><td>refresh 过期（7 天）→ 重新登录，清 localStorage</td></tr>
         <tr><td>日志 <code>bridge error</code></td><td><code>nc -zv 192.168.100.200 9094</code></td><td>Kafka 连不上 → 恢复 Kafka 后重启后端</td></tr>
         <tr><td>日志 <code>drainer failed</code> + <code>no partition of relation</code></td><td>分区缺失</td><td><code>manage.py rotate_partitions --database vigil</code>；当天的分区缺失就用 SQL 手动建</td></tr>

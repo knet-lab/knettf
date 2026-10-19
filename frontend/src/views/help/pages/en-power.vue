@@ -71,7 +71,7 @@ sudo journalctl -u netsentinel --since '-1 min' | grep -E 'AdsMLModel|bridge|dra
         <tr><th>What</th><th>Command</th></tr>
         <tr><td>Users / clusters / Terraform</td><td><code>sqlite3 /srv/netsentinel/prod/backend/db.sqlite3 ".backup '/srv/netsentinel/backups/db_backup_$(date +%F).sqlite3'"</code></td></tr>
         <tr><td>Detection records</td><td><code>docker exec pg pg_dump -U vigil -Fc vigil > /srv/netsentinel/backups/vigil_$(date +%F).dump</code></td></tr>
-        <tr><td>Secrets</td><td><code>cp /srv/netsentinel/prod/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td></tr>
+        <tr><td>Secrets</td><td><code>cp /srv/netsentinel/prod/backend/backend/.env /home/NEWUSER/netsentinel_env_$(date +%F)</code></td></tr>
         <tr><td>Lab scripts</td><td><code>tar czf /srv/netsentinel/backups/knetsentinel_$(date +%F).tgz -C /srv/netsentinel --exclude='knetsentinel/.venv' knetsentinel</code></td></tr>
         <tr><td>Daily job</td><td><code>/etc/cron.d/netsentinel</code> (source <code>deploy/cron.netsentinel</code> in the repo)</td></tr>
       </table></div>
