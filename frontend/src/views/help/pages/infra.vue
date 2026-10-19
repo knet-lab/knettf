@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>集群与 Shell 脚本</h1>
     <div class="meta">读完你能：画出宿主机、网桥、VM、集群组件的关系；读懂 00 / 01 / 02 / 03 四个脚本每一步在做什么、为什么这样做；看懂 Kafka、Vector、靶机的清单；知道宿主机上 systemd、cloudflared、crontab、PostgreSQL 容器的配置。<br>
-      脚本在 <span class="tag tag-k">K</span> <code>$K/kubeadm-cluster/</code>，都以普通用户运行（内部按需 <code>sudo</code>），<b>不要</b> <code>sudo bash</code> 整个脚本（kubeconfig 会写到 root 家目录）。逐步的开关机 / 重建命令见 <a href="/help/power">开关机 · 重建 · 备份</a>。</div>
+      脚本在 <span class="tag tag-k">K</span> <code>~/knetsentinel/kubeadm-cluster/</code>，都以普通用户运行（内部按需 <code>sudo</code>），<b>不要</b> <code>sudo bash</code> 整个脚本（kubeconfig 会写到 root 家目录）。逐步的开关机 / 重建命令见 <a href="/help/power">开关机 · 重建 · 备份</a>。</div>
 
     <section id="ip">
       <h2>5.1 IP 规划（全部在 192.168.100.0/24）</h2>
@@ -16,7 +16,7 @@
         <tr><td><code>.50 ~ .64</code></td><td>伪造正常源</td><td><code>traffic/send_request.py</code>、<code>send_normal_scapy.py</code></td><td>bridge 打标签 label=0。注意它和 DHCP 动态池 .50-.99 重叠</td></tr>
         <tr><td><code>.50 ~ .99</code></td><td>libvirt DHCP 动态池</td><td>01 网络 XML</td><td>没有绑定 MAC 的机器拿这里的地址</td></tr>
         <tr><td><code>.170 ~ .184</code></td><td>simulation 攻击源</td><td><code>simulation/</code></td><td>不在标签规则内，label 为空</td></tr>
-        <tr><td><code>.200 ~ .203</code></td><td>kafka-0~3-external（<code>:9094</code>）</td><td>MetalLB 按创建顺序分配</td><td><b>bridge.py 写死</b>、<code>$K/.env</code>、检测器 ConfigMap</td></tr>
+        <tr><td><code>.200 ~ .203</code></td><td>kafka-0~3-external（<code>:9094</code>）</td><td>MetalLB 按创建顺序分配</td><td><b>bridge.py 写死</b>、<code>~/knetsentinel/.env</code>、检测器 ConfigMap</td></tr>
         <tr><td><code>.204</code></td><td>my-nginx（<code>:80</code>）</td><td>MetalLB</td><td><code>send_request.py</code> 写死</td></tr>
         <tr><td><code>.210 ~ .214</code></td><td>靶机 http-api / mysql-sim / ftp-sim / udp-echo / dns-sim</td><td><code>targets.yaml</code> 注解指定</td><td>实验脚本</td></tr>
         <tr><td><code>.200 ~ .250</code></td><td>MetalLB 地址池</td><td>02 脚本</td><td>bridge 视为基础设施</td></tr>
@@ -39,7 +39,7 @@
     <section id="s00">
       <h2>5.3 00-clear.sh：彻底清理（不可逆）</h2>
       <p>按顺序：杀掉 hubble <code>port-forward</code>、minikube tunnel 后台进程 → <code>virsh destroy/undefine</code> 5 台 VM → 删网络 virbr-k8s → 删 <code>~/vm-images</code> 下 VM 磁盘 → 删 cloud image → 删 <code>/tmp/cidata-*</code>、<code>/tmp/k8s-network.xml</code> → 删 <code>~/.kube/config</code> → 从 <code>/etc/hosts</code> 删 k8s 相关行 → 从 <code>known_hosts</code> 删 .10-.14。</p>
-      <div class="danger">执行后集群、Kafka 中的数据、kubeconfig 全部消失。执行前按 <a href="/help/power#rebuild-cluster">重建整个集群</a> 第 1 步备份 <code>$K</code> 整个目录（它不在 Git 里）。</div>
+      <div class="danger">执行后集群、Kafka 中的数据、kubeconfig 全部消失。执行前按 <a href="/help/power#rebuild-cluster">重建整个集群</a> 第 1 步备份 <code>~/knetsentinel</code> 整个目录（它不在 Git 里）。</div>
     </section>
 
     <section id="s01">
@@ -96,7 +96,7 @@
         <tr><td>9</td><td><code>kubectl create deployment my-nginx --image=nginx</code> + <code>expose --type=LoadBalancer --port=80</code> → 等 IP（.204）</td><td>正常流量的目标</td></tr>
         <tr><td>10</td><td>后台 <code>kubectl port-forward svc/hubble-relay 4245</code>，日志 <code>/tmp/hubble-pf.log</code></td><td>只给宿主机上 <code>hubble observe</code> 调试用，Vector 不依赖它；宿主机重启后不会自动恢复</td></tr>
         <tr><td>11</td><td><code>/etc/hosts</code> 加 <code>192.168.100.200 kafka-svc.default.svc.cluster.local</code></td><td>宿主机脚本用集群内域名时能解析</td></tr>
-        <tr><td>12</td><td>重写 <code>$K/.env</code>：<code>BOOTSTRAP_SERVERS=.200:9094,...</code>、<code>GROUP_ID=ebpf-log-consumer-group</code>、<code>AUTO_OFFSET_RESET=earliest</code>、<code>TOPICS='["ebpf-net-logs"]'</code></td><td>knetsentinel 的 Python 脚本读它</td></tr>
+        <tr><td>12</td><td>重写 <code>~/knetsentinel/.env</code>：<code>BOOTSTRAP_SERVERS=.200:9094,...</code>、<code>GROUP_ID=ebpf-log-consumer-group</code>、<code>AUTO_OFFSET_RESET=earliest</code>、<code>TOPICS='["ebpf-net-logs"]'</code></td><td>knetsentinel 的 Python 脚本读它</td></tr>
       </table></div>
     </section>
 
@@ -145,7 +145,7 @@ kubectl exec kafka-broker-0 -- /opt/kafka/bin/kafka-console-consumer.sh --bootst
       <h2>5.10 宿主机上的服务（NetSentinel 侧）</h2>
       <h3>后端：<code>~/.config/systemd/user/netsentinel.service</code></h3>
 <pre class="on-prod"><code>[Service]
-WorkingDirectory=/home/soar009/netsentinel-prod/backend      <span class="c"># 线上目录 <span class="vp">$P</span>，不是开发目录</span>
+WorkingDirectory=/home/soar009/netsentinel-prod/backend      <span class="c"># 线上目录 <span class="vp">~/netsentinel-prod</span>，不是开发目录</span>
 Environment=DJANGO_SETTINGS_MODULE=backend.settings
 ExecStart=/home/soar009/netsentinel-prod/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
 Restart=always          RestartSec=3       <span class="c"># 挂了 3 秒后自动拉起</span>
@@ -163,62 +163,62 @@ ingress:
       <h3>PostgreSQL：Docker 容器 <code>pg</code></h3>
       <p>镜像 <code>postgres</code>（当前 18.4），<code>--restart unless-stopped</code>，端口 <code>5432:5432</code>，数据卷挂在 <code>/var/lib/postgresql</code>。库 / 用户 / 密码 <code>vigil / vigil / vigil123</code>。注意 <code>unless-stopped</code>：你手动 <code>docker stop pg</code> 后，开机<b>不会</b>自动启动它。</p>
       <h3>crontab</h3>
-<pre class="on-prod"><code>0 0 * * * <span class="vp">$P</span>/.venv/bin/python <span class="vp">$P</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /tmp/rotate_partitions.log 2&gt;&amp;1</code></pre>
-      <p>必须用 <code class="vp">$P</code>：开发目录 <code class="vn">$N</code> 的默认库是 <code>vigil_dev</code>，用它跑分区会建错库。按宿主机本地时间 0 点执行，而分区边界是 UTC。只要每天都跑，明天的分区总会提前建好。<code>/tmp</code> 下的日志重启后清空。</p>
+<pre class="on-prod"><code>0 0 * * * <span class="vp">~/netsentinel-prod</span>/.venv/bin/python <span class="vp">~/netsentinel-prod</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /tmp/rotate_partitions.log 2&gt;&amp;1</code></pre>
+      <p>必须用 <code class="vp">~/netsentinel-prod</code>：开发目录 <code class="vn">~/github/NetSentinel</code> 的默认库是 <code>vigil_dev</code>，用它跑分区会建错库。按宿主机本地时间 0 点执行，而分区边界是 UTC。只要每天都跑，明天的分区总会提前建好。<code>/tmp</code> 下的日志重启后清空。</p>
     </section>
 
     <section id="bootstrap">
       <h2>5.11 从零到可用的完整顺序</h2>
       <p>换一台新机器或全部重建时按这个顺序（依赖关系的详细说明见 <a href="/help/index#order">系统总览 · 构建顺序</a>）：</p>
 <pre class="on-both"><code><span class="c"># —— K：集群 ——</span>
-cd $K/kubeadm-cluster
+cd ~/knetsentinel/kubeadm-cluster
 bash 01-setup-vms.sh
 bash 02-setup-cluster.sh
 bash 03-deploy-5nodes.sh
-kubectl apply -f $K/cluster-setup/targets.yaml
-kubectl apply -f $K/cluster-setup/host-firewall-ccnp.yaml
-cd $K &amp;&amp; uv sync
+kubectl apply -f ~/knetsentinel/cluster-setup/targets.yaml
+kubectl apply -f ~/knetsentinel/cluster-setup/host-firewall-ccnp.yaml
+cd ~/knetsentinel &amp;&amp; uv sync
 
 <span class="c"># —— N：数据库 ——</span>
 docker run -d --name pg --restart unless-stopped -p 5432:5432 \
   -e POSTGRES_USER=vigil -e POSTGRES_PASSWORD=vigil123 -e POSTGRES_DB=vigil postgres
 docker exec pg psql -U vigil -c "CREATE DATABASE vigil_dev"      <span class="c"># 开发库</span>
 
-<span class="c"># —— N：开发目录 <span class="vn">$N</span> ——</span>
-git clone git@github.com:Wk-P/NetSentinel.git <span class="vn">$N</span>
-cd <span class="vn">$N</span> &amp;&amp; uv sync
-printf 'ENVIRONMENT=linux_development\nVIGIL_KAFKA_GROUP_ID=vigil-bridge-dev\n' &gt; <span class="vn">$N</span>/backend/backend/.env
-printf 'VITE_API_BASE=/api\nVITE_WS_BASE=\n' &gt; <span class="vn">$N</span>/frontend/.env
-cd <span class="vn">$N</span>/backend &amp;&amp; ../.venv/bin/python manage.py migrate &amp;&amp; ../.venv/bin/python manage.py migrate --database=vigil
+<span class="c"># —— N：开发目录 <span class="vn">~/github/NetSentinel</span> ——</span>
+git clone git@github.com:Wk-P/NetSentinel.git <span class="vn">~/github/NetSentinel</span>
+cd <span class="vn">~/github/NetSentinel</span> &amp;&amp; uv sync
+printf 'ENVIRONMENT=linux_development\nVIGIL_KAFKA_GROUP_ID=vigil-bridge-dev\n' &gt; <span class="vn">~/github/NetSentinel</span>/backend/backend/.env
+printf 'VITE_API_BASE=/api\nVITE_WS_BASE=\n' &gt; <span class="vn">~/github/NetSentinel</span>/frontend/.env
+cd <span class="vn">~/github/NetSentinel</span>/backend &amp;&amp; ../.venv/bin/python manage.py migrate &amp;&amp; ../.venv/bin/python manage.py migrate --database=vigil
 
-<span class="c"># —— N：线上目录 <span class="vp">$P</span> ——</span>
-git clone <span class="vn">$N</span> <span class="vp">$P</span>                                   <span class="c"># origin 指向开发目录，deploy.sh 从这里 pull</span>
-cd <span class="vp">$P</span> &amp;&amp; uv sync --frozen
-cp -a <span class="vn">$N</span>/backend/vigil/ml/ads_ml <span class="vp">$P</span>/backend/vigil/ml/   <span class="c"># 模型不在 Git 里</span>
-cp <span class="vn">$N</span>/frontend/.env <span class="vp">$P</span>/frontend/.env
+<span class="c"># —— N：线上目录 <span class="vp">~/netsentinel-prod</span> ——</span>
+git clone <span class="vn">~/github/NetSentinel</span> <span class="vp">~/netsentinel-prod</span>                                   <span class="c"># origin 指向开发目录，deploy.sh 从这里 pull</span>
+cd <span class="vp">~/netsentinel-prod</span> &amp;&amp; uv sync --frozen
+cp -a <span class="vn">~/github/NetSentinel</span>/backend/vigil/ml/ads_ml <span class="vp">~/netsentinel-prod</span>/backend/vigil/ml/   <span class="c"># 模型不在 Git 里</span>
+cp <span class="vn">~/github/NetSentinel</span>/frontend/.env <span class="vp">~/netsentinel-prod</span>/frontend/.env
 <span class="c"># 线上 .env：ENVIRONMENT=linux_development、DEBUG=False、SECRET_KEY=&lt;随机&gt;、</span>
 <span class="c"># ALLOWED_HOSTS=knettf.com,localhost,127.0.0.1,192.168.100.1、CSRF_EXTRA_ORIGINS=https://knettf.com、VIGIL_DB_NAME=vigil</span>
 python3 -c "import secrets;print('SECRET_KEY='+secrets.token_urlsafe(50))"   <span class="c"># 生成 SECRET_KEY</span>
-vi <span class="vp">$P</span>/backend/backend/.env &amp;&amp; chmod 600 <span class="vp">$P</span>/backend/backend/.env
-cd <span class="vp">$P</span>/backend
+vi <span class="vp">~/netsentinel-prod</span>/backend/backend/.env &amp;&amp; chmod 600 <span class="vp">~/netsentinel-prod</span>/backend/backend/.env
+cd <span class="vp">~/netsentinel-prod</span>/backend
 ../.venv/bin/python manage.py migrate
 ../.venv/bin/python manage.py migrate --database=vigil
 ../.venv/bin/python manage.py users_init
 ../.venv/bin/python manage.py autotf_init
 ../.venv/bin/python manage.py generate_bridge_token --write-env
 ../.venv/bin/python manage.py collectstatic --noinput
-cd <span class="vp">$P</span>/frontend &amp;&amp; pnpm install --frozen-lockfile &amp;&amp; pnpm build
+cd <span class="vp">~/netsentinel-prod</span>/frontend &amp;&amp; pnpm install --frozen-lockfile &amp;&amp; pnpm build
 
 <span class="c"># —— N：服务 ——</span>
 systemctl --user daemon-reload
 systemctl --user enable --now netsentinel cloudflared-knettf
 loginctl enable-linger $USER
-(crontab -l; echo "0 0 * * * <span class="vp">$P</span>/.venv/bin/python <span class="vp">$P</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /tmp/rotate_partitions.log 2&gt;&amp;1") | crontab -
+(crontab -l; echo "0 0 * * * <span class="vp">~/netsentinel-prod</span>/.venv/bin/python <span class="vp">~/netsentinel-prod</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /tmp/rotate_partitions.log 2&gt;&amp;1") | crontab -
 
 <span class="c"># —— 联通 ——</span>
 systemctl --user restart netsentinel      <span class="c"># Kafka 就绪后重启，bridge 才能连上</span>
 <span class="c"># 网页登录 → Kubernetes → Add，粘贴 ~/.kube/config</span>
-cd $K &amp;&amp; sudo .venv/bin/python3 traffic/spoof_attack.py --packets 50   <span class="c"># 端到端验证</span></code></pre>
+cd ~/knetsentinel &amp;&amp; sudo .venv/bin/python3 traffic/spoof_attack.py --packets 50   <span class="c"># 端到端验证</span></code></pre>
       <p>systemd unit 和 cloudflared 配置不在任何仓库里，新机器上要从备份恢复（<a href="/help/power#backup">备份与恢复</a>）或照 5.10 重写；cloudflared 隧道凭证 JSON 需要在 Cloudflare 账号里重新生成。</p>
     </section>
   </div>

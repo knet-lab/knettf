@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>每日健康检查</h1>
     <div class="meta">每天一次，约 5 分钟：命令行 2 分钟 + 网页 3 分钟。每一步写明怎么做、为什么查它、正常应该看到什么；结果对不上就按该步的处理办法走，处理不了再去 <a href="/help/trouble">排障与日志</a>。<br>
-      先设好路径变量：<code>export N=~/github/NetSentinel K=~/knetsentinel</code>。前提：已通过 <a href="/help/prepare#ready">准备完成验收</a>。服务还在 soar009 名下时，先 <code>sudo -iu soar009</code>（见 <a href="/help/prepare#transition">接手准备 2.1</a>）。</div>
+      前提：已通过 <a href="/help/prepare#ready">准备完成验收</a>。服务还在 soar009 名下时，先 <code>sudo -iu soar009</code>（见 <a href="/help/prepare#transition">接手准备 2.1</a>）。</div>
 
     <section id="cli">
       <h2>命令行检查（按顺序，从外到内）</h2>
@@ -27,7 +27,7 @@ journalctl --user -u netsentinel --since '-10 min' | grep -E 'vigil.bridge|bridg
 docker exec pg psql -U vigil vigil -Atc "select to_regclass('vigil_detectionrecord_'||to_char(now()+interval '1 day','YYYY_MM_DD'));"
 tail -1 /tmp/rotate_partitions.log</code></pre></div></div>
         <div class="why"><div>检测记录按天分区存放。明天的分区如果不存在，过了零点所有写入都会失败（日志里是 <code>drainer failed</code>）。分区由 crontab 里的 <code>rotate_partitions</code> 每天 0 点创建。</div></div>
-        <div class="res"><div>第一行是几分钟内的时间（有实验时）；第二行输出一个表名，不是空行；第三行含 <code>rotate_partitions done</code>。<br><span class="bad">第二行为空</span>：<code class="vp">cd $P/backend && ../.venv/bin/python manage.py rotate_partitions --database vigil</code>，再用 <code>crontab -l</code> 查定时任务还在不在。</div></div>
+        <div class="res"><div>第一行是几分钟内的时间（有实验时）；第二行输出一个表名，不是空行；第三行含 <code>rotate_partitions done</code>。<br><span class="bad">第二行为空</span>：<code class="vp">cd ~/netsentinel-prod/backend && ../.venv/bin/python manage.py rotate_partitions --database vigil</code>，再用 <code>crontab -l</code> 查定时任务还在不在。</div></div>
       </div>
 
       <div class="task"><h4><span class="n">4</span>集群正常</h4>
@@ -47,7 +47,7 @@ kubectl get pods -A | grep -vE 'Running|Completed'</code></pre></div></div>
 
       <div class="task"><h4><span class="n">6</span>磁盘空间</h4>
         <div class="do"><div><pre class="on-prod"><code>df -h / /home ~/vm-images /home/docker-data | sort -u
-du -sh <span class="vp">$P</span>/backend/vigil/ml/ads_ml/results</code></pre></div></div>
+du -sh <span class="vp">~/netsentinel-prod</span>/backend/vigil/ml/ads_ml/results</code></pre></div></div>
         <div class="why"><div>pg 数据、Kafka、VM 磁盘都在本机。磁盘满会让数据库和集群同时出问题。<code>results/</code> 下的推理报告每条推理追加一行，会持续变大。</div></div>
         <div class="res"><div>使用率低于 85%。<br><span class="bad">超过</span>：先清 <code>/tmp</code>、旧日志、<code>results/</code> 下的 CSV。</div></div>
       </div>

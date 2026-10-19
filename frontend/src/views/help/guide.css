@@ -138,9 +138,9 @@
 .guide pre.on-dev::before, .guide pre.on-prod::before, .guide pre.on-both::before {
   display: block; margin: 0 -16px 10px; padding: 3px 12px; font-size: 11.5px; font-weight: 700; font-family: inherit;
 }
-.guide pre.on-dev::before { content: '开发环境 · 在 $N 执行，不影响线上'; background: #22543d; color: #c6f6d5; }
-.guide pre.on-prod::before { content: '线上环境 · 在 $P 执行，直接影响 knettf.com'; background: #742a2a; color: #fed7d7; }
-.guide pre.on-both::before { content: '开发 → 线上 · 先 $N 后 $P'; background: #44337a; color: #e9d8fd; }
+.guide pre.on-dev::before { content: '开发环境 · 在开发目录 ~/github/NetSentinel 执行，不影响线上'; background: #22543d; color: #c6f6d5; }
+.guide pre.on-prod::before { content: '线上环境 · 在线上目录 ~/netsentinel-prod 执行，直接影响 knettf.com'; background: #742a2a; color: #fed7d7; }
+.guide pre.on-both::before { content: '开发 → 线上 · 先开发目录，后线上目录'; background: #44337a; color: #e9d8fd; }
 .guide .tag-dev { background: #c6f6d5; color: #22543d; }
 .guide .tag-prod { background: #fed7d7; color: #9b2c2c; }
 .guide .env-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 10px 0 14px; }
@@ -216,3 +216,13 @@
   .guide .pager { grid-template-columns: 1fr; }
   .guide .pager .pg.next { text-align: left; align-items: flex-start; }
 }
+/* 当前这本的名字；教程的步骤带一句说明，手册更紧凑 */
+.guide .sb-book { padding: 18px 20px 0; font-size: 17px; font-weight: 800; color: #0f172a; letter-spacing: -0.01em; }
+.guide .sb-book span { display: block; margin-top: 3px; font-size: 12px; font-weight: 500; color: #94a3b8; }
+.guide .sb-group .sb-title { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; color: #94a3b8; text-transform: uppercase; }
+.guide .sb-text { display: flex; flex-direction: column; min-width: 0; }
+.guide .sb-text small { margin-top: 2px; font-size: 11.5px; font-weight: 400; line-height: 1.5; color: #94a3b8; }
+.guide .sidebar.tut .sb-link { align-items: flex-start; padding: 9px 8px; }
+.guide .sidebar.tut .ordered .sb-item:not(:last-child)::after { top: 38px; }
+.guide .sidebar:not(.tut) .sb-group { padding-top: 14px; }
+.guide .sidebar:not(.tut) .sb-link { padding: 6px 8px; font-size: 13px; }

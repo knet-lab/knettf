@@ -1,39 +1,64 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, shallowRef, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Monitor, Tools, Reading, FirstAidKit, Upload, SwitchButton, Warning, ArrowRight, ArrowLeft, Check } from '@element-plus/icons-vue'
+import { Monitor, Reading, Notebook, Guide, FirstAidKit, Upload, SwitchButton, Warning, ArrowRight, ArrowLeft, Check } from '@element-plus/icons-vue'
 import './help/guide.css'
 
 // 手册页面：src/views/help/pages/<key>.vue，路由 /help/<key>
 const loaders = import.meta.glob<{ default: Component }>('./help/pages/*.vue')
 const load = (key: string) => loaders[`./help/pages/${key}.vue`]
+// 旧地址
+const ALIAS: Record<string, string> = { use: 'web', en: 'web' }
 
-// 接手路线：前 7 页按顺序读（带步骤号），开发参考按需查
-type HelpPage = { key: string; title: string; desc: string }
-const GROUPS: { name: string; hint: string; accent: string; ordered: boolean; pages: HelpPage[] }[] = [
-  { name: '接手路线', hint: '按顺序做，一步一页', accent: '#14b8a6', ordered: true, pages: [
-    { key: 'use', title: '学会用网站', desc: '登录、看检测结果、管理用户' },
-    { key: 'prepare', title: '拿到账户与 Git', desc: '服务器登录、仓库权限、密码位置' },
-    { key: 'health', title: '每日健康检查', desc: '每天 5 分钟，确认系统在正常工作' },
-    { key: 'deploy', title: '改动上线', desc: '把开发环境的修改发布到线上' },
-    { key: 'power', title: '开关机 · 重建 · 备份', desc: '停电、重启、数据备份时照做' },
-    { key: 'account', title: '账号与令牌', desc: '加人、改密码、换令牌' },
-    { key: 'trouble', title: '排障与日志', desc: '出问题时按现象查找处理办法' },
+// 四本：入门教程（按步骤）、中文项目手册、英文项目手册、网站使用说明（英文）
+type HelpPage = { key: string; title: string; desc?: string }
+type Book = { id: string; name: string; lang: 'zh' | 'en'; accent: string; tutorial?: boolean; twin?: string; groups: { name: string; pages: HelpPage[] }[] }
+const BOOKS: Book[] = [
+  { id: 'tutorial', name: '入门教程', lang: 'zh', accent: '#14b8a6', tutorial: true, groups: [
+    { name: '按顺序做', pages: [
+      { key: 'start', title: '先认识这个项目', desc: '系统做什么、由哪几块组成、你要负责什么' },
+      { key: 'prepare', title: '账户、权限与 GitHub', desc: '服务器账户、组权限、仓库邀请、提交身份' },
+      { key: 'account', title: '网站账号与令牌', desc: '改默认密码、加管理员、服务令牌' },
+      { key: 'firstday', title: '接手第一天', desc: '第一天要做完的事，做完进入项目手册' },
+    ] },
   ] },
-  { name: '开发参考', hint: '改程序时再看，不必按顺序', accent: '#8b5cf6', ordered: false, pages: [
-    { key: 'index', title: '系统总览', desc: '各部分如何连在一起' },
-    { key: 'frontend', title: '前端代码', desc: '' },
-    { key: 'backend', title: '后端代码', desc: '' },
-    { key: 'detect', title: '检测链路与模型', desc: '' },
-    { key: 'infra', title: '集群与 Shell 脚本', desc: '' },
-    { key: 'lab', title: '实验脚本', desc: '' },
-    { key: 'api', title: 'API 逐接口', desc: '' },
-    { key: 'db', title: '数据库与字段', desc: '' },
-    { key: 'issues', title: '已知问题与练习', desc: '' },
+  { id: 'manual', name: '项目手册', lang: 'zh', accent: '#2563eb', twin: 'manual-en', groups: [
+    { name: '日常运维', pages: [
+      { key: 'health', title: '每日健康检查' },
+      { key: 'deploy', title: '改动上线' },
+      { key: 'power', title: '开关机 · 重建 · 备份' },
+      { key: 'trouble', title: '排障与日志' },
+    ] },
+    { name: '开发参考', pages: [
+      { key: 'index', title: '系统总览' },
+      { key: 'frontend', title: '前端代码' },
+      { key: 'backend', title: '后端代码' },
+      { key: 'detect', title: '检测链路与模型' },
+      { key: 'infra', title: '集群与 Shell 脚本' },
+      { key: 'lab', title: '实验脚本' },
+      { key: 'api', title: 'API 逐接口' },
+      { key: 'db', title: '数据库与字段' },
+      { key: 'issues', title: '已知问题与练习' },
+    ] },
+  ] },
+  { id: 'manual-en', name: 'Project Handbook', lang: 'en', accent: '#2563eb', twin: 'manual', groups: [
+    { name: 'Basics', pages: [
+      { key: 'en-overview', title: 'System Overview' },
+      { key: 'en-access', title: 'Accounts, Permissions & GitHub' },
+    ] },
+    { name: 'Operations', pages: [
+      { key: 'en-health', title: 'Daily Health Check' },
+      { key: 'en-deploy', title: 'Deploying Changes' },
+      { key: 'en-power', title: 'Shutdown, Startup & Backup' },
+      { key: 'en-trouble', title: 'Troubleshooting & Logs' },
+    ] },
+  ] },
+  { id: 'web', name: 'Web Guide', lang: 'en', accent: '#8b5cf6', groups: [
+    { name: 'Using the website', pages: [{ key: 'web', title: 'Web Guide' }] },
   ] },
 ]
-const STEPS = GROUPS[0]!.pages
-const ALL = GROUPS.flatMap((g) => g.pages)
+const pagesOf = (b: Book) => b.groups.flatMap((g) => g.pages)
+const bookHome = (id: string) => `/help/${pagesOf(BOOKS.find((b) => b.id === id)!)[0]!.key}`
 
 const route = useRoute()
 const router = useRouter()
@@ -43,20 +68,25 @@ const body = ref<HTMLElement | null>(null)
 const toc = ref<{ id: string; text: string }[]>([])
 const activeId = ref('')
 
-const group = computed(() => GROUPS.find((g) => g.pages.some((p) => p.key === pageKey.value)))
-const accent = computed(() => group.value?.accent ?? '#3b82f6')
-const stepNo = computed(() => STEPS.findIndex((p) => p.key === pageKey.value) + 1)
+const book = computed(() => BOOKS.find((b) => pagesOf(b).some((p) => p.key === pageKey.value)))
+const accent = computed(() => book.value?.accent ?? '#2563eb')
+const STEPS = pagesOf(BOOKS[0]!)
+const stepNo = computed(() => (book.value?.tutorial ? STEPS.findIndex((p) => p.key === pageKey.value) + 1 : 0))
+const en = computed(() => book.value?.lang === 'en')
 
-// 页底上一页 / 下一页：沿整条阅读顺序走（接手路线 → 开发参考），英文版不参与
+// 页底上一篇 / 下一篇：在本书内走；教程最后一步接到项目手册
 const pager = computed(() => {
-  const i = ALL.findIndex((p) => p.key === pageKey.value)
-  return i < 0 ? { prev: undefined, next: undefined } : { prev: ALL[i - 1], next: ALL[i + 1] }
+  if (!book.value) return { prev: undefined, next: undefined }
+  const list = pagesOf(book.value)
+  const i = list.findIndex((p) => p.key === pageKey.value)
+  let next: HelpPage | undefined = list[i + 1]
+  if (!next && book.value.tutorial) next = { key: 'health', title: '项目手册 · 每日健康检查', desc: '教程完成，以后有具体任务时查项目手册' }
+  return { prev: list[i - 1], next }
 })
 const nextLabel = computed(() => {
-  const n = pager.value.next
-  if (!n) return ''
-  const k = STEPS.findIndex((p) => p.key === n.key)
-  return k >= 0 ? `下一步 · 第 ${k + 1} 步` : stepNo.value === STEPS.length ? '接手路线已走完 · 进入开发参考' : '下一篇'
+  if (en.value) return 'Next'
+  if (!stepNo.value) return '下一篇'
+  return stepNo.value < STEPS.length ? `下一步 · 第 ${stepNo.value + 1} 步` : '教程完成 · 进入项目手册'
 })
 
 function scrollToHash(hash: string) {
@@ -70,6 +100,7 @@ watch(
   async (key) => {
     if (!key) { page.value = null; return }
     const loader = load(key as string)
+    if (ALIAS[key as string]) { router.replace({ path: `/help/${ALIAS[key as string]}`, hash: route.hash }); return }
     if (!loader) { router.replace('/help'); return }
     page.value = (await loader()).default
     await nextTick()
@@ -107,54 +138,24 @@ function onClick(e: MouseEvent) {
   }
 }
 
-// 接手路线：新管理员按顺序读
-const path = [
-  { when: '第一天', text: '学会用网站', desc: '登录、看检测结果、管理用户。只需要浏览器。', page: '/help/use' },
-  { when: '第一天', text: '拿到账户和权限', desc: '服务器登录、Git 账号、各个密码放在哪里。', page: '/help/prepare' },
-  { when: '以后每天', text: '花 5 分钟做健康检查', desc: '按清单逐项确认，每一项都写了正常时应该看到什么。', page: '/help/health' },
-  { when: '出问题时', text: '按看到的现象查', desc: '先找到和你看到的现象一样的那一条，再照着处理。', page: '/help/trouble' },
+// 首页四个入口
+const entries = [
+  { to: bookHome('tutorial'), tag: '先读这个', title: '入门教程', lang: '中文', icon: Guide, accent: '#14b8a6',
+    desc: '接手的第一步。4 页按顺序做：认识项目，拿到账户、权限和 GitHub，改掉默认密码，做完第一天的事。', primary: true },
+  { to: bookHome('manual'), tag: '查阅', title: '项目手册', lang: '中文', icon: Notebook, accent: '#2563eb',
+    desc: '日常运维（健康检查、上线、开关机、排障）和开发参考。遇到具体任务时来这里查。' },
+  { to: bookHome('manual-en'), tag: 'Reference', title: 'Project Handbook', lang: 'English', icon: Reading, accent: '#2563eb',
+    desc: 'Operations and setup in English: overview, accounts and GitHub, health check, deploy, startup, troubleshooting.' },
+  { to: bookHome('web'), tag: 'Users', title: 'Web Guide', lang: 'English', icon: Monitor, accent: '#8b5cf6',
+    desc: 'How to use the website: sign in, Kubernetes, Terraform scan, AI Vigil, admin console.' },
 ]
 
-// 最常做的几件事，一键直达
+// 最常做的几件事，一键直达项目手册
 const quick = [
   { text: '每日健康检查', desc: '确认系统在跑、检测有数据', page: '/help/health', icon: FirstAidKit },
-  { text: '改动上线', desc: 'scripts/deploy.sh 怎么用', page: '/help/deploy', icon: Upload },
-  { text: '开机恢复', desc: '宿主机重启后让检测恢复', page: '/help/power#startup', icon: SwitchButton },
-  { text: '出问题了', desc: '按症状找原因和处理', page: '/help/trouble', icon: Warning },
-]
-
-// 手册的三块，对应侧栏的三组
-const parts = [
-  {
-    who: '使用网站', tag: 'USE', accent: '#3b82f6', icon: Monitor,
-    desc: '只用浏览器就能完成：登录、管理用户、查看检测结果。不需要登录服务器。',
-    links: [
-      { text: '网页使用', page: '/help/use' },
-      { text: 'User Manual (English)', page: '/help/en' },
-    ],
-  },
-  {
-    who: '运维', tag: 'OPERATE', accent: '#14b8a6', icon: Tools,
-    desc: '需要登录服务器、照着命令一步步做。每一步都写了怎么做、为什么这样做、做完应该看到什么。',
-    links: [
-      { text: '接手准备：账户与 Git', page: '/help/prepare' },
-      { text: '每日健康检查', page: '/help/health' },
-      { text: '改动上线', page: '/help/deploy' },
-      { text: '开关机 · 重建 · 备份', page: '/help/power' },
-      { text: '账号与令牌', page: '/help/account' },
-      { text: '排障与日志', page: '/help/trouble' },
-    ],
-  },
-  {
-    who: '开发参考（改程序时再看）', tag: 'DEVELOP', accent: '#8b5cf6', icon: Reading,
-    desc: '要修改程序时才需要看。日常维护不用读这部分。',
-    links: [
-      { text: '系统总览', page: '/help/index' },
-      { text: '前端 / 后端 / 检测 / 集群代码', page: '/help/frontend' },
-      { text: 'API 逐接口', page: '/help/api' },
-      { text: '数据库与字段', page: '/help/db' },
-    ],
-  },
+  { text: '改动上线', desc: '把修改发布到线上', page: '/help/deploy', icon: Upload },
+  { text: '开机恢复', desc: '服务器重启后让检测恢复', page: '/help/power#startup', icon: SwitchButton },
+  { text: '出问题了', desc: '按现象找原因和处理', page: '/help/trouble', icon: Warning },
 ]
 </script>
 
@@ -162,18 +163,20 @@ const parts = [
   <div class="help-wrapper">
     <div v-if="!pageKey" class="help-home">
       <header class="hh-hero">
-        <div class="hh-top"><span class="hh-eyebrow">NetSentinel Handbook</span><RouterLink to="/help/en" class="hh-en">English manual<el-icon><ArrowRight /></el-icon></RouterLink></div>
+        <span class="hh-eyebrow">NetSentinel Help</span>
         <h1>帮助中心</h1>
-        <p>这本手册写给接手 NetSentinel 的管理员。系统的使用、日常维护和出问题时的处理都由你一个人负责，不需要一次全部看懂。先按下面的「接手路线」从第 1 步做到第 4 步；以后每天只做第 3 步，出问题时看第 4 步。</p>
-        <ol class="path">
-          <li v-for="(s, i) in path" :key="s.page">
-            <RouterLink :to="s.page">
-              <span class="p-no">{{ i + 1 }}</span>
-              <div><em>{{ s.when }}</em><strong>{{ s.text }}</strong><span>{{ s.desc }}</span></div>
-            </RouterLink>
-          </li>
-        </ol>
-        <h3 class="hh-sub">常用操作，直接点开</h3>
+        <p>第一次接手，先从「入门教程」开始，按顺序做完 4 页。之后遇到具体任务查「项目手册」。只是使用网站的人，看英文的 Web Guide 就够了。</p>
+        <div class="entry-grid">
+          <RouterLink v-for="e in entries" :key="e.to" :to="e.to" :class="['entry', { primary: e.primary }]" :style="{ '--accent': e.accent }">
+            <div class="e-top"><el-icon class="e-ico"><component :is="e.icon" /></el-icon><span class="e-tag">{{ e.tag }}</span></div>
+            <strong>{{ e.title }}<em>{{ e.lang }}</em></strong>
+            <p>{{ e.desc }}</p>
+            <span class="e-go">{{ e.lang === 'English' ? 'Open' : '打开' }}<el-icon><ArrowRight /></el-icon></span>
+          </RouterLink>
+        </div>
+      </header>
+      <div class="hh-quick">
+        <h3 class="hh-sub">项目手册 · 常用操作</h3>
         <div class="quick-grid">
           <RouterLink v-for="q in quick" :key="q.page" :to="q.page" class="quick">
             <el-icon class="q-ico"><component :is="q.icon" /></el-icon>
@@ -181,38 +184,23 @@ const parts = [
             <el-icon class="q-go"><ArrowRight /></el-icon>
           </RouterLink>
         </div>
-      </header>
-
-      <div class="route-grid">
-        <div v-for="(p, i) in parts" :key="p.who" class="route-card" :style="{ '--accent': p.accent }">
-          <div class="rc-head">
-            <el-icon class="rc-ico"><component :is="p.icon" /></el-icon>
-            <span class="rc-no">0{{ i + 1 }} · {{ p.tag }}</span>
-          </div>
-          <h2>{{ p.who }}</h2>
-          <p>{{ p.desc }}</p>
-          <ul>
-            <li v-for="l in p.links" :key="l.page">
-              <RouterLink :to="l.page">{{ l.text }}<el-icon><ArrowRight /></el-icon></RouterLink>
-            </li>
-          </ul>
-        </div>
       </div>
     </div>
 
     <div v-else class="guide" :style="{ '--accent': accent }">
-      <aside class="sidebar">
+      <aside :class="['sidebar', { tut: book?.tutorial }]">
         <div class="sb-head">
-          <RouterLink to="/help" class="sb-home"><el-icon><ArrowLeft /></el-icon>手册首页</RouterLink>
-          <RouterLink to="/help/en" :class="['sb-lang', { on: pageKey === 'en' }]">EN</RouterLink>
+          <RouterLink to="/help" class="sb-home"><el-icon><ArrowLeft /></el-icon>{{ en ? 'Help home' : '帮助中心' }}</RouterLink>
+          <RouterLink v-if="book?.twin" :to="bookHome(book.twin)" class="sb-lang">{{ en ? '中文' : 'EN' }}</RouterLink>
         </div>
-        <div v-for="g in GROUPS" :key="g.name" :class="['sb-group', { ordered: g.ordered }]" :style="{ '--g': g.accent }">
-          <div class="sb-title">{{ g.name }}<span>{{ g.hint }}</span></div>
-          <div v-for="(p, i) in g.pages" :key="p.key" :class="['sb-item', { current: p.key === pageKey, done: g.ordered && stepNo > i + 1 }]">
+        <div class="sb-book">{{ book?.name }}<span v-if="book?.tutorial">共 {{ STEPS.length }} 步，按顺序做</span></div>
+        <div v-for="g in book?.groups" :key="g.name" :class="['sb-group', { ordered: book?.tutorial }]" :style="{ '--g': accent }">
+          <div v-if="!book?.tutorial" class="sb-title">{{ g.name }}</div>
+          <div v-for="(p, i) in g.pages" :key="p.key" :class="['sb-item', { current: p.key === pageKey, done: book?.tutorial && stepNo > i + 1 }]">
             <RouterLink :to="`/help/${p.key}`" class="sb-link">
-              <span v-if="g.ordered" class="sb-no"><el-icon v-if="stepNo > i + 1"><Check /></el-icon><template v-else>{{ i + 1 }}</template></span>
+              <span v-if="book?.tutorial" class="sb-no"><el-icon v-if="stepNo > i + 1"><Check /></el-icon><template v-else>{{ i + 1 }}</template></span>
               <span v-else class="sb-dot" />
-              <span class="sb-text">{{ p.title }}</span>
+              <span class="sb-text">{{ p.title }}<small v-if="book?.tutorial && p.desc">{{ p.desc }}</small></span>
             </RouterLink>
             <div v-if="p.key === pageKey && toc.length" class="sb-toc">
               <RouterLink
@@ -231,14 +219,13 @@ const parts = [
       <div ref="body" class="guide-body" @scroll.passive="onScroll" @click="onClick">
         <main class="main">
           <div v-if="stepNo" class="stepbar">
-            <div class="sb-meta"><b>接手路线 · 第 {{ stepNo }} 步</b><span>共 {{ STEPS.length }} 步</span></div>
-            <div class="sb-track"><i v-for="(s, i) in STEPS" :key="s.key" :class="{ on: i < stepNo }" /></div>
+            <div class="sb-meta"><b>入门教程 · 第 {{ stepNo }} 步</b><span>共 {{ STEPS.length }} 步</span></div>
+            <div class="sb-track"><i v-for="(x, i) in STEPS" :key="x.key" :class="{ on: i < stepNo }" /></div>
           </div>
-          <div v-else-if="group" class="stepbar ref"><div class="sb-meta"><b>开发参考</b><span>改程序时再看，日常维护不需要读</span></div></div>
           <component :is="page" v-if="page" />
-          <nav v-if="pageKey !== 'en'" class="pager">
+          <nav class="pager">
             <RouterLink v-if="pager.prev" :to="`/help/${pager.prev.key}`" class="pg prev">
-              <small><el-icon><ArrowLeft /></el-icon>上一篇</small><strong>{{ pager.prev.title }}</strong>
+              <small><el-icon><ArrowLeft /></el-icon>{{ en ? 'Previous' : stepNo ? '上一步' : '上一篇' }}</small><strong>{{ pager.prev.title }}</strong>
             </RouterLink>
             <span v-else />
             <RouterLink v-if="pager.next" :to="`/help/${pager.next.key}`" class="pg next">
@@ -289,9 +276,6 @@ const parts = [
   mask-image: linear-gradient(180deg, #000 20%, transparent 90%);
 }
 .hh-hero > * { position: relative; z-index: 1; }
-.hh-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
-.hh-en { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #94a3b8; text-decoration: none; }
-.hh-en:hover { color: #fff; }
 .hh-eyebrow {
   display: inline-block;
   font-size: 12px;
@@ -302,6 +286,7 @@ const parts = [
   padding: 4px 12px;
   border: 1px solid rgba(94,234,212,.35);
   border-radius: 999px;
+  margin-bottom: 18px;
 }
 .hh-hero h1 {
   margin: 0 0 12px;
@@ -352,73 +337,32 @@ const parts = [
 .q-go { color: #64748b; transition: transform .15s, color .15s; }
 .quick:hover .q-go { color: #5eead4; transform: translateX(3px); }
 
-/* 三部分卡片：压住 hero 底边，各自主色 */
-.route-grid {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-  width: min(1240px, 100% - 48px);
-  margin: -64px auto 0;
-}
-.route-card {
-  position: relative;
-  overflow: hidden;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 26px 26px 22px;
-  box-shadow: 0 8px 24px rgba(15,23,42,.06);
-}
-.route-card::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 4px;
-  background: var(--accent);
-}
-.rc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.rc-ico {
-  width: 48px;
-  height: 48px;
-  font-size: 24px;
-  border-radius: 12px;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, #fff);
-}
-.rc-no { font-size: 11.5px; font-weight: 700; letter-spacing: .12em; color: #94a3b8; }
-.route-card h2 { margin: 0 0 6px; font-size: 20px; color: #0f172a; }
-.route-card p { margin: 0 0 16px; font-size: 13.5px; line-height: 1.7; color: #64748b; }
-.route-card ul { margin: 0; padding: 0; list-style: none; border-top: 1px solid #f1f5f9; }
-.route-card li { border-bottom: 1px solid #f1f5f9; }
-.route-card a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 4px;
-  font-size: 14px;
-  color: #334155;
-  text-decoration: none;
-  transition: color .15s, padding .15s;
-}
-.route-card a .el-icon { color: #cbd5e1; transition: color .15s; }
-.route-card a:hover { color: var(--accent); padding-left: 10px; }
-.route-card a:hover .el-icon { color: var(--accent); }
-
-.path { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; counter-reset: none; }
-.path a { display: flex; gap: 14px; height: 100%; padding: 18px; border-radius: 12px; background: #fff; text-decoration: none; box-shadow: 0 8px 24px rgba(0,0,0,.25); transition: transform .15s; }
-.path a:hover { transform: translateY(-2px); }
-.p-no { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; background: #14b8a6; color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-.path div { display: flex; flex-direction: column; gap: 3px; }
-.path em { font-style: normal; font-size: 12px; font-weight: 700; color: #0d9488; }
-.path strong { font-size: 16px; color: #0f172a; }
-.path span { font-size: 13px; line-height: 1.6; color: #64748b; }
-.hh-sub { margin: 32px 0 0; font-size: 13px; font-weight: 700; letter-spacing: .08em; color: #94a3b8; }
+.hh-hero { padding-bottom: clamp(40px, 6vh, 64px); }
+.entry-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 32px; }
+.entry { display: flex; flex-direction: column; gap: 10px; padding: 22px; border-radius: 14px; text-decoration: none; background: #fff; border-top: 4px solid var(--accent); box-shadow: 0 10px 28px rgba(0,0,0,.25); transition: transform .15s; }
+.entry:hover { transform: translateY(-3px); }
+.entry.primary { background: linear-gradient(160deg, #fff 55%, color-mix(in srgb, var(--accent) 12%, #fff)); outline: 2px solid var(--accent); outline-offset: -2px; }
+.e-top { display: flex; align-items: center; justify-content: space-between; }
+.e-ico { width: 44px; height: 44px; font-size: 22px; border-radius: 12px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, #fff); }
+.e-tag { font-size: 11.5px; font-weight: 800; letter-spacing: .06em; padding: 3px 10px; border-radius: 999px; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, #fff); }
+.entry.primary .e-tag { color: #fff; background: var(--accent); }
+.entry strong { display: flex; align-items: baseline; gap: 8px; font-size: 20px; color: #0f172a; }
+.entry strong em { font-style: normal; font-size: 12px; font-weight: 600; color: #94a3b8; }
+.entry p { flex: 1; margin: 0; font-size: 13.5px; line-height: 1.7; color: #64748b; }
+.e-go { display: inline-flex; align-items: center; gap: 4px; font-size: 13.5px; font-weight: 700; color: var(--accent); }
+.hh-quick { width: min(1240px, 100% - 48px); margin: 32px auto 0; }
+.hh-quick .hh-sub { color: #64748b; }
+.hh-quick .quick { background: #fff; border-color: #e2e8f0; backdrop-filter: none; }
+.hh-quick .quick:hover { background: #fff; border-color: #93c5fd; }
+.hh-quick .quick strong { color: #0f172a; }
+.hh-quick .quick span { color: #64748b; }
+.hh-quick .q-ico { color: #2563eb; background: #eff6ff; }
+.hh-quick .quick:hover .q-go { color: #2563eb; }
+.hh-sub { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .08em; color: #94a3b8; }
 .quick-grid { margin-top: 12px; }
 
 @media (max-width: 700px) {
-  .hh-hero { padding: 28px 16px 88px; }
-  .route-grid { width: calc(100% - 32px); grid-template-columns: 1fr; }
+  .hh-hero { padding: 28px 16px 32px; }
+  .hh-quick { width: calc(100% - 32px); }
 }
 </style>

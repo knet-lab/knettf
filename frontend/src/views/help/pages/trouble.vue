@@ -8,8 +8,8 @@
       <p>每一层用一条命令确认。上一层不通，就不用往下查了。</p>
 <pre class="on-prod"><code>浏览器打不开 knettf.com
   ├─ curl localhost:8080 正常？ ── 否 → 后端问题：journalctl --user -u netsentinel -n 100 看启动报错
-  │                                      （常见：<span class="vp">$P</span>/.venv 坏了、pg 没起、<span class="vp">$P</span> 的 .env 缺 ENVIRONMENT、settings 语法错）
-  │                                      （返回 400：用了不在 ALLOWED_HOSTS 里的域名 / IP，改 <span class="vp">$P</span>/backend/backend/.env）
+  │                                      （常见：<span class="vp">~/netsentinel-prod</span>/.venv 坏了、pg 没起、<span class="vp">~/netsentinel-prod</span> 的 .env 缺 ENVIRONMENT、settings 语法错）
+  │                                      （返回 400：用了不在 ALLOWED_HOSTS 里的域名 / IP，改 <span class="vp">~/netsentinel-prod</span>/backend/backend/.env）
   └─ 是 → 隧道问题：systemctl --user status cloudflared-knettf
 
 网页能开，但某个功能报错
@@ -37,7 +37,7 @@
         <tr><th>现象</th><th>检查</th><th>原因 → 处理</th></tr>
         <tr><td>网页打不开</td><td><code>systemctl --user status netsentinel</code>；<code>journalctl --user -u netsentinel -n 100</code></td><td><code>.venv</code> 损坏、PostgreSQL 不可用、settings 语法错误 → 修好后重启</td></tr>
         <tr><td>公网打不开、本机正常</td><td><code>journalctl --user -u cloudflared-knettf -n 50</code></td><td>隧道断开 → 重启隧道；检查 <code>~/.cloudflared/netsentinel.yml</code></td></tr>
-        <tr><td>白屏 / 404</td><td><code class="vp">ls $P/frontend/dist/index.html</code>；浏览器开发者工具看 <code>/assets/*.js</code> 是否 404</td><td>dist 不存在 → <code class="vn">cd $N &amp;&amp; scripts/deploy.sh -frontend</code>；dist 在但 js 404 → 构建后没重启（DEBUG=False 时 WhiteNoise 只在启动时扫描），<code>systemctl --user restart netsentinel</code></td></tr>
+        <tr><td>白屏 / 404</td><td><code class="vp">ls ~/netsentinel-prod/frontend/dist/index.html</code>；浏览器开发者工具看 <code>/assets/*.js</code> 是否 404</td><td>dist 不存在 → <code class="vn">cd ~/github/NetSentinel &amp;&amp; scripts/deploy.sh -frontend</code>；dist 在但 js 404 → 构建后没重启（DEBUG=False 时 WhiteNoise 只在启动时扫描），<code>systemctl --user restart netsentinel</code></td></tr>
         <tr><td>登录后马上掉线</td><td>F12 看 <code>/api/auth/token/refresh/</code></td><td>refresh 过期（7 天）→ 重新登录，清 localStorage</td></tr>
         <tr><td>日志 <code>bridge error</code></td><td><code>nc -zv 192.168.100.200 9094</code></td><td>Kafka 连不上 → 恢复 Kafka 后重启后端</td></tr>
         <tr><td>日志 <code>drainer failed</code> + <code>no partition of relation</code></td><td>分区缺失</td><td><code>manage.py rotate_partitions --database vigil</code>；当天的分区缺失就用 SQL 手动建</td></tr>
@@ -47,7 +47,7 @@
         <tr><td>Hubble 看不到伪造源 IP</td><td><code>ip addr show virbr-k8s</code></td><td>源 IP 没绑上；apply <code>host-firewall-ccnp.yaml</code></td></tr>
         <tr><td>broker CrashLoop</td><td><code>kubectl logs kafka-broker-N</code>；<code>kubectl logs kafka-controller</code></td><td>controller 元数据丢失 → <a href="/help/power#rebuild-kafka">重建 Kafka</a></td></tr>
         <tr><td>节点 NotReady</td><td><code>ssh k8s@192.168.100.1X 'systemctl status kubelet containerd'</code></td><td>swap 被打开、磁盘满、containerd 挂了</td></tr>
-        <tr><td>VM 拿不到 IP / SSH 超时</td><td><code>vsh net-dhcp-leases virbr-k8s</code></td><td><code>vsh net-destroy virbr-k8s &amp;&amp; vsh net-start virbr-k8s</code>，再重启 VM</td></tr>
+        <tr><td>VM 拿不到 IP / SSH 超时</td><td><code>virsh -c qemu:///system net-dhcp-leases virbr-k8s</code></td><td><code>virsh -c qemu:///system net-destroy virbr-k8s &amp;&amp; virsh -c qemu:///system net-start virbr-k8s</code>，再重启 VM</td></tr>
         <tr><td>VM 无法出网</td><td><code>sudo iptables -t nat -S | grep 192.168.100</code></td><td>规则丢了 → <a href="/help/power#startup">开机恢复</a> 第 2 步</td></tr>
         <tr><td>Kubernetes 页全部 502</td><td>集群是否重建过</td><td>kubeconfig 过期 → 网页上重新添加集群</td></tr>
         <tr><td>某个扫描工具结果为空</td><td>报告里有 <code>tool not found</code></td><td>服务进程的 PATH 里找不到这个工具 → 安装，或在 TF Tools 里停用</td></tr>
@@ -64,10 +64,10 @@
         <tr><td>隧道</td><td><code>journalctl --user -u cloudflared-knettf -f</code></td><td></td></tr>
         <tr><td>分区轮转</td><td><code>/tmp/rotate_partitions.log</code>（重启后清空）</td><td><code>rotate_partitions done</code></td></tr>
         <tr><td>PostgreSQL</td><td><code>docker logs --tail 100 pg</code></td><td></td></tr>
-        <tr><td>模型最近一次推理</td><td><code class="vp">$P/backend/vigil/ml/ads_ml/results/Anomaly_Detection_Report.csv</code></td><td></td></tr>
+        <tr><td>模型最近一次推理</td><td><code class="vp">~/netsentinel-prod/backend/vigil/ml/ads_ml/results/Anomaly_Detection_Report.csv</code></td><td></td></tr>
         <tr><td>Vector / Kafka / hubble-relay</td><td><code>kubectl -n kube-system logs -l app=vector --tail=50</code>；<code>kubectl logs kafka-broker-0</code>；<code>kubectl -n kube-system logs deploy/hubble-relay</code></td><td></td></tr>
         <tr><td>入口 B 检测器</td><td><code>kubectl -n netsentinel logs deploy/netsentinel-detector -f</code></td><td><code>connected to Django</code></td></tr>
-        <tr><td>knetsentinel 脚本</td><td><code>$K/logs/</code>、<code>$K/kafka/*.log</code>、<code>$K/traffic_request/*.log</code>、<code>$K/simulation/monitor/send.log</code></td><td></td></tr>
+        <tr><td>knetsentinel 脚本</td><td><code>~/knetsentinel/logs/</code>、<code>~/knetsentinel/kafka/*.log</code>、<code>~/knetsentinel/traffic_request/*.log</code>、<code>~/knetsentinel/simulation/monitor/send.log</code></td><td></td></tr>
       </table></div>
     </section>
 
@@ -77,8 +77,8 @@
         <tr><th>不要</th><th>因为</th></tr>
         <tr><td>删除 <code>kafka-controller</code> Pod、任何 Namespace</td><td>controller 是裸 Pod，删了不会重建，只能重建 Kafka</td></tr>
         <tr><td>同时开两条检测入口（A / B / C）</td><td>各自独立消费 Kafka 并写库，同一条流会被记录两次</td></tr>
-        <tr><td>在 <code class="vp">$P</code> 里跑 <code>manage.py runserver</code>，或在没设 <code>VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev</code> 的开发环境跑</td><td>会再启动一个 bridge，和线上同一个 consumer group，分走 Kafka 分区，线上漏收流量</td></tr>
-        <tr><td>在 <code class="vp">$P</code> 里改代码、<code>git commit</code> 或 <code>git pull</code> GitHub</td><td>下次 <code>deploy.sh</code> 的 <code>git pull --ff-only</code> 会失败；线上只能由开发目录的已提交 main 更新</td></tr>
+        <tr><td>在 <code class="vp">~/netsentinel-prod</code> 里跑 <code>manage.py runserver</code>，或在没设 <code>VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev</code> 的开发环境跑</td><td>会再启动一个 bridge，和线上同一个 consumer group，分走 Kafka 分区，线上漏收流量</td></tr>
+        <tr><td>在 <code class="vp">~/netsentinel-prod</code> 里改代码、<code>git commit</code> 或 <code>git pull</code> GitHub</td><td>下次 <code>deploy.sh</code> 的 <code>git pull --ff-only</code> 会失败；线上只能由开发目录的已提交 main 更新</td></tr>
         <tr><td>把 crontab 的 <code>rotate_partitions</code> 改回开发目录</td><td>开发目录默认连 <code>vigil_dev</code>，分区会建到开发库，线上过零点全部写入失败（2026-10-19 出过一次）</td></tr>
         <tr><td><code>sudo bash</code> 跑集群脚本</td><td>kubeconfig 会写到 root 的家目录</td></tr>
         <tr><td><code>docker stop pg</code></td><td>手动停过的容器开机后不会自启</td></tr>

@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>前端代码</h1>
     <div class="meta">读完你能：在本机跑起前端开发环境，读懂每个页面的代码，知道一个按钮点下去调了哪个接口，会改页面、加页面、构建上线。<br>
-      代码根目录 <code class="vn">$N/frontend/</code>（开发目录；线上的 <code class="vp">$P/frontend/</code> 只由 <code>deploy.sh</code> 构建，见 <a href="/help/index#envs">开发与生产</a>）。前置知识：会一点 HTML / JavaScript；Vue 不熟也没关系，本章按需讲。</div>
+      代码根目录 <code class="vn">~/github/NetSentinel/frontend/</code>（开发目录；线上的 <code class="vp">~/netsentinel-prod/frontend/</code> 只由 <code>deploy.sh</code> 构建，见 <a href="/help/index#envs">开发与生产</a>）。前置知识：会一点 HTML / JavaScript；Vue 不熟也没关系，本章按需讲。</div>
 
     <section id="stack">
       <h2>2.1 技术栈与版本</h2>
@@ -60,7 +60,7 @@
       <p>这是前端最容易搞混的地方：<b>线上没有单独的前端服务器</b>。</p>
       <div class="table-wrap"><table>
         <tr><th></th><th>开发模式</th><th>生产模式（现在线上）</th></tr>
-        <tr><td>启动</td><td><code class="vn">cd $N/frontend &amp;&amp; pnpm dev</code></td><td><code>scripts/deploy.sh -frontend</code> 在 <code class="vp">$P</code> 里 <code>pnpm build</code> 生成 <code>dist/</code>，然后重启后端</td></tr>
+        <tr><td>启动</td><td><code class="vn">cd ~/github/NetSentinel/frontend &amp;&amp; pnpm dev</code></td><td><code>scripts/deploy.sh -frontend</code> 在 <code class="vp">~/netsentinel-prod</code> 里 <code>pnpm build</code> 生成 <code>dist/</code>，然后重启后端</td></tr>
         <tr><td>访问</td><td><code>http://localhost:5173</code></td><td><code>http://localhost:8080</code> / <code>https://knettf.com</code></td></tr>
         <tr><td>页面从哪来</td><td>Vite 实时编译，改代码浏览器自动刷新（HMR）</td><td>Django 的 WhiteNoise 中间件直接返回 <code>dist/</code> 里的文件（<code>settings.WHITENOISE_ROOT</code>）</td></tr>
         <tr><td><code>/api</code> 请求</td><td>Vite 代理到开发后端 <code>http://127.0.0.1:8090</code>（<code>vite.config.ts</code> 的 <code>server.proxy</code>）</td><td>同源，直接到后端</td></tr>
@@ -71,15 +71,15 @@
       <h3>路径 <code>/kcore</code> 刷新为什么不 404</h3>
       <p>浏览器直接请求 <code>/kcore</code> 时，<code>dist/</code> 里没有这个文件。后端 <code>backend/urls.py</code> 最后一条路由 <code>re_path(r'^(?!api/|admin/|static/|ws/).*$', spa_view)</code> 把所有非 API 路径都返回 <code>dist/index.html</code>，然后 Vue Router 根据地址显示对应页面。<code>favicon.ico</code>、<code>/assets/*</code> 这种真实文件则被 WhiteNoise 先一步返回。</p>
       <h3>常用命令</h3>
-<pre class="on-both"><code>cd <span class="vn">$N</span>/frontend
+<pre class="on-both"><code>cd <span class="vn">~/github/NetSentinel</span>/frontend
 pnpm install        <span class="c"># 装依赖（第一次或 package.json 变了）</span>
-pnpm dev            <span class="c"># 开发服务器 :5173（需开发后端在 :8090：cd <span class="vn">$N</span>/backend &amp;&amp; ../.venv/bin/python manage.py runserver 8090）</span>
+pnpm dev            <span class="c"># 开发服务器 :5173（需开发后端在 :8090：cd <span class="vn">~/github/NetSentinel</span>/backend &amp;&amp; ../.venv/bin/python manage.py runserver 8090）</span>
 pnpm build          <span class="c"># 本地只用来检查能否构建；线上构建交给 deploy.sh。= 并行执行 type-check（vue-tsc --build）和 build-only（vite build）</span>
 pnpm build-only     <span class="c"># 跳过类型检查，只打包（类型报错又急着上线时用）</span>
 pnpm preview        <span class="c"># 本地预览 dist/</span>
 pnpm lint           <span class="c"># oxlint --fix 然后 eslint --fix</span>
 pnpm format         <span class="c"># prettier 格式化 src/</span></code></pre>
-      <p>上线：提交后 <code class="vn">cd $N &amp;&amp; scripts/deploy.sh -frontend</code>。线上 <code>DEBUG=False</code>，WhiteNoise 只在进程启动时扫描 dist，所以脚本构建完会重启后端，否则新文件 404、页面白屏。浏览器 <span class="kbd">Ctrl</span>+<span class="kbd">F5</span> 强刷。</p>
+      <p>上线：提交后 <code class="vn">cd ~/github/NetSentinel &amp;&amp; scripts/deploy.sh -frontend</code>。线上 <code>DEBUG=False</code>，WhiteNoise 只在进程启动时扫描 dist，所以脚本构建完会重启后端，否则新文件 404、页面白屏。浏览器 <span class="kbd">Ctrl</span>+<span class="kbd">F5</span> 强刷。</p>
     </section>
 
     <section id="boot">
@@ -277,7 +277,7 @@ onMounted(async () =&gt; {
         <div class="step"><div class="step-title">本地验证</div>
           <p>确认有 <code>frontend/.env</code>、开发后端在 8090 运行，<code>pnpm dev</code>，打开 <code>http://localhost:5173/status</code>。</p></div>
         <div class="step"><div class="step-title">上线</div>
-          <p>本地 <code>pnpm build</code> 确认类型检查通过 → <code>git commit</code> → <code class="vn">cd $N &amp;&amp; scripts/deploy.sh -frontend</code> → 浏览器强刷 <code>https://knettf.com/status</code>。新路由不用改后端：后端的 SPA 兜底会把 <code>/status</code> 交给前端路由。</p></div>
+          <p>本地 <code>pnpm build</code> 确认类型检查通过 → <code>git commit</code> → <code class="vn">cd ~/github/NetSentinel &amp;&amp; scripts/deploy.sh -frontend</code> → 浏览器强刷 <code>https://knettf.com/status</code>。新路由不用改后端：后端的 SPA 兜底会把 <code>/status</code> 交给前端路由。</p></div>
       </div>
     </section>
   </div>

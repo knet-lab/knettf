@@ -30,7 +30,7 @@
         <tr><td>扫描、Apply 同步执行</td><td>autotf views</td><td>一分钟级的 HTTP 请求，经 Cloudflare 可能超时（约 100 秒）</td><td>改为后台任务 + 轮询（依赖里已有 celery，未使用）</td></tr>
         <tr><td>Terraform 不保留 state</td><td><code>ApplyService</code> 临时目录</td><td>重复 Apply 重复建资源，无法 destroy</td><td>按配置持久化工作目录或配置远程 backend</td></tr>
         <tr><td>rotate_partitions 只回扫 7 天</td><td><code>vigil/management/commands/rotate_partitions.py</code></td><td>漏跑超过 7 天的旧分区永远不会删</td><td>查询 <code>pg_inherits</code> 删除所有早于截止日的分区</td></tr>
-        <tr><td>kafka-controller 是裸 Pod + emptyDir</td><td><code>$K/kafka-svc/kafka-5nodes.yaml</code></td><td>被删或节点故障 → Kafka 只能重建</td><td>改 StatefulSet + PVC</td></tr>
+        <tr><td>kafka-controller 是裸 Pod + emptyDir</td><td><code>~/knetsentinel/kafka-svc/kafka-5nodes.yaml</code></td><td>被删或节点故障 → Kafka 只能重建</td><td>改 StatefulSet + PVC</td></tr>
         <tr><td>VM 不自启、iptables 不持久</td><td>libvirt、02 脚本</td><td>宿主机重启后需手工恢复</td><td><code>virsh autostart</code>、<code>iptables-persistent</code></td></tr>
         <tr><td>每个节点的 Vector 都从 relay 拉全集群事件</td><td><code>vector-5nodes.yaml</code></td><td>Kafka 里同一事件可能有多份</td><td>改为单副本 Deployment，或每个节点只读本地 Hubble</td></tr>
       </table></div>

@@ -1,8 +1,7 @@
 <template>
   <div v-pre lang="en">
-        <h1>User Manual</h1>
-    <div class="meta">How to use the NetSentinel website: what to click, why, and what you should see. No server access is needed for anything on this page.<br>
-      This page covers the same ground as the Chinese <a href="/help/use">网页使用</a> page, minus the code and API details.</div>
+        <h1>Web Guide</h1>
+    <div class="meta">How to use the NetSentinel website: what to click, why, and what you should see. No server access is needed for anything on this page.</div>
 
     <section id="login">
       <h2>Sign in</h2>
@@ -25,7 +24,7 @@
         <tr><td><span class="ui">Kubernetes</span></td><td><code>/kcore</code></td><td>Clusters <b>you</b> registered: browse resources, read Pod logs, edit YAML, restart, delete</td></tr>
         <tr><td><span class="ui">Terraform Scan</span></td><td><code>/autotf</code></td><td>Your Terraform configs: write, scan, apply</td></tr>
         <tr><td><span class="ui">AI Vigil</span></td><td><code>/vigil</code>, <code>/vigil/log</code></td><td>Live attack detection on cluster traffic (everyone sees the same data)</td></tr>
-        <tr><td><span class="ui">Help</span></td><td><code>/help</code></td><td>This manual and the Chinese handbook</td></tr>
+        <tr><td><span class="ui">Help</span></td><td><code>/help</code></td><td>This guide and the project handbooks</td></tr>
         <tr><td>(no menu entry)</td><td><code>/admin</code></td><td>Admin console; type the address. Non-admins are sent back to <code>/kcore</code></td></tr>
       </table></div>
       <div class="learn"><b>Who can touch what</b>: every cluster and Terraform config has an owner. Standard users can only act on their own; admins can act on everyone's. Detection data has no owner and is visible to all signed-in users.</div>
@@ -107,20 +106,8 @@
         <tr><td><span class="ui">TF Configs</span></td><td>View everyone's, delete</td><td></td></tr>
         <tr><td><span class="ui">TF Tools</span></td><td>Create, edit, enable / disable, delete</td><td>Prefer disabling to deleting; standard users only see enabled tools</td></tr>
       </table></div>
-      <p>Password changes, disabling an account and granting admin are done on the server — see <a href="/help/account">账号与令牌</a>.</p>
+      <p>Password changes, disabling an account and granting admin are done on the server by the operator.</p>
     </section>
 
-    <section id="daily">
-      <h2>Daily check (5 minutes)</h2>
-      <div class="table-wrap"><table>
-        <tr><th>Look at</th><th>Normal</th><th>If not</th></tr>
-        <tr><td>Can you sign in?</td><td>Yes</td><td>Tell the operator</td></tr>
-        <tr><td>AI Vigil → Detection model</td><td><code>ads_ml_ocsvm</code></td><td>Model failed to load</td></tr>
-        <tr><td>Newest log entry time</td><td>Within minutes while experiments run</td><td>Detection stalled — the backend usually needs a restart</td></tr>
-        <tr><td>Attack Rate and types</td><td>Match the experiment plan</td><td>Many attacks with no experiment, unknown source IPs → screenshot and report</td></tr>
-        <tr><td>Admin → Users</td><td>You know everyone</td><td>Anyone can self-register; delete strangers and report</td></tr>
-        <tr><td>Admin → TF Tools</td><td>All 5 enabled</td><td>Find out why before re-enabling</td></tr>
-      </table></div>
-    </section>
   </div>
 </template>

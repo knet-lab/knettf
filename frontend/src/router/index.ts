@@ -51,7 +51,7 @@ const router = createRouter({
 
     // 旧的静态手册地址 → /help/<页>
     { path: '/guide/:file', redirect: (to) => ({ path: `/help/${String(to.params.file).replace(/\.html$/, '')}`, hash: to.hash }) },
-    { path: '/manual_en.html', redirect: (to) => ({ path: '/help/en', hash: to.hash }) },
+    { path: '/manual_en.html', redirect: (to) => ({ path: '/help/web', hash: to.hash }) },
 
     // ── 管理员区 ─────────────────────────────────────
     {
