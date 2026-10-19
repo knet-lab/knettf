@@ -28,32 +28,30 @@
       <h2>1.2 全景图：一个数据包走到网页上的全过程</h2>
       <p>理解这张图就理解了一半项目。左边全部在 <span class="tag tag-k">K</span> 的实验集群里，右边全部在 <span class="tag tag-n">N</span> 的后端进程里。</p>
 <pre class="uml">flowchart LR
-  subgraph HOST["宿主机（Ubuntu，物理网卡 enp6s0）"]
+  subgraph K["实验集群（knetsentinel）"]
     direction LR
-    subgraph LAB["K 实验集群：网桥 virbr-k8s 192.168.100.1/24（01-setup-vms.sh）<br>VM k8s-master .10，k8s-node1~4 .11~.14；kubeadm v1.28 + Cilium + Hubble + MetalLB（02-setup-cluster.sh）"]
-      direction LR
-      T["① 发包脚本 traffic/<br>伪造源 IP .20-.29（攻击）/ .50-.64（正常）"]
-      C["② Cilium eBPF 看到包<br>Hubble 生成 flow 事件（JSON）"]
-      V["③ Vector（每节点一个 Pod）<br>hubble observe --follow → Kafka topic ebpf-net-logs<br>（03-deploy-5nodes.sh 部署）"]
-      T --> C --> V
-    end
-    subgraph SVC["N 后端：systemd 服务 netsentinel（uvicorn :8080）"]
-      direction LR
-      BR["④ bridge 线程 vigil/bridge.py<br>消费 Kafka → 按 5 元组聚成流 → 35 个特征"]
-      DR["⑤ drainer 线程 services.detect_batch()<br>ads_ml：预处理 → PCA → OCSVM → 零样本猜攻击类型<br>cilium/policy.py：建议 drop / rate_limit / alert / ignore（只记日志）"]
-      PG[("PostgreSQL vigil_detectionrecord<br>按天分区")]
-      BR --> DR --> PG
-    end
-    V -->|"Kafka 外部地址 192.168.100.200-203:9094（MetalLB）"| BR
+    T["① 发包"] --> C["② Cilium + Hubble"] --> V["③ Vector → Kafka"]
   end
-  WEB["⑥ 浏览器<br>/vigil 每 30 秒、/vigil/log 每 15 秒调 REST 接口"]
-  PG --> WEB
+  subgraph N["NetSentinel 后端"]
+    direction LR
+    BR["④ bridge"] --> DR["⑤ drainer + 模型"] --> PG[("PostgreSQL")]
+  end
+  V --> BR
+  PG --> W["⑥ 浏览器"]
   class T,C,V k
   class BR,DR,PG n
-  class WEB u
-  classDef k fill:#e6fffa,stroke:#2c7a7b
-  classDef n fill:#ebf4ff,stroke:#2b6cb0
-  classDef u fill:#fffbea,stroke:#d69e2e</pre>
+  class W u
+  classDef k fill:#e6fffa,stroke:#2c7a7b,color:#1a202c
+  classDef n fill:#ebf4ff,stroke:#2b6cb0,color:#1a202c
+  classDef u fill:#fffbea,stroke:#d69e2e,color:#1a202c</pre>
+      <ol>
+        <li><b>发包</b>：<span class="tag tag-k">K</span> <code>traffic/</code> 脚本把伪造源 IP（<code>.20-.29</code> 攻击、<code>.50-.64</code> 正常）临时挂到网桥 <code>virbr-k8s</code>（192.168.100.1/24）上发包。网桥和 5 台 VM（<code>k8s-master</code> .10、<code>k8s-node1~4</code> .11~.14）由 <code>01-setup-vms.sh</code> 建，Kubernetes v1.28 + Cilium + Hubble + MetalLB 由 <code>02-setup-cluster.sh</code> 装。</li>
+        <li><b>Cilium + Hubble</b>：每个节点的 Cilium 用 eBPF 看到这个包，Hubble 把它变成一条 JSON 格式的 flow 事件。</li>
+        <li><b>Vector → Kafka</b>：每个节点一个 Vector Pod，执行 <code>hubble observe --follow --output=json</code>，写入 Kafka topic <code>ebpf-net-logs</code>（<code>03-deploy-5nodes.sh</code> 部署）。宿主机通过 MetalLB 分配的外部地址 <code>192.168.100.200-203:9094</code> 读取。</li>
+        <li><b>bridge</b>：<span class="tag tag-n">N</span> 后端（systemd 服务 <code>netsentinel</code>，uvicorn :8080）里的 <code>vigil/bridge.py</code> 线程消费 Kafka，按 5 元组把包聚成“流”，算出 35 个特征。</li>
+        <li><b>drainer + 模型</b>：drainer 线程调 <code>services.detect_batch()</code>：ads_ml 模型做预处理 → PCA → One-Class SVM 判异常 → 零样本学习猜攻击类型；<code>cilium/policy.py</code> 给出建议动作（目前只记日志）；结果写入 PostgreSQL 表 <code>vigil_detectionrecord</code>（按天分区）。</li>
+        <li><b>浏览器</b>：前端 <code>/vigil</code> 每 30 秒、<code>/vigil/log</code> 每 15 秒调 REST 接口读取并显示。</li>
+      </ol>
       <p>另外两条与流量无关的链路：</p>
       <ul>
         <li><b>集群管理</b>：浏览器 → <code>/api/kcore/...</code> → 后端用你登记的 kubeconfig 调 Kubernetes API → 结果返回网页。Pod 日志走 WebSocket <code>/ws/clusters/&lt;id&gt;/pods/&lt;ns&gt;/&lt;pod&gt;/logs/</code>。</li>
@@ -64,27 +62,26 @@
     <section id="flow">
       <h2>1.3 检测的三条入口</h2>
       <p>流量最终都写进 PostgreSQL 表 <code>vigil_detectionrecord</code>，但有三条入口。<b>当前实际在运行的是入口 A</b>（后端日志中持续有 <code>vigil.bridge: queue: N flows → M attack(s)</code>）。</p>
-      <pre class="uml">flowchart TB
-  K["数据包 → Cilium eBPF → Hubble Relay :4245 → Vector DaemonSet<br>→ Kafka topic ebpf-net-logs"]
-  A["入口 A（默认，随后端自动启动）<br>N backend/vigil/bridge.py<br>group=vigil-bridge，offset=latest<br>线程内聚合 → flow_queue → drainer → services.detect_batch()"]
-  B["入口 B（集群内 Pod）<br>N detector/detector.py，镜像 soar009/netsentinel-detector<br>group=vigil-detector，Pod 内推理<br>WS ws/detector/push/（Bearer VIGIL_BRIDGE_TOKEN）"]
-  C["入口 C（宿主机脚本）<br>K kafka/vigil_bridge.py，按 5 元组聚合 30 特征<br>POST /api/vigil/detect/batch/（JWT）"]
-  D["ads_ml OCSVM 推理 → Cilium 策略（stub）<br>→ INSERT vigil_detectionrecord"]
-  W["前端 /vigil、/vigil/log 轮询 REST 接口读取"]
-  K -->|"外部地址 .200-.203:9094"| A
-  K --> B
-  K --> C
-  A --> D
+      <pre class="uml">flowchart LR
+  K["Kafka<br>ebpf-net-logs"] --> A["入口 A<br>后端 bridge"]
+  K --> B["入口 B<br>集群内 Pod"]
+  K --> C["入口 C<br>宿主机脚本"]
+  A --> D[("vigil_detectionrecord")]
   B --> D
   C --> D
-  D --> W
-  class K k
+  D --> W["前端 /vigil"]
+  class K,C k
   class A,B,D n
-  class C k
   class W u
-  classDef k fill:#e6fffa,stroke:#2c7a7b
-  classDef n fill:#ebf4ff,stroke:#2b6cb0
-  classDef u fill:#fffbea,stroke:#d69e2e</pre>
+  classDef k fill:#e6fffa,stroke:#2c7a7b,color:#1a202c
+  classDef n fill:#ebf4ff,stroke:#2b6cb0,color:#1a202c
+  classDef u fill:#fffbea,stroke:#d69e2e,color:#1a202c</pre>
+      <div class="table-wrap"><table>
+        <tr><th>入口</th><th>代码</th><th>怎么消费 Kafka</th><th>在哪推理、怎么写库</th></tr>
+        <tr><td><b>A</b>（默认，随后端自动启动）</td><td><span class="tag tag-n">N</span> <code>backend/vigil/bridge.py</code></td><td>外部地址 <code>.200-.203:9094</code>，group <code>vigil-bridge</code>，offset latest</td><td>线程内聚合 → <code>flow_queue</code> → drainer → <code>services.detect_batch()</code></td></tr>
+        <tr><td><b>B</b>（集群内 Pod）</td><td><span class="tag tag-n">N</span> <code>detector/detector.py</code>，镜像 <code>soar009/netsentinel-detector</code></td><td>group <code>vigil-detector</code></td><td>Pod 内自己推理，经 WebSocket <code>ws/detector/push/</code>（Bearer <code>VIGIL_BRIDGE_TOKEN</code>）交给后端写库</td></tr>
+        <tr><td><b>C</b>（宿主机脚本）</td><td><span class="tag tag-k">K</span> <code>kafka/vigil_bridge.py</code></td><td>按 5 元组聚合 30 个特征</td><td><code>POST /api/vigil/detect/batch/</code>（JWT），由后端推理写库</td></tr>
+      </table></div>
       <div class="note"><b>不要同时开两条以上入口</b>：A、B、C 各自独立消费 Kafka 并写库，同一条流会被重复记录。入口 A 无开关，只要后端以 uvicorn 启动就会运行（判断逻辑见 <code>vigil/apps.py</code> 的 <code>_should_start_bridge()</code>）。</div>
       <p>离线评估另有一条旁路：<code>K simulation/simulate_4.py</code> 直接 <code>django.setup()</code> 导入 <code>N backend</code> 的 <code>vigil.services</code>，把 CSV 中的流特征批量送入模型。这是两个项目之间唯一的代码级耦合，路径写死为 <code>../../github/NetSentinel/backend</code>。</p>
     </section>
@@ -176,40 +173,7 @@
 
     <section id="order">
       <h2>1.7 整体构建顺序（从零到可用）</h2>
-      <p>整套系统有严格的先后依赖：<b>后一步依赖前一步的产物</b>，顺序错了会出现拿不到 IP、broker 起不来、bridge 连不上 Kafka、token 不一致等问题。下图为依赖关系，表格为逐步顺序。日常开机恢复只是其中一部分，见 <a href="/help/power#startup">开机恢复</a>。</p>
-      <pre class="uml">flowchart TB
-  S0["阶段 0 宿主机准备"]
-  subgraph KS["K 实验集群（knetsentinel）"]
-    direction TB
-    S1["阶段 1 01-setup-vms.sh<br>网桥 virbr-k8s + 5 台 VM（.10-.14）"]
-    S2["阶段 2 02-setup-cluster.sh<br>NAT → containerd/kubeadm → init → join<br>→ Cilium+Hubble（节点 Ready）→ MetalLB → local-path"]
-    S3["阶段 3 03-deploy-5nodes.sh<br>Kafka Service → MetalLB 分配 .200-.203 → controller<br>→ 4 broker（PVC）→ Vector → my-nginx → /etc/hosts → .env"]
-    S4["阶段 4 可选：targets.yaml（靶机 .210-.214）、host-firewall-ccnp.yaml"]
-    S1 --> S2 --> S3 --> S4
-  end
-  subgraph NS["N 平台（NetSentinel），可与左侧并行"]
-    direction TB
-    S5["阶段 5 uv sync → 容器 pg → migrate（default）→ migrate --database=vigil"]
-    S6["阶段 6 users_init → autotf_init → generate_bridge_token --write-env"]
-    S7["阶段 7 pnpm install → pnpm build（产出 dist）"]
-    S8["阶段 8 systemd netsentinel :8080 → cloudflared → cron rotate_partitions"]
-    S5 --> S6 --> S7 --> S8
-  end
-  S9["阶段 9 K+N 联通：Kafka 有数据 → 重启后端（bridge 连 Kafka）→ 前端登记集群 kubeconfig"]
-  S10["阶段 10 K+N 可选入口 B：detector/build.sh → Secret → 部署检测器"]
-  S11["阶段 11 K 验证与实验：发包 → 查检测记录 → 采数据集 / 评估"]
-  S0 --> S1
-  S0 --> S5
-  S4 --> S9
-  S8 --> S9
-  S9 --> S10 --> S11
-  class S1,S2,S3,S4,S11 k
-  class S5,S6,S7,S8 n
-  class S9,S10 u
-  classDef k fill:#e6fffa,stroke:#2c7a7b
-  classDef n fill:#ebf4ff,stroke:#2b6cb0
-  classDef u fill:#fffbea,stroke:#d69e2e</pre>
-
+      <p>整套系统有严格的先后依赖：<b>后一步依赖前一步的产物</b>，顺序错了会出现拿不到 IP、broker 起不来、bridge 连不上 Kafka、token 不一致等问题。下表按顺序列出每一步、它依赖什么、产出什么。阶段 5～8（平台）可以和阶段 1～4（集群）并行准备，但阶段 9 之前必须都完成。日常开机恢复只是其中一部分，见 <a href="/help/power#startup">开机恢复</a>。</p>
       <div class="table-wrap"><table>
         <tr><th>#</th><th>阶段</th><th>项目</th><th>命令 / 操作</th><th>前置条件</th><th>产出（被后续步骤依赖）</th><th>顺序错了会怎样</th></tr>
         <tr><td>0</td><td>宿主机准备</td><td>—</td><td>KVM 可用、sudo、≥420GB 磁盘、外网、kubectl / helm / docker / uv / pnpm / terraform 等工具</td><td>—</td><td>运行环境</td><td>后续脚本中途失败</td></tr>

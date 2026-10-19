@@ -44,15 +44,20 @@ sudo journalctl -u netsentinel -f</code></pre>
       <h2>GitHub access</h2>
       <p>Each Linux account on the server maps to one GitHub account and uses its own key and its own commit identity. The Linux user name is also your personal branch name. The original author is Linux <code>soar009</code> = GitHub <code>Wk-P</code>.</p>
       <pre class="uml">flowchart LR
-  A["/home/NEWUSER/github/NetSentinel<br>commit and push on branch NEWUSER"] -->|"PR NEWUSER → merge-dev<br>reviewed and approved, then merged"| B["merge-dev"]
-  B -->|"release.sh<br>fast-forward only"| C["prod"]
-  C -->|"deploy.sh<br>git pull with your own key, build, restart"| D["/srv/netsentinel/prod"]
-  classDef dev fill:#f0fff4,stroke:#38a169
-  classDef gh fill:#f8fafc,stroke:#1a202c
-  classDef prod fill:#fff5f5,stroke:#e53e3e
+  A["Dev directory<br>branch NEWUSER"] -->|"1 PR + review"| B["merge-dev"]
+  B -->|"2 release.sh"| C["prod"]
+  C -->|"3 deploy.sh"| D["Production"]
+  classDef dev fill:#f0fff4,stroke:#38a169,color:#1a202c
+  classDef gh fill:#f8fafc,stroke:#1a202c,color:#1a202c
+  classDef prod fill:#fff5f5,stroke:#e53e3e,color:#1a202c
   class A dev
   class B,C gh
   class D prod</pre>
+      <ol>
+        <li><b>PR + review</b>: commit and push on branch <code>NEWUSER</code> in <code>/home/NEWUSER/github/NetSentinel</code>, open a PR into <code>merge-dev</code>; the other person reviews and approves, then it is merged.</li>
+        <li><b>release.sh</b>: <code>/srv/netsentinel/release.sh -frontend | -backend | -all</code> fast-forwards <code>prod</code> to <code>merge-dev</code>.</li>
+        <li><b>deploy.sh</b>: <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the runner's own GitHub key, build, restart.</li>
+      </ol>
       <p>knetsentinel is the same up to merge-dev; then <code>master</code> is fast-forwarded and <code>/srv/netsentinel/knetsentinel</code> pulled (see Deploying Changes). Review happens only on the PR. So, in order: your GitHub key → clone and create your branch → commit identity → test commit.</p>
       <div class="task"><h4><span class="n">1</span>Join knet-lab and give the server your GitHub key</h4>
         <div class="do"><div>Any Owner invites your GitHub username at <code>https://github.com/orgs/knet-lab/people</code>; accept at <code>https://github.com/orgs/knet-lab/invitation</code>. Then, logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -N "" -C "your-github-email" -f /home/NEWUSER/.ssh/github_ssh_key

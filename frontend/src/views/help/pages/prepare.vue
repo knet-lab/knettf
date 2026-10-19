@@ -84,15 +84,20 @@ kubectl get nodes        # 接手人执行，应看到 k8s-master + k8s-node1~4 
       </table></div>
       <p>一次代码修改从开发到上线经过下面几步，<b>审查只发生在 PR 这一处</b>，之后的分支只做快进、不再改动：</p>
       <pre class="uml">flowchart LR
-  A["/home/NEWUSER/github/NetSentinel<br>个人分支 NEWUSER 上 commit、push"] -->|"PR NEWUSER → merge-dev<br>另一人审查 Approve 后合并"| B["merge-dev"]
-  B -->|"release.sh<br>只快进"| C["prod"]
-  C -->|"deploy.sh<br>用运行者自己的密钥 git pull，构建，重启"| D["/srv/netsentinel/prod"]
-  classDef dev fill:#f0fff4,stroke:#38a169
-  classDef gh fill:#f8fafc,stroke:#1a202c
-  classDef prod fill:#fff5f5,stroke:#e53e3e
+  A["开发目录<br>个人分支 NEWUSER"] -->|"① PR + 审查"| B["merge-dev"]
+  B -->|"② release.sh"| C["prod"]
+  C -->|"③ deploy.sh"| D["线上目录"]
+  classDef dev fill:#f0fff4,stroke:#38a169,color:#1a202c
+  classDef gh fill:#f8fafc,stroke:#1a202c,color:#1a202c
+  classDef prod fill:#fff5f5,stroke:#e53e3e,color:#1a202c
   class A dev
   class B,C gh
   class D prod</pre>
+      <ol>
+        <li><b>PR + 审查</b>：在 <code>/home/NEWUSER/github/NetSentinel</code> 的个人分支 <code>NEWUSER</code> 上 commit、push，开 PR 到 <code>merge-dev</code>，另一人审查（Files changed → Review changes → Approve）后合并。</li>
+        <li><b>release.sh</b>：运行 <code>/srv/netsentinel/release.sh -frontend | -backend | -all</code>，把 <code>prod</code> 快进到 <code>merge-dev</code>，从不直接在 prod 上提交。</li>
+        <li><b>deploy.sh</b>：在 <code>/srv/netsentinel/prod</code> 里用运行者自己的 GitHub 密钥 <code>git pull</code>，构建，重启服务。</li>
+      </ol>
       <p>knetsentinel 前半段相同（开发目录 <code>/home/NEWUSER/github/knetsentinel</code> → PR → <code>merge-dev</code>），合并后把 <code>master</code> 快进到 <code>merge-dev</code>，再在运行目录 <code>/srv/netsentinel/knetsentinel</code> 里 <code>git pull --ff-only</code>。两边的具体命令见 <a href="/help/deploy">部署修改</a>。</p>
       <p>所以下面按顺序做：用你自己的 Linux 账户配 GitHub 密钥（push 和发布时 pull 都用它）→ 从 GitHub 克隆到你的开发目录、建个人分支 → 设置提交身份 → 试一次提交。没 push、没合并到 merge-dev 的提交都不会上线。</p>
 

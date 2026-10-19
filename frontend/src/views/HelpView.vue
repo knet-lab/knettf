@@ -121,8 +121,14 @@ async function renderUml() {
   const nodes = [...(body.value?.querySelectorAll<HTMLElement>('pre.uml:not([data-processed])') ?? [])]
   if (!nodes.length) return
   const { default: mermaid } = await import('mermaid')
-  mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict', fontFamily: 'inherit',
-    flowchart: { htmlLabels: true, curve: 'basis' }, sequence: { mirrorActors: false, wrap: true } })
+  mermaid.initialize({
+    startOnLoad: false, securityLevel: 'strict', theme: 'base', fontFamily: 'inherit',
+    themeVariables: { fontSize: '15px', primaryColor: '#ebf4ff', primaryBorderColor: '#2b6cb0', primaryTextColor: '#1a202c', lineColor: '#4a5568' },
+    // 不按容器宽度缩小：宽图横向滚动，字号保持可读
+    flowchart: { useMaxWidth: false, htmlLabels: true, nodeSpacing: 40, rankSpacing: 50, padding: 12 },
+    class: { useMaxWidth: false },
+    er: { useMaxWidth: false, fontSize: 14 },
+  })
   await mermaid.run({ nodes })
 }
 

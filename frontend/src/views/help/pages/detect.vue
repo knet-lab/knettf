@@ -193,24 +193,12 @@ def detect_batch(flows, model_name=None):
   ModelRegistry o-- BaseDetectionModel : VIGIL_MODELS
   BaseDetectionModel ..> DetectionInput : 输入
   BaseDetectionModel ..> DetectionResult : 输出</pre>
-<pre class="uml">sequenceDiagram
-  participant DJ as Django 启动
-  participant REG as registry.py
-  participant ADS as AdsMLModel
-  participant DIR as /srv/netsentinel/models/ads_ml/current
-  participant DR as drainer 线程
-  participant SV as services.detect_flow()
-  DJ->>REG: 导入，读 settings.VIGIL_MODELS
-  REG->>ADS: import_string(类路径)()
-  ADS->>DIR: 解析软链接为实际版本目录，读 config.yaml 和 trained/ 下三个文件（只读这一次）
-  ADS-->>REG: 实例（失败则日志 model ... not loaded，后端照常启动）
-  loop 每批流
-    DR->>SV: detect_batch(flows)
-    SV->>REG: run_all(flow)：每个已注册模型
-    REG->>ADS: predict(flow)
-    ADS-->>SV: DetectionResult
-    SV->>SV: policy_for_result → INSERT vigil_detectionrecord
-  end</pre>
+<ol>
+        <li><b>启动时</b>：导入 <code>vigil/ml/models/registry.py</code>，按 <code>VIGIL_MODELS</code> 逐个 <code>import_string(类路径)()</code>。</li>
+        <li><b>AdsMLModel 构造</b>：把 <code>VIGIL_ADS_ML_CONFIG</code>（<code>/srv/netsentinel/models/ads_ml/current/config.yaml</code>）解析成实际版本目录，读 <code>config.yaml</code> 和 <code>trained/</code> 下三个文件，留在内存里。失败只记 <code>model ... not loaded</code>，后端照常启动。</li>
+        <li><b>每批流</b>：drainer 调 <code>services.detect_batch()</code> → 对每条流 <code>run_all()</code>，每个已注册模型 <code>predict()</code> 一次，返回 <code>DetectionResult</code>。</li>
+        <li><b>写库</b>：<code>policy_for_result()</code> 给出建议动作，每个模型的结果各 INSERT 一条到 <code>vigil_detectionrecord</code>。</li>
+      </ol>
       <ul>
         <li><b>只加载一次</b>：<code>AdsMLModel</code> 在构造时读完模型文件并留在内存里，之后每条流直接做预处理 → OCSVM → 零样本三步，不再读文件。</li>
         <li><b>版本切换需要重启</b>：构造时把 <code>current</code> 软链接解析成实际目录，所以改软链接不会影响正在运行的进程，重启后才换成新版本。替换到一半的文件也不会被读到。</li>
@@ -282,14 +270,6 @@ uv run python kafka/vigil_bridge.py --backend http://localhost:8080 --token "$TO
     <section id="newmodel">
       <h2>4.11 替换模型与新增模型</h2>
       <p>线上模型文件按版本放在 <code class="vp">/srv/netsentinel/models/ads_ml/</code>，每个版本一个目录（含 <code>config.yaml</code> 和 <code>trained/</code>），<code>current</code> 软链接指向正在用的版本，<code>.env</code> 里 <code>VIGIL_ADS_ML_CONFIG=/srv/netsentinel/models/ads_ml/current/config.yaml</code>。这样新旧版本同时在盘上，切换和回滚都只是改一个软链接再重启。</p>
-<pre class="uml">flowchart LR
-  A["新建版本目录<br>models/ads_ml/v2-日期/<br>放 config.yaml + trained/"] --> B{"check_model --config<br>v2-日期/config.yaml<br>接口通过？"}
-  B -->|否| A
-  B -->|是| C["ln -sfn v2-日期 current"]
-  C --> D["sudo systemctl restart netsentinel"]
-  D --> E{"日志 AdsMLModel loaded from<br>…/v2-日期？"}
-  E -->|否 / 结果异常| R["回滚：ln -sfn 旧版本 current<br>再重启"]
-  E -->|是| F["入口 B 已部署时：<br>detector/build.sh + rollout restart"]</pre>
       <h3>替换 ads_ml 模型文件</h3>
 <pre class="on-prod"><code>cd /srv/netsentinel/models/ads_ml
 mkdir -p v2-20261101/trained                                   <span class="c"># 版本名自定，建议 v序号-日期</span>

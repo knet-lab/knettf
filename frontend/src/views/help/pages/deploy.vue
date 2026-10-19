@@ -6,30 +6,15 @@
 
     <section id="branches">
       <h2>分支与协作规则</h2>
-      <pre class="uml">sequenceDiagram
-  autonumber
-  actor Dev as 开发者 NEWUSER
-  participant Local as 开发目录<br>/home/NEWUSER/github/NetSentinel
-  participant GH as GitHub<br>knet-lab/NetSentinel
-  actor Rev as 审查人（另一位 owner）
-  participant Rel as /srv/netsentinel/release.sh
-  participant Prod as /srv/netsentinel/prod
-  Dev->>Local: git switch NEWUSER，git pull origin merge-dev（先跟上已合并的改动）
-  Dev->>Local: 改代码、本地测试、git commit
-  Local->>GH: git push origin NEWUSER
-  Dev->>GH: 开 PR：base = merge-dev，compare = NEWUSER，Reviewers 选对方
-  GH->>Rev: Files changed 逐行审查 → Review changes
-  alt Request changes
-    Rev-->>Dev: 要改：在原分支继续 commit、push，PR 自动更新，回到第 2 步
-  else Approve
-    Rev-->>Dev: 同意
-    Dev->>GH: Merge pull request，提交进入 merge-dev
-  end
-  Dev->>Rel: release.sh -frontend（或 -backend、-all）
-  Rel->>GH: 列出 origin/prod..origin/merge-dev，输入 y，把 prod 快进到 merge-dev（不产生新提交）
-  Rel->>Prod: 调用 scripts/deploy.sh
-  Prod->>GH: git pull --ff-only（用运行者自己的 GitHub 密钥）
-  Prod->>Prod: 构建 / 迁移 → 重启 netsentinel → HTTP 200 → https://knettf.com</pre>
+      <ol>
+        <li><b>跟上 merge-dev</b>：在开发目录 <code>/home/NEWUSER/github/NetSentinel</code> 执行 <code>git switch NEWUSER</code>、<code>git pull origin merge-dev</code>。</li>
+        <li><b>改代码并提交</b>：本地测试后 <code>git commit</code>，<code>git push origin NEWUSER</code>。</li>
+        <li><b>开 PR</b>：GitHub 上 base 选 <code>merge-dev</code>，compare 选 <code>NEWUSER</code>，Reviewers 选另一位 owner。</li>
+        <li><b>审查</b>：对方在 Files changed 逐行看，Review changes 选 Approve 或 Request changes。要改就在原分支继续 commit、push，PR 自动更新，再审一次。</li>
+        <li><b>合并</b>：Approve 后作者点 Merge pull request，提交进入 <code>merge-dev</code>。</li>
+        <li><b>发布</b>：在服务器上运行 <code>/srv/netsentinel/release.sh -frontend</code>（或 <code>-backend</code> / <code>-all</code>）。它列出 <code>origin/prod..origin/merge-dev</code> 之间的提交，输入 <code>y</code> 后把 <code>prod</code> 快进到 <code>merge-dev</code>（不产生新提交）。</li>
+        <li><b>部署</b>：<code>release.sh</code> 接着调用 <code>scripts/deploy.sh</code>，在 <code class="vp">/srv/netsentinel/prod</code> 里用运行者自己的 GitHub 密钥 <code>git pull --ff-only</code>，构建 / 迁移，重启 <code>netsentinel</code>，确认 HTTP 200。</li>
+      </ol>
       <p>⑤ 下次开始干活时回到 ①：<code>git pull origin merge-dev</code> 会带回 PR 的合并提交和对方的改动。</p>
       <div class="table-wrap"><table>
         <tr><th>分支</th><th>谁改、怎么改</th><th>作用</th></tr>

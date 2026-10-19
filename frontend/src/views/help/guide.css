@@ -291,4 +291,5 @@
 /* UML 图（Mermaid 渲染）：渲染前隐藏源码，渲染后居中、可横向滚动 */
 .guide pre.uml { background: #fff; color: transparent; border: 1px solid #e2e8f0; padding: 14px; text-align: center; overflow-x: auto; min-height: 60px; }
 .guide pre.uml[data-processed] { color: inherit; }
-.guide pre.uml svg { max-width: 100%; height: auto; }
+.guide pre.uml svg { max-width: none; height: auto; }
+.guide pre.uml + ol, .guide pre.uml + ul { margin-top: 4px; }

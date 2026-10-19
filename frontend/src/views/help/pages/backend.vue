@@ -23,22 +23,14 @@
 
     <section id="start">
       <h2>3.2 进程是怎么起来的</h2>
-<pre class="uml">sequenceDiagram
-  participant SD as systemd<br>netsentinel.service
-  participant UV as uvicorn :8080
-  participant ASGI as backend/asgi.py
-  participant DJ as django.setup()
-  participant VG as vigil/apps.py
-  participant BR as bridge 线程
-  SD->>UV: User=netsentinel，WorkingDirectory=/srv/netsentinel/prod/backend<br>ExecStart=/srv/netsentinel/prod/.venv/bin/uvicorn backend.asgi:application<br>Restart=always，MemoryMax=3G，TasksMax=500
-  UV->>ASGI: 导入，设置 DJANGO_SETTINGS_MODULE=backend.settings
-  ASGI->>DJ: django.setup()
-  DJ->>DJ: 读 settings.py 和 backend/backend/.env（DEBUG=False、SECRET_KEY、VIGIL_DB_NAME=vigil）
-  DJ->>VG: AppConfig.ready()
-  VG->>VG: _should_start_bridge()：argv[0] 含 uvicorn → True
-  VG->>BR: bridge.start()：守护线程 vigil-bridge、vigil-drainer
-  DJ->>DJ: 导入 vigil/ml/models/registry.py，按 VIGIL_MODELS 加载模型（AdsMLModel 读 models/ads_ml/current，日志 AdsMLModel loaded from ...）
-  ASGI-->>UV: ProtocolTypeRouter：http → Django，websocket → kcore.routing + vigil.routing</pre>
+<ol>
+        <li><b>systemd 启动</b>：<code>/etc/systemd/system/netsentinel.service</code> 以 <code>netsentinel</code> 账户、工作目录 <code class="vp">/srv/netsentinel/prod</code><code>/backend</code> 运行 <code class="vp">/srv/netsentinel/prod</code><code>/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080</code>。<code>Restart=always</code>，<code>MemoryMax=3G</code>，<code>TasksMax=500</code>。</li>
+        <li><b>uvicorn 导入 <code>backend/asgi.py</code></b>：设置 <code>DJANGO_SETTINGS_MODULE=backend.settings</code>，调用 <code>django.setup()</code>。</li>
+        <li><b>读配置</b>：<code>settings.py</code> 读取 <code class="vp">/srv/netsentinel/prod</code><code>/backend/backend/.env</code>（<code>DEBUG=False</code>、<code>SECRET_KEY</code>、<code>VIGIL_DB_NAME=vigil</code>、<code>VIGIL_ADS_ML_CONFIG</code> …）。</li>
+        <li><b>启动 bridge</b>：加载 INSTALLED_APPS 时调用 <code>vigil/apps.py</code> 的 <code>ready()</code>；<code>_should_start_bridge()</code> 看到进程是 uvicorn，就 <code>bridge.start()</code> 起两个守护线程 vigil-bridge、vigil-drainer（见 <a href="/help/detect">4 检测链路与模型</a>）。</li>
+        <li><b>加载模型</b>：导入 <code>vigil/ml/models/registry.py</code> 时按 <code>VIGIL_MODELS</code> 实例化模型，日志 <code>AdsMLModel loaded from ...</code>。</li>
+        <li><b>开始处理请求</b>：<code>ProtocolTypeRouter</code> 把 <code>http</code> 交给 Django，把 <code>websocket</code> 交给 <code>kcore.routing</code> + <code>vigil.routing</code> 的 Channels consumer。</li>
+      </ol>
       <p>只有<b>一个</b> uvicorn 进程（没开 <code>--workers</code>），bridge 线程因此只有一份。如果将来加 workers，每个进程都会起一份 bridge，导致重复消费入库。</p>
       <p><code>_should_start_bridge()</code> 规则：<code>migrate</code>、<code>shell</code>、<code>check</code>、<code>test</code> 等命令不启动；<code>runserver</code> 只在自动重载的子进程（<code>RUN_MAIN=true</code>）启动；<code>argv[0]</code> 含 daphne / uvicorn / gunicorn 时启动。所以你在命令行跑 <code>manage.py shell</code> 不会多出一个 Kafka 消费者，但 <b><code>manage.py runserver</code> 会</b>。开发目录的 <code>.env</code> 设了 <code>VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev</code>，开发 bridge 用自己的 consumer group，拿到一份完整的流量写进 <code>vigil_dev</code>，不影响线上。<b>新建开发环境时一定要设这个变量</b>：不设就默认 <code>vigil-bridge</code>，会和线上分走 Kafka 分区，线上漏收流量。</p>
     </section>
