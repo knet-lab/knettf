@@ -176,7 +176,7 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
         <li>对每个工具 <code>_run_tool(tool, tmpdir, tf_path)</code>：
           <ul>
             <li><code>cmd</code> 里的 <code>{target_dir}</code>、<code>{target_file}</code> 被替换，然后 <b><code>.split()</code></b> 成参数列表（所以参数里不能有空格）。</li>
-            <li>PATH 前面加上 <code>/home/soar009/terraform/.venv/bin</code>（checkov 在那里）。</li>
+            <li>PATH 前面加上 <code>settings.AUTOTF_TOOLS_BIN</code>（默认 <code>/srv/netsentinel/tools/checkov/bin</code>，checkov 在那里）。</li>
             <li>有 <code>init_cmd</code> 先跑它（terraform_validate 需要先 <code>terraform init -backend=false</code>）。</li>
             <li>运行命令，只取 stdout；找不到可执行文件 → <code>{'items': [], 'error': 'tool not found: xxx'}</code>。<b>没有超时</b>，工具卡住整个请求就卡住。</li>
             <li>按 <code>output_format</code> 调 <code>_parse_sarif</code> 或 <code>_parse_json</code>。</li>

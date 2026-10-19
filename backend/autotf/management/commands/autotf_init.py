@@ -60,8 +60,8 @@ def _build_tools() -> list:
         },
         {
             'name': 'checkov',
-            'version_fn': lambda: _get_tool_version(['/home/soar009/terraform/.venv/bin/checkov', '--version']),
-            'cmd': '/home/soar009/terraform/.venv/bin/checkov -d {target_dir} -o sarif --quiet',
+            'version_fn': lambda: _get_tool_version([f'{settings.AUTOTF_TOOLS_BIN}/checkov', '--version']),
+            'cmd': f'{settings.AUTOTF_TOOLS_BIN}/checkov' + ' -d {target_dir} -o sarif --quiet',
             'init_cmd': '',
             'output_format': TerraformTool.OUTPUT_SARIF,
             'items_path': '', 'severity_field': '', 'severity_map': {},

@@ -16,14 +16,14 @@
       </table></div>
 
       <h3>属于 NetSentinel 的东西</h3>
-      <p>2026-10-19 起线上已迁出 soar009 家目录（见 <a href="#migrate">3.1</a>）：线上目录、服务、定时任务都归 <code>netsentinel</code> 账户；soar009 名下只剩开发目录和 checkov。</p>
+      <p>2026-10-19 起线上已迁出 soar009 家目录（见 <a href="#migrate">3.1</a>）：线上目录、服务、定时任务都归 <code>netsentinel</code> 账户；soar009 名下只剩它自己的开发目录。</p>
       <div class="table-wrap"><table>
         <tr><th>资源</th><th>位置</th><th>说明</th></tr>
         <tr><td>平台代码（开发）</td><td><code>/home/soar009/github/NetSentinel</code></td><td>GitHub <code>knet-lab/NetSentinel</code>（SSH 远程，分支 main）；平时改代码、提交都在这里</td></tr>
         <tr><td>平台代码（线上）</td><td><code>/srv/netsentinel/prod</code></td><td>归 <code>netsentinel</code> 账户和组；GitHub <code>knet-lab/NetSentinel</code> 的 clone，只由 <code>scripts/deploy.sh</code> 从 GitHub main 更新，不要在里面改代码</td></tr>
         <tr><td>集群/检测代码</td><td><code>/srv/netsentinel/knetsentinel</code>（<code>/home/soar009/knetsentinel</code> 是指向它的软链接）</td><td>GitHub <code>knet-lab/knetsentinel</code>（SSH 远程，分支 master）——是第二个独立仓库</td></tr>
         <tr><td>Python 环境</td><td>两个目录各有一个 <code>.venv</code>（uv 管理）</td><td>依赖见 <code>pyproject.toml</code> / <code>uv.lock</code></td></tr>
-        <tr><td>Terraform 扫描工具</td><td><code>/home/soar009/terraform/.venv/bin/checkov</code></td><td>路径写死在 <code>backend/autotf/services.py:267</code> 和 <code>autotf_init.py:63-64</code></td></tr>
+        <tr><td>Terraform 扫描工具</td><td><code>/srv/netsentinel/tools/checkov/bin/checkov</code></td><td>归 <code>netsentinel</code> 账户的独立 venv，依赖见 <code>deploy/checkov-requirements.txt</code>；路径由 settings 的 <code>AUTOTF_TOOLS_BIN</code> 决定</td></tr>
         <tr><td>后端服务</td><td><code>/etc/systemd/system/netsentinel.service</code></td><td>系统服务，以 <code>netsentinel</code> 账户运行 <code>/srv/netsentinel/prod</code>，uvicorn 监听 8080</td></tr>
         <tr><td>隧道</td><td><code>/etc/systemd/system/cloudflared-knettf.service</code> + <code>/etc/cloudflared/knettf/config.yml</code></td><td>knettf.com → localhost:8080，以 <code>netsentinel</code> 账户运行</td></tr>
         <tr><td>定时任务</td><td><code>/etc/cron.d/netsentinel</code></td><td>每天 0 点以 <code>netsentinel</code> 账户用 <code>/srv/netsentinel/prod</code> 执行 <code>manage.py rotate_partitions --database vigil</code></td></tr>
@@ -160,59 +160,11 @@ git log -1 --format='%an <%ae>'     # 应是你自己
 git push -u origin test/handover
 git switch main && git push origin --delete test/handover && git branch -D test/handover</code></pre>
 
-      <h3>第 6 步：soar009 完全换掉 Wk-P 的密钥（交接收尾，必须做）</h3>
-      <div class="danger">这一步不能省，也不能只做一半。Wk-P 的密钥必须<b>从服务器和 GitHub 两边都删掉</b>，交接才算完成。</div>
-      <p><b>现状：</b>服务器账户 soar009 和 GitHub 账号 Wk-P 都属于原作者本人。soar009 连 GitHub 用的是 Wk-P 的个人私钥 <code>/home/soar009/.ssh/github_ssh_key</code>（<code>sudo -iu soar009 ssh -T git@github.com</code> 会显示 <code>Hi Wk-P!</code>），soar009 的开发目录 <code>git pull</code> 靠它（线上部署已改用运行 <code>deploy.sh</code> 的人自己的密钥）。这把私钥不删就一直留在服务器上。</p>
-      <p><b>不换会怎样：</b></p>
-      <ul>
-        <li><b>冒名：</b>任何能 sudo 的人都能拿这把私钥，以 Wk-P 的身份 push、删分支、改仓库，GitHub 上记的是原作者的名字，出了问题说不清是谁做的。</li>
-        <li><b>权限过大：</b>它不只是这两个仓库的钥匙，而是 Wk-P 整个 GitHub 账号的钥匙：Wk-P 能访问的所有仓库（包括与实验室无关的个人仓库）都能读写。</li>
-        <li><b>部署随时会断：</b>原作者哪天在 GitHub 上删掉这把公钥或注销账号，soar009 的 <code>git pull</code> 立刻失败，<code>scripts/deploy.sh</code> 拉不到新代码，而且事先没有任何提醒。</li>
-      </ul>
-      <p><b>换成什么：</b>每个仓库一把<b>只读部署密钥</b>（GitHub 不允许同一把部署密钥加到两个仓库，所以是两把）。部署密钥属于仓库本身，不属于任何人的账号；只能 pull 这一个仓库，不能 push，也碰不到别的仓库。谁离开都不影响部署。</p>
-      <p><b>过程：</b>先装新钥匙、验证能用，再拆旧钥匙。顺序不能反，否则中间部署会断。</p>
-
-      <h4>6.1 生成两把部署密钥并加到 GitHub</h4>
-      <pre><code>sudo -iu soar009
-ssh-keygen -t ed25519 -N "" -C "soar009 deploy NetSentinel"  -f /home/soar009/.ssh/deploy_netsentinel
-ssh-keygen -t ed25519 -N "" -C "soar009 deploy knetsentinel" -f /home/soar009/.ssh/deploy_knetsentinel
-cat /home/soar009/.ssh/deploy_netsentinel.pub    # 加到 https://github.com/knet-lab/NetSentinel/settings/keys → Add deploy key，不勾 Allow write access
-cat /home/soar009/.ssh/deploy_knetsentinel.pub   # 加到 https://github.com/knet-lab/knetsentinel/settings/keys，同上</code></pre>
-      <p>加部署密钥需要仓库管理员权限，由 knet-lab 的 Owner 操作。</p>
-
-      <h4>6.2 改 SSH 配置和 remote</h4>
-      <p>把 <code>/home/soar009/.ssh/config</code> 里原来的 <code>Host github.com</code> 段（含 <code>IdentityFile ~/.ssh/github_ssh_key</code> 那一行）<b>整段删掉</b>，换成：</p>
-      <pre><code>Host github-netsentinel
-    HostName github.com
-    User git
-    IdentityFile /home/soar009/.ssh/deploy_netsentinel
-    IdentitiesOnly yes
-
-Host github-knetsentinel
-    HostName github.com
-    User git
-    IdentityFile /home/soar009/.ssh/deploy_knetsentinel
-    IdentitiesOnly yes</code></pre>
-      <p>再改 remote 并验证（仍在 soar009 下）：</p>
-      <pre><code>git -C /home/soar009/github/NetSentinel remote set-url origin git@github-netsentinel:knet-lab/NetSentinel.git
-git -C /home/soar009/knetsentinel        remote set-url origin git@github-knetsentinel:knet-lab/knetsentinel.git
-git -C /home/soar009/github/NetSentinel fetch origin    # 不报错即可
-git -C /home/soar009/knetsentinel        fetch origin
-exit</code></pre>
-      <p>任何一边 fetch 失败就停在这里，先排查，<b>不要</b>进行 6.3。</p>
-
-      <h4>6.3 拆掉 Wk-P 的密钥（两边都要删）</h4>
-      <ol>
-        <li>服务器上：<code>sudo rm /home/soar009/.ssh/github_ssh_key</code>。</li>
-        <li>GitHub 上：请 Wk-P 在自己账号的 <b>Settings → SSH and GPG keys</b> 里删掉这台服务器对应的那把公钥。只删服务器上的文件不够：若有人事先复制过私钥，GitHub 上那把不删，复制品照样能用。</li>
-      </ol>
-
-      <h4>6.4 确认已完全替换</h4>
-      <pre><code>sudo grep -rn github_ssh_key /home/soar009/.ssh/       # 应无输出
-sudo -iu soar009 ssh -T git@github.com                  # 应是 Permission denied，不再出现 Hi Wk-P!
-sudo -iu soar009 git -C /home/soar009/github/NetSentinel pull --ff-only   # 应成功
-sudo -iu soar009 git -C /home/soar009/github/NetSentinel push --dry-run   # 应被拒绝（只读）</code></pre>
-      <p>四条都符合才算交接完成。之后 soar009 只能 pull 不能 push，正好符合「soar009 下不提交」的规矩；改代码一律用你自己的账户和密钥。</p>
+      <h3>第 6 步：确认两个账户都能从 GitHub pull</h3>
+      <p>线上目录 <code>/srv/netsentinel/prod</code> 本身是 git clone，<code>deploy.sh</code> 在里面 <code>git pull</code> 时用的是<b>运行者自己的</b> SSH 密钥：soar009 运行用 Wk-P 的密钥（<code>/home/soar009/.ssh/github_ssh_key</code>），你运行用你在第 1 步加的密钥。所以两个账户都要能 pull knet-lab 的仓库，<b>Wk-P 的密钥保留</b>，以后再加入的 owner 也照第 1 步加自己的密钥。</p>
+      <pre><code>git -C /srv/netsentinel/prod fetch origin                     # 你自己的账户下，不报错即可
+sudo -iu soar009 git -C /srv/netsentinel/prod fetch origin    # soar009 下，同样不报错</code></pre>
+      <div class="note">保留 Wk-P 密钥的代价：能 sudo 的人都能以 Wk-P 的身份操作 GitHub；Wk-P 删掉这把公钥或离开 knet-lab 时，soar009 下的 pull 会失败，此时改由其他 owner 部署即可，线上不受影响。</div>
 
       <h3>常见错误</h3>
       <div class="table-wrap"><table>
@@ -236,7 +188,7 @@ sudo -iu soar009 git -C /home/soar009/github/NetSentinel push --dry-run   # 应�
         <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 个节点 <code>Ready</code></td><td>1.1 kubectl</td></tr>
         <tr><td>5</td><td><code>ssh -T git@github.com</code></td><td><code>Hi 你的GitHub用户名!</code></td><td>1.3 第 1 步</td></tr>
         <tr><td>6</td><td>在两个仓库各试一次提交并 push</td><td>GitHub 上作者是你，不是 Wk-P</td><td>1.2、1.3 第 2–5 步</td></tr>
-        <tr><td>7</td><td><code>sudo -iu soar009 ssh -T git@github.com</code></td><td><code>Permission denied</code>，不再出现 <code>Hi Wk-P!</code>；且 soar009 下 <code>git pull</code> 仍成功</td><td>1.3 第 6 步</td></tr>
+        <tr><td>7</td><td><code>git -C /srv/netsentinel/prod fetch origin</code>，自己的账户和 <code>sudo -iu soar009</code> 下各一次</td><td>两次都不报错</td><td>1.3 第 1、6 步</td></tr>
       </table></div>
     </section>
 
@@ -282,7 +234,7 @@ tail /srv/netsentinel/logs/rotate_partitions.log</code></pre>
       </table></div>
       <p><code>/srv/netsentinel</code> 下另有 <code>knetsentinel</code>（原 <code>/home/soar009/knetsentinel</code>，旧路径留了软链接）、<code>logs</code>、<code>backups</code>。uv 和 Node 装到了系统路径（<code>/usr/local/bin/uv</code>、<code>/opt/node-v22.21.1</code>）。</p>
       <div class="note">回滚：<code>scripts/migrate-to-srv.sh rollback</code>，依赖旧目录 <code>/srv/netsentinel/prod.migrated-20261019_183652</code> 和 <code>/home/soar009/knetsentinel.migrated-20261019_183652</code>，knettf.com 稳定一周后可删除，删除后就不能回滚。<br>
-        还没迁的：autotf 的 checkov 仍在 <code>/home/soar009/terraform/.venv/bin/checkov</code>（路径写死在 <code>backend/autotf/services.py</code> 和 <code>autotf_init.py</code>）；my-code 的服务和隧道仍在 soar009 下，不属于 NetSentinel。</div>
+        checkov 已迁到 <code>/srv/netsentinel/tools/checkov</code>；my-code 的服务和隧道仍在 soar009 下，不属于 NetSentinel。</div>
     </section>
 
     <section id="offboard">

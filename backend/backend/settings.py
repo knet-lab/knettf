@@ -32,6 +32,9 @@ DEBUG = env.bool('DEBUG', default=True)
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['*'])
 
+# autotf 的 checkov 所在 venv（归 netsentinel 账户，依赖见 deploy/checkov-requirements.txt）
+AUTOTF_TOOLS_BIN = env.str('AUTOTF_TOOLS_BIN', default='/srv/netsentinel/tools/checkov/bin')
+
 
 # Application definition
 

@@ -264,7 +264,7 @@ class ScanService:
         cmd_str = tool.cmd.format(target_dir=target_dir, target_file=target_file)
         cmd = cmd_str.split()
 
-        extra_path = '/home/soar009/terraform/.venv/bin'
+        extra_path = settings.AUTOTF_TOOLS_BIN
         env = os.environ.copy()
         env['PATH'] = extra_path + ':' + env.get('PATH', '')
 
