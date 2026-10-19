@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>集群与 Shell 脚本</h1>
     <div class="meta">读完你能：画出宿主机、网桥、VM、集群组件的关系；读懂 00 / 01 / 02 / 03 四个脚本每一步在做什么、为什么这样做；看懂 Kafka、Vector、靶机的清单；知道宿主机上 systemd、cloudflared、/etc/cron.d 定时任务、PostgreSQL 容器的配置。<br>
-      脚本在 <span class="tag tag-k">K</span> <code>~/knetsentinel/kubeadm-cluster/</code>，都以普通用户运行（内部按需 <code>sudo</code>），<b>不要</b> <code>sudo bash</code> 整个脚本（kubeconfig 会写到 root 家目录）。逐步的开关机 / 重建命令见 <a href="/help/power">开关机 · 重建 · 备份</a>。</div>
+      脚本在 <span class="tag tag-k">K</span> <code>/srv/netsentinel/knetsentinel/kubeadm-cluster/</code>，都以普通用户运行（内部按需 <code>sudo</code>），<b>不要</b> <code>sudo bash</code> 整个脚本（kubeconfig 会写到 root 家目录）。逐步的开关机 / 重建命令见 <a href="/help/power">开关机 · 重建 · 备份</a>。</div>
 
     <section id="ip">
       <h2>5.1 IP 规划（全部在 192.168.100.0/24）</h2>
@@ -16,7 +16,7 @@
         <tr><td><code>.50 ~ .64</code></td><td>伪造正常源</td><td><code>traffic/send_request.py</code>、<code>send_normal_scapy.py</code></td><td>bridge 打标签 label=0。注意它和 DHCP 动态池 .50-.99 重叠</td></tr>
         <tr><td><code>.50 ~ .99</code></td><td>libvirt DHCP 动态池</td><td>01 网络 XML</td><td>没有绑定 MAC 的机器拿这里的地址</td></tr>
         <tr><td><code>.170 ~ .184</code></td><td>simulation 攻击源</td><td><code>simulation/</code></td><td>不在标签规则内，label 为空</td></tr>
-        <tr><td><code>.200 ~ .203</code></td><td>kafka-0~3-external（<code>:9094</code>）</td><td>MetalLB 按创建顺序分配</td><td><b>bridge.py 写死</b>、<code>~/knetsentinel/.env</code>、检测器 ConfigMap</td></tr>
+        <tr><td><code>.200 ~ .203</code></td><td>kafka-0~3-external（<code>:9094</code>）</td><td>MetalLB 按创建顺序分配</td><td><b>bridge.py 写死</b>、<code>/srv/netsentinel/knetsentinel/.env</code>、检测器 ConfigMap</td></tr>
         <tr><td><code>.204</code></td><td>my-nginx（<code>:80</code>）</td><td>MetalLB</td><td><code>send_request.py</code> 写死</td></tr>
         <tr><td><code>.210 ~ .214</code></td><td>靶机 http-api / mysql-sim / ftp-sim / udp-echo / dns-sim</td><td><code>targets.yaml</code> 注解指定</td><td>实验脚本</td></tr>
         <tr><td><code>.200 ~ .250</code></td><td>MetalLB 地址池</td><td>02 脚本</td><td>bridge 视为基础设施</td></tr>
@@ -30,7 +30,7 @@
       <ul>
         <li>Ubuntu，支持 KVM（<code>kvm-ok</code> 或 <code>ls /dev/kvm</code>），能 sudo，能访问外网。</li>
         <li>出网网卡 <code>enp6s0</code>（02 脚本写死在 <code>HOST_NIC</code>，换机器要改；<code>ip route get 1.1.1.1</code> 查）。</li>
-        <li><code>~/vm-images</code> 所在分区可用 ≥ 420GB（01 脚本检查；master 120G + 4×60G，qcow2 稀疏分配，实际占用小得多）。</li>
+        <li><code>/home/vm-images</code> 所在分区可用 ≥ 420GB（01 脚本检查；master 120G + 4×60G，qcow2 稀疏分配，实际占用小得多）。</li>
         <li>工具：<code>virtinst qemu-utils genisoimage wget python3</code>（01 自动装）、<code>kubectl</code>、<code>helm</code>（02 自动装）、<code>docker</code>、<code>uv</code>、<code>pnpm</code>、<code>terraform</code>、<code>tflint</code>、<code>tfsec</code>、<code>trivy</code>、checkov（在 <code>/srv/netsentinel/tools/checkov</code>，依赖见 <code>deploy/checkov-requirements.txt</code>）、<code>hubble</code> CLI（可选）。</li>
         <li>SSH 密钥 <code>~/.ssh/id_rsa</code>（01 没有就生成），公钥会写进每台 VM 的 <code>k8s</code> 用户。</li>
       </ul>
@@ -38,8 +38,8 @@
 
     <section id="s00">
       <h2>5.3 00-clear.sh：彻底清理（不可逆）</h2>
-      <p>按顺序：杀掉 hubble <code>port-forward</code>、minikube tunnel 后台进程 → <code>virsh destroy/undefine</code> 5 台 VM → 删网络 virbr-k8s → 删 <code>~/vm-images</code> 下 VM 磁盘 → 删 cloud image → 删 <code>/tmp/cidata-*</code>、<code>/tmp/k8s-network.xml</code> → 删 <code>~/.kube/config</code> → 从 <code>/etc/hosts</code> 删 k8s 相关行 → 从 <code>known_hosts</code> 删 .10-.14。</p>
-      <div class="danger">执行后集群、Kafka 中的数据、kubeconfig 全部消失。执行前按 <a href="/help/power#rebuild-cluster">重建整个集群</a> 第 1 步备份 <code>~/knetsentinel</code> 整个目录（它不在 Git 里）。</div>
+      <p>按顺序：杀掉 hubble <code>port-forward</code>、minikube tunnel 后台进程 → <code>virsh destroy/undefine</code> 5 台 VM → 删网络 virbr-k8s → 删 <code>/home/vm-images</code> 下 VM 磁盘 → 删 cloud image → 删 <code>/tmp/cidata-*</code>、<code>/tmp/k8s-network.xml</code> → 删 <code>~/.kube/config</code> → 从 <code>/etc/hosts</code> 删 k8s 相关行 → 从 <code>known_hosts</code> 删 .10-.14。</p>
+      <div class="danger">执行后集群、Kafka 中的数据、kubeconfig 全部消失。执行前按 <a href="/help/power#rebuild-cluster">重建整个集群</a> 第 1 步备份 <code>/srv/netsentinel/knetsentinel</code> 整个目录（它不在 Git 里）。</div>
     </section>
 
     <section id="s01">
@@ -49,9 +49,9 @@
         <tr><td>配置区</td><td><code>VM_VCPUS=2</code>、<code>VM_RAM_MB=8192</code>、磁盘 <code>120 60 60 60 60</code>、IP 和 MAC 数组</td><td>改规格就改这里</td></tr>
         <tr><td>1</td><td>检查并安装依赖，启动 <code>libvirtd</code>，等 socket 就绪</td><td></td></tr>
         <tr><td>2</td><td>当前用户不在 libvirt 组 → 加入 libvirt、kvm 组，用 <code>exec sg libvirt</code> 重新执行自己</td><td>免得要求重新登录</td></tr>
-        <tr><td>3</td><td>建 <code>~/vm-images</code>（root:libvirt 775），检查可用空间 ≥ 420GB</td><td></td></tr>
+        <tr><td>3</td><td>建 <code>/home/vm-images</code>（root:libvirt 775），检查可用空间 ≥ 420GB</td><td></td></tr>
         <tr><td>4</td><td>用内嵌 Python 生成网络 XML：NAT 模式、网桥 virbr-k8s、<code>.1/24</code>、DHCP 池 .50-.99、5 条 <code>&lt;host mac name ip&gt;</code> 绑定；<code>net-define</code>、<code>net-start</code>、<code>net-autostart</code></td><td><b>用 DHCP 绑定代替 netplan 静态 IP</b>：VM 网卡名不可靠，cloud-init 写 netplan 时序问题多；绑定后效果等同静态</td></tr>
-        <tr><td>5</td><td>下载 Ubuntu 22.04 cloud image 到 <code>~/vm-images/ubuntu-22.04-cloudimg.qcow2</code></td><td>已存在则跳过</td></tr>
+        <tr><td>5</td><td>下载 Ubuntu 22.04 cloud image 到 <code>/home/vm-images/ubuntu-22.04-cloudimg.qcow2</code></td><td>已存在则跳过</td></tr>
         <tr><td>6</td><td>准备 SSH 密钥</td><td></td></tr>
         <tr><td>7</td><td>每台 VM：<code>qemu-img create -b 基础镜像</code> 建差量盘 → 写 cloud-init <code>user-data</code>（用户 k8s、免密 sudo、公钥、关 swap、关 ufw、growpart 扩容）和 <code>meta-data</code> → <code>genisoimage</code> 打成 cidata ISO → <code>virt-install --import</code>，指定固定 MAC，<code>driver.queues=2</code></td><td>差量盘：5 台共用一个只读基础镜像，<b>基础镜像不能删</b>；已存在的 VM 跳过（幂等）</td></tr>
         <tr><td>8</td><td>等待 5 台 SSH 就绪（最多 8 分钟），每 2 分钟自动诊断一次（DHCP 租约、VM 状态）</td><td></td></tr>
@@ -96,7 +96,7 @@
         <tr><td>9</td><td><code>kubectl create deployment my-nginx --image=nginx</code> + <code>expose --type=LoadBalancer --port=80</code> → 等 IP（.204）</td><td>正常流量的目标</td></tr>
         <tr><td>10</td><td>后台 <code>kubectl port-forward svc/hubble-relay 4245</code>，日志 <code>/tmp/hubble-pf.log</code></td><td>只给宿主机上 <code>hubble observe</code> 调试用，Vector 不依赖它；宿主机重启后不会自动恢复</td></tr>
         <tr><td>11</td><td><code>/etc/hosts</code> 加 <code>192.168.100.200 kafka-svc.default.svc.cluster.local</code></td><td>宿主机脚本用集群内域名时能解析</td></tr>
-        <tr><td>12</td><td>重写 <code>~/knetsentinel/.env</code>：<code>BOOTSTRAP_SERVERS=.200:9094,...</code>、<code>GROUP_ID=ebpf-log-consumer-group</code>、<code>AUTO_OFFSET_RESET=earliest</code>、<code>TOPICS='["ebpf-net-logs"]'</code></td><td>knetsentinel 的 Python 脚本读它</td></tr>
+        <tr><td>12</td><td>重写 <code>/srv/netsentinel/knetsentinel/.env</code>：<code>BOOTSTRAP_SERVERS=.200:9094,...</code>、<code>GROUP_ID=ebpf-log-consumer-group</code>、<code>AUTO_OFFSET_RESET=earliest</code>、<code>TOPICS='["ebpf-net-logs"]'</code></td><td>knetsentinel 的 Python 脚本读它</td></tr>
       </table></div>
     </section>
 
@@ -173,13 +173,13 @@ ingress:
       <h2>5.11 从零到可用的完整顺序</h2>
       <p>换一台新机器或全部重建时按这个顺序（依赖关系的详细说明见 <a href="/help/index#order">系统总览 · 构建顺序</a>）：</p>
 <pre class="on-both"><code><span class="c"># —— K：集群 ——</span>
-cd ~/knetsentinel/kubeadm-cluster
+cd /srv/netsentinel/knetsentinel/kubeadm-cluster
 bash 01-setup-vms.sh
 bash 02-setup-cluster.sh
 bash 03-deploy-5nodes.sh
-kubectl apply -f ~/knetsentinel/cluster-setup/targets.yaml
-kubectl apply -f ~/knetsentinel/cluster-setup/host-firewall-ccnp.yaml
-cd ~/knetsentinel &amp;&amp; uv sync
+kubectl apply -f /srv/netsentinel/knetsentinel/cluster-setup/targets.yaml
+kubectl apply -f /srv/netsentinel/knetsentinel/cluster-setup/host-firewall-ccnp.yaml
+cd /srv/netsentinel/knetsentinel &amp;&amp; uv sync
 
 <span class="c"># —— N：数据库 ——</span>
 docker run -d --name pg --restart unless-stopped -p 5432:5432 \
@@ -228,7 +228,7 @@ sudo systemctl enable --now netsentinel cloudflared-knettf
 <span class="c"># —— 联通 ——</span>
 sudo systemctl restart netsentinel      <span class="c"># Kafka 就绪后重启，bridge 才能连上</span>
 <span class="c"># 网页登录 → Kubernetes → Add，粘贴 ~/.kube/config</span>
-cd ~/knetsentinel &amp;&amp; sudo .venv/bin/python3 traffic/spoof_attack.py --packets 50   <span class="c"># 端到端验证</span></code></pre>
+cd /srv/netsentinel/knetsentinel &amp;&amp; sudo .venv/bin/python3 traffic/spoof_attack.py --packets 50   <span class="c"># 端到端验证</span></code></pre>
       <p>systemd unit、cron、sudoers 和 cloudflared 配置都在仓库的 <code>deploy/</code> 目录里；cloudflared 隧道凭证 JSON 不在仓库里，要从备份恢复（<a href="/help/power#backup">备份与恢复</a>）或在 Cloudflare 账号里重新生成。</p>
     </section>
   </div>

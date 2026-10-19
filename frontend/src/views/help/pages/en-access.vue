@@ -61,8 +61,8 @@ git config --global user.name  Wk-P
 git config --global user.email weekend2000119@gmail.com
 git -C ~/github/NetSentinel config --local --unset user.name
 git -C ~/github/NetSentinel config --local --unset user.email
-git -C ~/knetsentinel config --local --unset user.name
-git -C ~/knetsentinel config --local --unset user.email
+git -C /srv/netsentinel/knetsentinel config --local --unset user.name
+git -C /srv/netsentinel/knetsentinel config --local --unset user.email
 exit</code></pre></div></div>
         <div class="why"><div>A repository-level identity overrides yours, so every commit would otherwise show <code>Wk-P</code>.</div></div>
         <div class="res"><div>A test commit and push shows you as the author on GitHub.</div></div>

@@ -1,7 +1,7 @@
 <template>
   <div v-pre lang="en">
     <h1>Deploying Changes</h1>
-    <div class="meta">Always: edit in the development directory <code>~/github/NetSentinel</code>, then run <code>scripts/deploy.sh</code> there (your account must be in the <code>netsentinel</code> group). Commit on your personal branch, open a PR into <code>merge-dev</code>, then fast-forward <code>prod</code> to it (<code>git push origin origin/merge-dev:prod</code>). The script pulls GitHub <code>prod</code> into <code>/srv/netsentinel/prod</code>, builds and restarts.</div>
+    <div class="meta">Always: edit and commit on your personal branch in <code>~/github/NetSentinel</code>, push, open a PR into <code>merge-dev</code> and have the other person review it. After the merge run <code>/srv/netsentinel/release.sh -frontend</code> (or <code>-backend</code> / <code>-all</code>): it fast-forwards <code>prod</code> to <code>merge-dev</code> and runs <code>scripts/deploy.sh</code>, which pulls GitHub <code>prod</code> into <code>/srv/netsentinel/prod</code>, builds and restarts. Your account must be in the <code>netsentinel</code> group.</div>
 
     <section id="branches">
       <h2>Branches and collaboration</h2>
@@ -40,7 +40,7 @@ scripts/deploy.sh -all          # both</code></pre></div></div>
       <h2>Database model changes</h2>
       <div class="task"><h4><span class="n">1</span>Back up first</h4>
         <div class="do"><div><pre class="on-prod"><code>sqlite3 /srv/netsentinel/prod/backend/db.sqlite3 ".backup '/srv/netsentinel/backups/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"
-docker exec pg pg_dump -U vigil -Fc vigil > ~/vigil_$(date +%F).dump</code></pre></div></div>
+docker exec pg pg_dump -U vigil -Fc vigil > /srv/netsentinel/backups/vigil_$(date +%F).dump</code></pre></div></div>
         <div class="why"><div>A migration that fails halfway can leave tables half-changed.</div></div>
         <div class="res"><div>Backup files exist and are not empty.</div></div>
       </div>

@@ -1,7 +1,7 @@
 <template>
   <div v-pre lang="en">
     <h1>Daily Health Check</h1>
-    <div class="meta">Once a day, about 5 minutes. Run the steps in order — if one fails, the later ones are meaningless. Until the services are migrated, first run <code>sudo -iu soar009</code>.</div>
+    <div class="meta">Once a day, about 5 minutes. Run the steps in order — if one fails, the later ones are meaningless. Services run as the <code>netsentinel</code> account; use your own account with <code>sudo</code>.</div>
 
     <section id="cli">
       <h2>On the server</h2>

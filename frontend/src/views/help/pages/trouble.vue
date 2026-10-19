@@ -67,7 +67,7 @@
         <tr><td>模型最近一次推理</td><td><code class="vp">/srv/netsentinel/prod/backend/vigil/ml/ads_ml/results/Anomaly_Detection_Report.csv</code></td><td></td></tr>
         <tr><td>Vector / Kafka / hubble-relay</td><td><code>kubectl -n kube-system logs -l app=vector --tail=50</code>；<code>kubectl logs kafka-broker-0</code>；<code>kubectl -n kube-system logs deploy/hubble-relay</code></td><td></td></tr>
         <tr><td>入口 B 检测器</td><td><code>kubectl -n netsentinel logs deploy/netsentinel-detector -f</code></td><td><code>connected to Django</code></td></tr>
-        <tr><td>knetsentinel 脚本</td><td><code>~/knetsentinel/logs/</code>、<code>~/knetsentinel/kafka/*.log</code>、<code>~/knetsentinel/traffic_request/*.log</code>、<code>~/knetsentinel/simulation/monitor/send.log</code></td><td></td></tr>
+        <tr><td>knetsentinel 脚本</td><td><code>/srv/netsentinel/knetsentinel/logs/</code>、<code>/srv/netsentinel/knetsentinel/kafka/*.log</code>、<code>/srv/netsentinel/knetsentinel/traffic_request/*.log</code>、<code>/srv/netsentinel/knetsentinel/simulation/monitor/send.log</code></td><td></td></tr>
       </table></div>
     </section>
 
@@ -84,7 +84,7 @@
         <tr><td><code>docker stop pg</code></td><td>手动停过的容器开机后不会自启</td></tr>
         <tr><td>在生产库上跑 <code>users_clear</code> / <code>autotf_clear</code></td><td>会清空全部用户和 Terraform 数据</td></tr>
         <tr><td>Apply 不了解的 Terraform 配置</td><td>会真实创建资源，而且不保留 tfstate，没法从网页 destroy</td></tr>
-        <tr><td>删 <code>~/vm-images/ubuntu-22.04-cloudimg.qcow2</code></td><td>5 台 VM 的基础镜像</td></tr>
+        <tr><td>删 <code>/home/vm-images/ubuntu-22.04-cloudimg.qcow2</code></td><td>5 台 VM 的基础镜像</td></tr>
       </table></div>
     </section>
   </div>

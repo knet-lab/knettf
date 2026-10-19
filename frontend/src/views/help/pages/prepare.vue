@@ -19,7 +19,7 @@
       <p>2026-10-19 起线上已迁出 soar009 家目录（见 <a href="#migrate">3.1</a>）：线上目录、服务、定时任务都归 <code>netsentinel</code> 账户；soar009 名下只剩它自己的开发目录。</p>
       <div class="table-wrap"><table>
         <tr><th>资源</th><th>位置</th><th>说明</th></tr>
-        <tr><td>平台代码（开发）</td><td><code>/home/soar009/github/NetSentinel</code></td><td>GitHub <code>knet-lab/NetSentinel</code>（SSH 远程，个人分支如 soar009）；平时改代码、提交都在这里</td></tr>
+        <tr><td>平台代码（开发）</td><td>每人自己的 <code>/home/用户名/github/NetSentinel</code>（soar009 的是 <code>/home/soar009/github/NetSentinel</code>）</td><td>GitHub <code>knet-lab/NetSentinel</code>（SSH 远程，个人分支如 soar009）；平时改代码、提交都在这里</td></tr>
         <tr><td>平台代码（线上）</td><td><code>/srv/netsentinel/prod</code></td><td>归 <code>netsentinel</code> 账户和组；GitHub <code>knet-lab/NetSentinel</code> 的 clone，停在 <code>prod</code> 分支，只由 <code>scripts/deploy.sh</code> 从 GitHub <code>prod</code> 更新，不要在里面改代码</td></tr>
         <tr><td>集群/检测代码</td><td><code>/srv/netsentinel/knetsentinel</code>（<code>/home/soar009/knetsentinel</code> 是指向它的软链接）</td><td>GitHub <code>knet-lab/knetsentinel</code>（SSH 远程，分支 master）——是第二个独立仓库</td></tr>
         <tr><td>Python 环境</td><td>两个目录各有一个 <code>.venv</code>（uv 管理）</td><td>依赖见 <code>pyproject.toml</code> / <code>uv.lock</code></td></tr>
@@ -107,7 +107,7 @@ kubectl get nodes        # 接手人执行，应看到 k8s-master + k8s-node1~4 
       <div class="table-wrap"><table>
         <tr><th>仓库</th><th>本地目录</th><th>远程地址</th></tr>
         <tr><td><code>knet-lab/NetSentinel</code></td><td><code>/home/soar009/github/NetSentinel</code></td><td><code>git@github.com:knet-lab/NetSentinel.git</code>（个人分支 → <code>merge-dev</code> → <code>prod</code>）</td></tr>
-        <tr><td><code>knet-lab/knetsentinel</code></td><td><code>/home/soar009/knetsentinel</code></td><td><code>git@github.com:knet-lab/knetsentinel.git</code>（分支 master）</td></tr>
+        <tr><td><code>knet-lab/knetsentinel</code></td><td><code>/srv/netsentinel/knetsentinel</code></td><td><code>git@github.com:knet-lab/knetsentinel.git</code>（分支 master）</td></tr>
       </table></div>
       <ol>
         <li>组织的任意一位 Owner 打开 <code>https://github.com/orgs/knet-lab/people</code> → <b>Invite member</b> → 输入接手人的 GitHub 用户名。要能管理仓库和成员就给 <b>Owner</b>，只写代码给 <b>Member</b> 即可。</li>
@@ -131,7 +131,7 @@ ssh -T git@github.com            # 期望 Hi 你的用户名!；若是 Hi Wk-P! 
       <pre><code>sudo -iu soar009
 git config --global user.name  Wk-P
 git config --global user.email weekend2000119@gmail.com
-for r in ~/github/NetSentinel ~/knetsentinel; do
+for r in ~/github/NetSentinel /srv/netsentinel/knetsentinel; do
   git -C $r config --local --unset user.name
   git -C $r config --local --unset user.email
 done
