@@ -1,0 +1,82 @@
+# ─────────────────────────────────────────────────────────────
+# NetSentinel Detector — Kafka consumer + OCSVM inference
+#
+# 消费：ebpf-net-logs
+# 生产：detection-results
+# ─────────────────────────────────────────────────────────────
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: netsentinel
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: detector-config
+  namespace: netsentinel
+data:
+  KAFKA_BOOTSTRAP:  "192.168.100.200:9094,192.168.100.201:9094,192.168.100.202:9094,192.168.100.203:9094"
+  CONSUME_TOPIC:    "ebpf-net-logs"
+  GROUP_ID:         "vigil-detector"
+  FLOW_TIMEOUT_SEC: "5"
+  BATCH_SIZE:       "20"
+  DJANGO_WS_URL:    "ws://knettf.com:8080/ws/detector/push/"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netsentinel-detector
+  namespace: netsentinel
+  labels:
+    app: netsentinel-detector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: netsentinel-detector
+  template:
+    metadata:
+      labels:
+        app: netsentinel-detector
+    spec:
+      # 只调度到 worker 节点，不占用 master
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+      hostAliases:
+        - ip: "192.168.100.1"
+          hostnames:
+            - "knettf.com"
+      containers:
+        - name: detector
+          image: soar009/netsentinel-detector:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: detector-config
+          env:
+            - name: DJANGO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: detector-secret
+                  key: django-token
+          resources:
+            requests:
+              cpu:    "200m"
+              memory: "256Mi"
+            limits:
+              cpu:    "1000m"
+              memory: "512Mi"
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import confluent_kafka"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+      restartPolicy: Always

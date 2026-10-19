@@ -8,50 +8,25 @@ wheels/
 
 # Virtual environments
 .venv
-
-# docs
-docs/
-
-# vscode
-.vscode/
-
-# .venv
 .venv312/
 
-# claude
+# 编辑器 / 本地工具
+.vscode/
 .claude
-
-# cilium-vector
-cilium-vector/
-
-# cluster-setup
-cluster-setup/
-
-
-# dataset
-dataset/
-
-# hubble-scripts
-hubble-scripts/
-
-# ingress-controller
-ingress-controller/
-
-kafka/
-kafka-svc/
-
-logs/
-traffic/
 
 .env
 
-traffic_scripts
-kubeadm-cluster
-
+# 数据与运行产物（不进仓库）
+dataset/
+logs/
+docs/
 *.csv
+*.log
+*.pid
+*.done
+traffic_request/record_send_uuid.txt
 
-traffic_request/
-
-detector/
-
-simulation/
+# 旧的 minikube 脚本，路径已失效，不再维护
+cluster-setup/
+traffic_scripts
+simulation/monitor/monitor_report_*.txt

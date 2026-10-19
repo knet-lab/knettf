@@ -1,0 +1,1 @@
+kubectl exec -n kube-system cilium-wjswm -- tail -1 /var/run/cilium/hubble/events.log > ./record.log

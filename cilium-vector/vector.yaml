@@ -1,0 +1,148 @@
+# ─────────────────────────────────────────────────────────────
+# 前置条件：deploy.sh Step 8.5 会自动创建以下 Secret
+#   kubectl create secret generic vector-kafka-secret \
+#     --from-literal=bootstrap_servers="kafka-svc.default.svc.cluster.local:9092" \
+#     -n kube-system --dry-run=client -o yaml | kubectl apply -f -
+# ─────────────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-config
+  namespace: kube-system
+data:
+  vector.yaml: |
+
+    # ── 数据源：exec hubble observe，输出 JSON ───────────────
+    sources:
+      hubble_flows:
+        type: exec
+        mode: streaming
+        command:
+          - /usr/local/bin/hubble
+          - observe
+          - --follow
+          - --output=json
+          - --server=hubble-relay.kube-system.svc.cluster.local:4245
+        streaming:
+          respawn_on_exit: true
+          respawn_interval_secs: 5
+
+    # ── 转换：仅解析 JSON，原封不动转发 ────────────────────
+    transforms:
+      parse_flow:
+        type: remap
+        inputs:
+          - hubble_flows
+        source: |
+          parsed, err = parse_json(.message)
+          if err != null { abort }
+          . = parsed
+
+    # ── 输出：写入 Kafka ─────────────────────────────────────
+    sinks:
+      kafka_output:
+        type: kafka
+        inputs:
+          - parse_flow
+        bootstrap_servers: "${KAFKA_BOOTSTRAP}"
+        topic: "ebpf-net-logs"
+        encoding:
+          codec: json
+        batch:
+          max_events: 500
+          timeout_secs: 1
+        buffer:
+          type: memory
+          max_events: 50000
+          when_full: drop_newest
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vector
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vector
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "namespaces"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vector
+subjects:
+  - kind: ServiceAccount
+    name: vector
+    namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vector
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: vector
+  template:
+    metadata:
+      labels:
+        app: vector
+    spec:
+      serviceAccountName: vector
+      tolerations:
+        - operator: Exists
+      initContainers:
+        - name: install-hubble
+          image: quay.io/cilium/hubble:v0.13.0
+          command:
+            - cp
+            - /usr/bin/hubble
+            - /shared/hubble
+          volumeMounts:
+            - name: shared-bin
+              mountPath: /shared
+      containers:
+        - name: vector
+          image: timberio/vector:0.38.0-distroless-libc
+          args:
+            - --config
+            - /etc/vector/vector.yaml
+          env:
+            - name: KAFKA_BOOTSTRAP
+              valueFrom:
+                secretKeyRef:
+                  name: vector-kafka-secret
+                  key: bootstrap_servers
+            - name: VECTOR_LOG
+              value: "warn"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/vector
+              readOnly: true
+            - name: shared-bin
+              mountPath: /usr/local/bin
+              readOnly: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: config-volume
+          configMap:
+            name: vector-config
+        - name: shared-bin
+          emptyDir: {}
