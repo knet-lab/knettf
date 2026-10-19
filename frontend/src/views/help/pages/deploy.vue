@@ -2,14 +2,14 @@
   <div v-pre>
         <h1>改动上线</h1>
     <div class="meta">改了代码或配置之后，怎么让它在线上生效、会影响谁、怎么确认成功。<br>
-      流程固定为：在开发目录 <code class="vn">~/github/NetSentinel</code> 改并 <code>git commit</code> → 在 <code class="vn">~/github/NetSentinel</code> 里跑 <code>scripts/deploy.sh</code>，脚本把已提交的 main 拉到线上目录 <code class="vp">~/netsentinel-prod</code> 再构建、重启。两个目录的分工见 <a href="/help/index#envs">开发与生产</a>。其他改动按后面几节逐项做。</div>
+      流程固定为：在开发目录 <code class="vn">~/github/NetSentinel</code> 改并 <code>git commit</code>、<code>git push</code> 到 GitHub → 在 <code class="vn">~/github/NetSentinel</code> 里跑 <code>scripts/deploy.sh</code>，脚本把 GitHub 上的 main 拉到线上目录 <code class="vp">/srv/netsentinel/prod</code> 再构建、重启。两个目录的分工见 <a href="/help/index#envs">开发与生产</a>。其他改动按后面几节逐项做。</div>
 
     <section id="before">
       <h2>上线前</h2>
       <div class="task"><h4><span class="n">1</span>在开发环境验证并提交</h4>
         <div class="do"><div><pre class="on-dev"><code>cd <span class="vn">~/github/NetSentinel</span> && git status && git diff
 git add -A && git commit -m "说明"</code></pre>提交前先在开发环境（<code>runserver 8090</code> + <code>pnpm dev</code>）跑一遍。</div></div>
-        <div class="why"><div>部署脚本只认已提交的 main：线上目录 <code class="vp">~/netsentinel-prod</code> 执行 <code>git pull --ff-only</code>，没提交的改动不会上线（脚本会提示）。每次上线对应一个提交，出了问题能用 <code>git log</code> 查到是哪次改动、用 <code>git revert</code> 退回。</div></div>
+        <div class="why"><div>部署脚本只认 GitHub 上的 main：线上目录 <code class="vp">/srv/netsentinel/prod</code> 从 GitHub 执行 <code>git pull --ff-only</code>（用运行者自己的 GitHub 密钥），没 push 的提交不会上线。运行者必须在 <code>netsentinel</code> 组里；线上目录有本地改动时脚本拒绝部署。每次上线对应一个提交，出了问题能用 <code>git log</code> 查到是哪次改动、用 <code>git revert</code> 退回。</div></div>
         <div class="res"><div>只有你这次的改动。<code>dist/</code>、<code>.venv/</code>、<code>node_modules/</code>、<code>db.sqlite3</code>、<code>.env</code> 不提交。</div></div>
       </div>
       <div class="note"><span class="tag tag-k">K</span> knetsentinel 的脚本大多<b>不在 Git 里</b>，改之前先手动备份：<code>cp 03-deploy-5nodes.sh 03-deploy-5nodes.sh.bak_$(date +%F)</code>。</div>
@@ -19,7 +19,7 @@ git add -A && git commit -m "说明"</code></pre>提交前先在开发环境（<
       <h2>前端 / 后端代码：用部署脚本</h2>
 
       <div class="task"><h4><span class="n">1</span>改了前端代码（含 <code>src/views/help/pages/</code> 下的手册）</h4>
-        <div class="do"><div><pre class="on-both"><code>cd <span class="vn">~/github/NetSentinel</span> && scripts/deploy.sh -frontend</code></pre>脚本在 <code class="vp">~/netsentinel-prod</code> 里 <code>git pull</code> → <code>pnpm install --frozen-lockfile</code> → <code>pnpm build</code> → 重启 <code>netsentinel</code>。</div></div>
+        <div class="do"><div><pre class="on-both"><code>cd <span class="vn">~/github/NetSentinel</span> && scripts/deploy.sh -frontend</code></pre>脚本在 <code class="vp">/srv/netsentinel/prod</code> 里 <code>git pull</code> → <code>pnpm install --frozen-lockfile</code> → <code>pnpm build</code> → 重启 <code>netsentinel</code>。</div></div>
         <div class="why"><div>浏览器拿到的是 <code>frontend/dist/</code> 里构建好的文件，不是 <code>src/</code> 源码，不构建改动就不会出现。<code>--frozen-lockfile</code> 保证依赖版本和 <code>pnpm-lock.yaml</code> 一致。线上 <code>DEBUG=False</code>，WhiteNoise 只在进程启动时扫描一次 dist，新构建的文件（文件名带新哈希）要<b>重启后</b>才能被访问，所以脚本最后会重启服务，副作用同下面后端那一步。</div></div>
         <div class="res"><div>最后输出 <code>✓ netsentinel active，HTTP 200</code>。浏览器按 <span class="kbd">Ctrl</span>+<span class="kbd">F5</span> 强制刷新即可看到。<br><span class="bad">构建失败</span>：多半是 TypeScript 类型错误，按报错的文件和行号修改。线上不受影响，旧的 dist 还在。</div></div>
       </div>
@@ -40,7 +40,7 @@ git add -A && git commit -m "说明"</code></pre>提交前先在开发环境（<
     <section id="models">
       <h2>数据库结构（models.py）</h2>
       <div class="task"><h4><span class="n">1</span>先备份</h4>
-        <div class="do"><div><pre class="on-prod"><code>sqlite3 <span class="vp">~/netsentinel-prod</span>/backend/db.sqlite3 ".backup '<span class="vp">~/netsentinel-prod</span>/backend/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"
+        <div class="do"><div><pre class="on-prod"><code>sqlite3 <span class="vp">/srv/netsentinel/prod</span>/backend/db.sqlite3 ".backup '<span class="vp">/srv/netsentinel/prod</span>/backend/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"
 docker exec pg pg_dump -U vigil -Fc vigil &gt; ~/vigil_$(date +%F).dump     # 改 vigil 表时</code></pre></div></div>
         <div class="why"><div>迁移中途失败可能让表处于改了一半的状态，有备份才能退回去。</div></div>
         <div class="res"><div>生成备份文件，大小不为 0。</div></div>
@@ -54,8 +54,8 @@ docker exec pg pg_dump -U vigil -Fc vigil &gt; ~/vigil_$(date +%F).dump     # �
       </div>
       <div class="task"><h4><span class="n">3</span>执行并重启</h4>
         <div class="do"><div><pre class="on-both"><code>cd <span class="vn">~/github/NetSentinel</span> && scripts/deploy.sh -backend                          # default 库会自动 migrate
-cd <span class="vp">~/netsentinel-prod</span>/backend && ../.venv/bin/python manage.py migrate --database=vigil   # 只在改了 vigil 时
-systemctl --user restart netsentinel</code></pre></div></div>
+cd <span class="vp">/srv/netsentinel/prod</span>/backend && ../.venv/bin/python manage.py migrate --database=vigil   # 只在改了 vigil 时
+sudo systemctl restart netsentinel</code></pre></div></div>
         <div class="why"><div>vigil 是大表，ALTER 期间会锁表、阻塞写入，所以单独执行，并挑没有实验的时候做。</div></div>
         <div class="res"><div><code>showmigrations</code> 全部是 <code>[X]</code>，服务返回 200。</div></div>
       </div>
@@ -64,9 +64,9 @@ systemctl --user restart netsentinel</code></pre></div></div>
     <section id="deps">
       <h2>依赖</h2>
       <div class="task"><h4><span class="n">1</span>Python 依赖</h4>
-        <div class="do"><div>在开发目录 <code>uv add 包名</code> 并提交，然后：<pre class="on-both"><code>cd <span class="vn">~/github/NetSentinel</span> && scripts/deploy.sh -backend</code></pre>整个 <code>.venv</code> 要重建时先停服务：<pre class="on-prod"><code>systemctl --user stop netsentinel
-cd <span class="vp">~/netsentinel-prod</span> && rm -rf .venv && uv sync --frozen
-systemctl --user start netsentinel</code></pre></div></div>
+        <div class="do"><div>在开发目录 <code>uv add 包名</code> 并提交，然后：<pre class="on-both"><code>cd <span class="vn">~/github/NetSentinel</span> && scripts/deploy.sh -backend</code></pre>整个 <code>.venv</code> 要重建时先停服务：<pre class="on-prod"><code>sudo systemctl stop netsentinel
+cd <span class="vp">/srv/netsentinel/prod</span> && rm -rf .venv && uv sync --frozen
+sudo systemctl start netsentinel</code></pre></div></div>
         <div class="why"><div>服务配置了 <code>Restart=always</code>：<code>.venv</code> 不完整时它每 3 秒重启失败一次，日志会被刷满，所以重建前要先停。</div></div>
         <div class="res"><div>服务 active，返回 200。</div></div>
       </div>
@@ -81,21 +81,21 @@ cd <span class="vn">~/github/NetSentinel</span> && scripts/deploy.sh -frontend</
     <section id="model">
       <h2>检测模型文件（ads_ml）</h2>
       <div class="task"><h4><span class="n">1</span>替换文件</h4>
-        <div class="do"><div>新的 joblib / CSV 放到 <code class="vp">~/netsentinel-prod/backend/vigil/ml/ads_ml/trained/</code>；文件名变了就同步改 <code>config.yaml</code>。旧文件先改名留着。<br><code>ads_ml/</code> 整个目录不在 Git 里，<b>部署脚本不会同步它</b>：线上用 <code class="vp">~/netsentinel-prod</code> 那份，开发用 <code class="vn">~/github/NetSentinel</code> 那份，在开发目录试好后手动复制到 <code class="vp">~/netsentinel-prod</code>。</div></div>
+        <div class="do"><div>新的 joblib / CSV 放到 <code class="vp">/srv/netsentinel/prod/backend/vigil/ml/ads_ml/trained/</code>；文件名变了就同步改 <code>config.yaml</code>。旧文件先改名留着。<br><code>ads_ml/</code> 整个目录不在 Git 里，<b>部署脚本不会同步它</b>：线上用 <code class="vp">/srv/netsentinel/prod</code> 那份，开发用 <code class="vn">~/github/NetSentinel</code> 那份，在开发目录试好后手动复制到 <code class="vp">/srv/netsentinel/prod</code>。</div></div>
         <div class="why"><div>新模型不好用时，换回旧文件、重启就能回滚。</div></div>
         <div class="res"><div>文件就位。</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>离线自测</h4>
-        <div class="do"><div><pre class="on-prod"><code>cd <span class="vp">~/netsentinel-prod</span>/backend && ../.venv/bin/python -c "
+        <div class="do"><div><pre class="on-prod"><code>cd <span class="vp">/srv/netsentinel/prod</span>/backend && ../.venv/bin/python -c "
 import django,os;os.environ['DJANGO_SETTINGS_MODULE']='backend.settings';django.setup()
 from vigil.ml.models import registry;print(registry.list_models())"</code></pre></div></div>
         <div class="why"><div>模型加载失败时，后端照样能启动，只是不出检测结果。上线前先单独加载一次，确认能用。</div></div>
         <div class="res"><div>输出 <code>['ads_ml_ocsvm']</code>。空列表说明加载失败，常见原因是 scikit-learn 版本和训练时不一致（当前固定 1.7.2）。</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>生效</h4>
-        <div class="do"><div><pre class="on-prod"><code>systemctl --user restart netsentinel                      # 入口 A
+        <div class="do"><div><pre class="on-prod"><code>sudo systemctl restart netsentinel                      # 入口 A
 <span class="c"># 入口 B（已部署时）</span>
-cd <span class="vp">~/netsentinel-prod</span>/detector && bash build.sh
+cd <span class="vp">/srv/netsentinel/prod</span>/detector && bash build.sh
 kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code></pre></div></div>
         <div class="why"><div>模型在进程启动时加载一次。入口 B 的模型打包在镜像里，要重新 build 镜像。</div></div>
         <div class="res"><div>日志出现 <code>AdsMLModel loaded</code>；发一次测试流量（<a href="/help/power#verify">端到端验证</a>）能看到新记录。</div></div>
@@ -106,9 +106,9 @@ kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code></pre><
       <h2>其他改动对照表</h2>
       <div class="table-wrap"><table>
         <tr><th>改了什么</th><th>怎么做</th><th>为什么 / 结果</th></tr>
-        <tr><td>线上 <code class="vp">~/netsentinel-prod/backend/backend/.env</code></td><td>直接编辑（不进 Git）→ <code>systemctl --user restart netsentinel</code></td><td>环境变量只在进程启动时读一次；重启后用 <a href="/help/health">健康检查</a> 第 1 步确认</td></tr>
-        <tr><td>systemd unit 文件</td><td><code>systemctl --user daemon-reload</code> → restart</td><td>不 reload 的话 systemd 还在用旧定义；<code>systemctl --user cat netsentinel</code> 可确认</td></tr>
-        <tr><td>cloudflared 配置</td><td><code>systemctl --user restart cloudflared-knettf</code></td><td>公网会中断几秒</td></tr>
+        <tr><td>线上 <code class="vp">/srv/netsentinel/prod/backend/backend/.env</code></td><td>直接编辑（不进 Git）→ <code>sudo systemctl restart netsentinel</code></td><td>环境变量只在进程启动时读一次；重启后用 <a href="/help/health">健康检查</a> 第 1 步确认</td></tr>
+        <tr><td>systemd unit 文件</td><td><code>sudo systemctl daemon-reload</code> → restart</td><td>不 reload 的话 systemd 还在用旧定义；<code>systemctl cat netsentinel</code> 可确认</td></tr>
+        <tr><td>cloudflared 配置</td><td><code>sudo systemctl restart cloudflared-knettf</code></td><td>公网会中断几秒</td></tr>
         <tr><td>Kafka 地址变了</td><td>改 <code>vigil/bridge.py</code> 的 <code>KAFKA_BOOTSTRAP</code>（入口 B 改 ConfigMap）→ <code>deploy.sh -backend</code></td><td>地址是写死在代码里的；成功后日志有 <code>bridge starting</code> 且没有 <code>bridge error</code></td></tr>
         <tr><td>Vector 配置</td><td><code>kubectl apply -f ~/knetsentinel/cilium-vector/vector-5nodes.yaml</code> → <code>kubectl -n kube-system rollout restart ds/vector</code></td><td>重启期间的 Hubble 事件丢失，不会补发</td></tr>
         <tr><td>单个 Kafka broker</td><td><code>kubectl delete pod kafka-broker-N</code>，等它 Running 了再处理下一个</td><td>min.insync.replicas=2，同时停两个以上会导致写入失败；数据在 PVC 上，不会丢</td></tr>

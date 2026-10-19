@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>前端代码</h1>
     <div class="meta">读完你能：在本机跑起前端开发环境，读懂每个页面的代码，知道一个按钮点下去调了哪个接口，会改页面、加页面、构建上线。<br>
-      代码根目录 <code class="vn">~/github/NetSentinel/frontend/</code>（开发目录；线上的 <code class="vp">~/netsentinel-prod/frontend/</code> 只由 <code>deploy.sh</code> 构建，见 <a href="/help/index#envs">开发与生产</a>）。前置知识：会一点 HTML / JavaScript；Vue 不熟也没关系，本章按需讲。</div>
+      代码根目录 <code class="vn">~/github/NetSentinel/frontend/</code>（开发目录；线上的 <code class="vp">/srv/netsentinel/prod/frontend/</code> 只由 <code>deploy.sh</code> 构建，见 <a href="/help/index#envs">开发与生产</a>）。前置知识：会一点 HTML / JavaScript；Vue 不熟也没关系，本章按需讲。</div>
 
     <section id="stack">
       <h2>2.1 技术栈与版本</h2>
@@ -60,7 +60,7 @@
       <p>这是前端最容易搞混的地方：<b>线上没有单独的前端服务器</b>。</p>
       <div class="table-wrap"><table>
         <tr><th></th><th>开发模式</th><th>生产模式（现在线上）</th></tr>
-        <tr><td>启动</td><td><code class="vn">cd ~/github/NetSentinel/frontend &amp;&amp; pnpm dev</code></td><td><code>scripts/deploy.sh -frontend</code> 在 <code class="vp">~/netsentinel-prod</code> 里 <code>pnpm build</code> 生成 <code>dist/</code>，然后重启后端</td></tr>
+        <tr><td>启动</td><td><code class="vn">cd ~/github/NetSentinel/frontend &amp;&amp; pnpm dev</code></td><td><code>scripts/deploy.sh -frontend</code> 在 <code class="vp">/srv/netsentinel/prod</code> 里 <code>pnpm build</code> 生成 <code>dist/</code>，然后重启后端</td></tr>
         <tr><td>访问</td><td><code>http://localhost:5173</code></td><td><code>http://localhost:8080</code> / <code>https://knettf.com</code></td></tr>
         <tr><td>页面从哪来</td><td>Vite 实时编译，改代码浏览器自动刷新（HMR）</td><td>Django 的 WhiteNoise 中间件直接返回 <code>dist/</code> 里的文件（<code>settings.WHITENOISE_ROOT</code>）</td></tr>
         <tr><td><code>/api</code> 请求</td><td>Vite 代理到开发后端 <code>http://127.0.0.1:8090</code>（<code>vite.config.ts</code> 的 <code>server.proxy</code>）</td><td>同源，直接到后端</td></tr>

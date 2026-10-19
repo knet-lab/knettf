@@ -58,8 +58,8 @@ kubectl get svc -A | grep LoadBalancer</code></pre></div></div>
         <div class="res"><div>Everything rolled out; <code>kafka-0…3-external</code> are <code>.200–.203</code>.</div></div>
       </div>
       <div class="task"><h4><span class="n">4</span>Restart the backend (easy to forget)</h4>
-        <div class="do"><div><pre><code>systemctl --user restart netsentinel
-journalctl --user -u netsentinel --since '-1 min' | grep -E 'AdsMLModel|bridge|drainer'</code></pre></div></div>
+        <div class="do"><div><pre><code>sudo systemctl restart netsentinel
+sudo journalctl -u netsentinel --since '-1 min' | grep -E 'AdsMLModel|bridge|drainer'</code></pre></div></div>
         <div class="why"><div>The bridge thread gave up when Kafka was not there at boot and does not reconnect.</div></div>
         <div class="res"><div><code>AdsMLModel loaded</code>, <code>bridge starting</code>, no <code>bridge error</code>. New records appear in <code>/vigil/log</code>.</div></div>
       </div>
@@ -69,11 +69,11 @@ journalctl --user -u netsentinel --since '-1 min' | grep -E 'AdsMLModel|bridge|d
       <h2>Backup</h2>
       <div class="table-wrap"><table>
         <tr><th>What</th><th>Command</th></tr>
-        <tr><td>Users / clusters / Terraform</td><td><code>sqlite3 ~/netsentinel-prod/backend/db.sqlite3 ".backup '/home/soar009/db_backup_$(date +%F).sqlite3'"</code></td></tr>
+        <tr><td>Users / clusters / Terraform</td><td><code>sqlite3 /srv/netsentinel/prod/backend/db.sqlite3 ".backup '/home/soar009/db_backup_$(date +%F).sqlite3'"</code></td></tr>
         <tr><td>Detection records</td><td><code>docker exec pg pg_dump -U vigil -Fc vigil > ~/vigil_$(date +%F).dump</code></td></tr>
-        <tr><td>Secrets</td><td><code>cp ~/netsentinel-prod/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td></tr>
-        <tr><td>Lab scripts</td><td><code>tar czf ~/knetsentinel_$(date +%F).tgz -C ~ --exclude='knetsentinel/.venv' knetsentinel</code></td></tr>
-        <tr><td>Crontab</td><td><code>crontab -l > ~/crontab_$(date +%F)</code></td></tr>
+        <tr><td>Secrets</td><td><code>cp /srv/netsentinel/prod/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td></tr>
+        <tr><td>Lab scripts</td><td><code>tar czf /srv/netsentinel/backups/knetsentinel_$(date +%F).tgz -C /srv/netsentinel --exclude='knetsentinel/.venv' knetsentinel</code></td></tr>
+        <tr><td>Daily job</td><td><code>/etc/cron.d/netsentinel</code> (source <code>deploy/cron.netsentinel</code> in the repo)</td></tr>
       </table></div>
       <div class="danger">Rebuilding Kafka or the whole cluster deletes data and takes up to two hours. Back up first and follow the Chinese handbook page 开关机 · 重建 · 备份 step by step.</div>
     </section>

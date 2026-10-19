@@ -33,11 +33,10 @@ kubectl get nodes</code></pre></div></div>
 
     <section id="services">
       <h2>Running the services</h2>
-      <p>The backend, tunnel and crontab still belong to the user <code>soar009</code>. Switch to it to manage them, then leave:</p>
-      <pre><code>sudo -iu soar009
-systemctl --user status netsentinel cloudflared-knettf
-systemctl --user restart netsentinel
-exit</code></pre>
+      <p>The backend and tunnel are system services running as the account <code>netsentinel</code>; the daily job is <code>/etc/cron.d/netsentinel</code>. Manage them from your own account with sudo:</p>
+      <pre><code>sudo systemctl status netsentinel cloudflared-knettf
+sudo systemctl restart netsentinel
+sudo journalctl -u netsentinel -f</code></pre>
       <div class="note">Never <code>git commit</code> while switched to <code>soar009</code>: the commit would be recorded under the original author's name.</div>
     </section>
 
@@ -118,7 +117,7 @@ sudo -iu soar009 git -C /home/soar009/github/NetSentinel push --dry-run</code></
         <tr><th>#</th><th>Run</th><th>Expect</th></tr>
         <tr><td>1</td><td><code>ssh NEWUSER@192.168.0.247</code></td><td>Logs in with your key, no password</td></tr>
         <tr><td>2</td><td><code>id</code></td><td>Exactly the approved groups</td></tr>
-        <tr><td>3</td><td><code>sudo -iu soar009 systemctl --user is-active netsentinel</code></td><td><code>active</code></td></tr>
+        <tr><td>3</td><td><code>sudo systemctl is-active netsentinel cloudflared-knettf</code></td><td><code>active</code></td></tr>
         <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 nodes <code>Ready</code></td></tr>
         <tr><td>5</td><td><code>ssh -T git@github.com</code></td><td><code>Hi your-name!</code></td></tr>
         <tr><td>6</td><td>Commit and push a test branch in both repositories</td><td>GitHub shows you as the author</td></tr>

@@ -55,7 +55,9 @@ prep() {
   /usr/local/bin/uv --version; /usr/local/bin/node -v; /usr/local/bin/pnpm -v
 
   log "git 允许组成员操作 netsentinel 拥有的仓库"
-  sudo git config --system --get-all safe.directory 2>/dev/null | grep -qx $PROD || sudo git config --system --add safe.directory $PROD
+  for r in $PROD $KNET; do
+    sudo git config --system --get-all safe.directory 2>/dev/null | grep -qx "$r" || sudo git config --system --add safe.directory "$r"
+  done
 
   log "预复制代码 + 建 venv（线上不受影响）"
   copy_tree "$OLD" "$PROD"

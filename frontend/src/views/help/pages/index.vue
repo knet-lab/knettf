@@ -99,7 +99,7 @@
         <tr><td>default 数据库</td><td><code class="vp">/srv/netsentinel/prod/backend/db.sqlite3</code>（开发用 <code class="vn">~/github/NetSentinel/backend/db.sqlite3</code>）</td><td>SQLite：用户、集群、Terraform 配置、扫描报告</td></tr>
         <tr><td>vigil 数据库</td><td>Docker 容器 <code>pg</code>，<code>127.0.0.1:5432</code>，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>，用户 <code>vigil</code></td><td>PostgreSQL：检测记录（按天分区）</td></tr>
         <tr><td>模型文件</td><td><code class="vp">/srv/netsentinel/prod/backend/vigil/ml/ads_ml/trained/</code></td><td>OCSVM 流水线、攻击原型、训练数据</td></tr>
-        <tr><td>后端服务定义</td><td><code>~/.config/systemd/user/netsentinel.service</code></td><td>用户级 systemd 服务</td></tr>
+        <tr><td>后端服务定义</td><td><code>deploy/systemd/netsentinel.service</code></td><td>装到 <code>/etc/systemd/system/</code> 的系统服务，以 <code>netsentinel</code> 账户运行</td></tr>
         <tr><td>集群脚本</td><td><code>~/knetsentinel/kubeadm-cluster/</code></td><td>00 清理 / 01 建 VM / 02 装集群 / 03 部署数据管道</td></tr>
         <tr><td>集群凭证</td><td><code>~/.kube/config</code></td><td>宿主机上 <code>kubectl</code> 用它；登记集群时把它的内容贴到网页上</td></tr>
         <tr><td>VM 磁盘</td><td><code>~/vm-images/</code></td><td>5 个 qcow2 + Ubuntu 22.04 cloud image</td></tr>
@@ -167,7 +167,7 @@
    ▼
  阶段 7 <span class="c">[N]</span> 前端：pnpm install → pnpm build（产出 dist，后端才能提供页面）
    ▼
- 阶段 8 <span class="c">[N]</span> 服务：systemd netsentinel（:8080）→ cloudflared → crontab rotate_partitions
+ 阶段 8 <span class="c">[N]</span> 服务：systemd netsentinel（:8080）→ cloudflared → /etc/cron.d/netsentinel rotate_partitions
    ▼
  阶段 9 <span class="c">[K+N]</span> 联通：确认 Kafka 有数据 → 重启后端（bridge 连 Kafka）→ 前端登记集群 kubeconfig
    ▼
