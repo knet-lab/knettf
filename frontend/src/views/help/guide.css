@@ -6,25 +6,7 @@
 }
 .guide-body { flex: 1; min-width: 0; overflow-y: auto; }
 .guide h1, .guide h2, .guide h3, .guide h4 { font-weight: 700; }
-.guide .sidebar {
-  width: 250px; flex-shrink: 0; background: #0f172a; color: #a0aec0;
-  height: 100%; overflow-y: auto;
-}
-.guide .sidebar-logo { padding: 22px 20px 14px; font-size: 16px; font-weight: 700; color: #fff; border-bottom: 1px solid #2d3748; }
-.guide .sidebar-logo span { font-size: 11px; font-weight: 400; color: #718096; display: block; margin-top: 4px; }
-.guide .nav-section { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #4a5568; padding: 16px 20px 6px; }
-.guide .nav-page {
-  display: block; padding: 9px 20px; font-size: 13.5px; color: #cbd5e0; text-decoration: none;
-  border-left: 3px solid transparent;
-}
-.guide .nav-page:hover { background: #2d3748; color: #fff; }
-.guide .nav-page.current { background: #1e3a5f; color: #fff; border-left-color: #3b82f6; font-weight: 600; }
-.guide .nav-item {
-  display: block; padding: 6px 20px 6px 34px; font-size: 12.5px; color: #a0aec0; text-decoration: none;
-  border-left: 3px solid transparent;
-}
-.guide .nav-item:hover { background: #2d3748; color: #e2e8f0; }
-.guide .nav-item.active { color: #fff; border-left-color: #60a5fa; }
+.guide .sidebar { flex-shrink: 0; height: 100%; overflow-y: auto; }
 .guide .main { flex: 1; min-width: 0; padding: 32px 40px 80px; max-width: 1240px; margin: 0 auto; }
 .guide h1 { font-size: 25px; margin-bottom: 6px; color: #1a202c; }
 .guide .meta { font-size: 13px; color: #718096; margin-bottom: 26px; line-height: 1.7; }
@@ -188,7 +170,9 @@
 .guide .current > .sb-link { background: color-mix(in srgb, var(--g) 9%, #fff); color: #0f172a; font-weight: 700; }
 .guide .sb-toc { margin: 2px 0 6px 46px; border-left: 2px solid #f1f5f9; }
 .guide .sb-toc .nav-item { display: block; padding: 4px 10px; margin-left: -2px; font-size: 12.5px; line-height: 1.5; color: #64748b; text-decoration: none; border-left: 2px solid transparent; }
-.guide .sb-toc .nav-item:hover { color: #0f172a; }
+.guide .sb-toc .nav-item { border-radius: 0 6px 6px 0; transition: background .15s, color .15s, border-color .15s; }
+.guide .sb-toc .nav-item:hover { color: #0f172a; background: #f8fafc; border-left-color: #cbd5e1; }
+.guide .sb-toc .nav-item.active:hover { border-left-color: var(--g); }
 .guide .sb-toc .nav-item.active { color: #0f172a; font-weight: 600; border-left-color: var(--g); }
 
 /* ── 正文顶部：当前是第几步 ── */
