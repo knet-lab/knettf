@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>后端代码</h1>
     <div class="meta">读完你能：说出一个 HTTP 请求在后端经过的每一步，读懂三个应用的每个文件，会跑管理命令、加接口、改数据库结构。<br>
-      代码根目录 <code>$N/backend/</code>（开发），线上运行的是 <code>$P/backend/</code>（见 <a href="/help/index#envs">开发与生产</a>）。<code>manage.py</code> 命令在对应目录里用 <code>../.venv/bin/python manage.py ...</code> 执行：调试、生成迁移在 <code>$N</code>；操作线上数据（改密码、补分区）在 <code>$P</code>。逐个接口的参数与响应示例见 <a href="/help/api">API 逐接口</a>，表字段见 <a href="/help/db">数据库与模型字段</a>。</div>
+      代码根目录 <code class="vn">$N/backend/</code>（开发），线上运行的是 <code class="vp">$P/backend/</code>（见 <a href="/help/index#envs">开发与生产</a>）。<code>manage.py</code> 命令在对应目录里用 <code>../.venv/bin/python manage.py ...</code> 执行：调试、生成迁移在 <code class="vn">$N</code>；操作线上数据（改密码、补分区）在 <code class="vp">$P</code>。逐个接口的参数与响应示例见 <a href="/help/api">API 逐接口</a>，表字段见 <a href="/help/db">数据库与模型字段</a>。</div>
 
     <section id="django">
       <h2>3.1 Django 五分钟入门（只讲本项目用到的）</h2>
@@ -23,16 +23,16 @@
 
     <section id="start">
       <h2>3.2 进程是怎么起来的</h2>
-<pre><code>systemd（~/.config/systemd/user/netsentinel.service）
-  WorkingDirectory=$P/backend
-  ExecStart=$P/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
+<pre class="on-prod"><code>systemd（~/.config/systemd/user/netsentinel.service）
+  WorkingDirectory=<span class="vp">$P</span>/backend
+  ExecStart=<span class="vp">$P</span>/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
   Restart=always  RestartSec=3  MemoryMax=3G  MemorySwapMax=0  TasksMax=500
       │
       ▼
 uvicorn 导入 backend/asgi.py
   ├─ os.environ DJANGO_SETTINGS_MODULE=backend.settings
   ├─ django.setup()
-  │    ├─ 读 settings.py（读 $P/backend/backend/.env：DEBUG=False、SECRET_KEY、VIGIL_DB_NAME=vigil …）
+  │    ├─ 读 settings.py（读 <span class="vp">$P</span>/backend/backend/.env：DEBUG=False、SECRET_KEY、VIGIL_DB_NAME=vigil …）
   │    ├─ 加载 INSTALLED_APPS，逐个调用 AppConfig.ready()
   │    │    └─ vigil/apps.py ready()：_should_start_bridge() 判断 argv[0] 含 uvicorn → True
   │    │         └─ bridge.start()：起两个守护线程 vigil-drainer、vigil-bridge（<a href="/help/detect">《检测链路与模型》</a>）
@@ -121,8 +121,8 @@ return self.success_response({'resources': [r.to_dict() for r in resources]})</c
       </table></div>
       <p>为什么拆两个库：检测记录量大、要按天分区和自动删除，适合 PostgreSQL；其余数据很少，SQLite 足够且免维护。代价是跨库没有外键（检测记录不关联用户）。</p>
       <p>常用的看库命令：</p>
-<pre><code>sqlite3 $P/backend/db.sqlite3 ".tables"
-sqlite3 $P/backend/db.sqlite3 "select id,username,is_staff,is_active from kcore_user;"
+<pre class="on-prod"><code>sqlite3 <span class="vp">$P</span>/backend/db.sqlite3 ".tables"
+sqlite3 <span class="vp">$P</span>/backend/db.sqlite3 "select id,username,is_staff,is_active from kcore_user;"
 docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql，\d+ vigil_detectionrecord 看结构，\q 退出</span></code></pre>
     </section>
 
@@ -232,7 +232,7 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
 
     <section id="cmds">
       <h2>3.10 manage.py 命令速查</h2>
-<pre><code>cd $N/backend      # 开发；操作线上数据时换成 $P/backend
+<pre class="on-both"><code>cd <span class="vn">$N</span>/backend      # 开发；操作线上数据时换成 <span class="vp">$P</span>/backend
 PY=../.venv/bin/python</code></pre>
       <div class="table-wrap"><table>
         <tr><th>命令</th><th>做什么</th></tr>
@@ -250,7 +250,7 @@ PY=../.venv/bin/python</code></pre>
         <tr><td><code>$PY manage.py generate_bridge_token [--username vigil-bridge] [--years 10] [--write-env]</code></td><td>生成长期 JWT 并写入 <code>backend/backend/.env</code>（需重启服务生效）</td></tr>
         <tr><td><code>$PY manage.py rotate_partitions [--database vigil] [--dry-run]</code></td><td>建明天分区、删 90 天前的分区（crontab 每天 0 点跑）</td></tr>
         <tr><td><code>$PY manage.py test kcore autotf</code></td><td>跑单元测试：145 个用例，约 5 分钟（2026-10-18 全部通过）。测试库为临时 SQLite，不影响线上数据</td></tr>
-        <tr><td><code>$PY manage.py runserver 8090</code></td><td>开发服务器（只在 <code>$N</code> 里跑；8000 被别的项目占用）。<b>会启动 bridge</b>，见 3.2</td></tr>
+        <tr><td><code>$PY manage.py runserver 8090</code></td><td>开发服务器（只在 <code class="vn">$N</code> 里跑；8000 被别的项目占用）。<b>会启动 bridge</b>，见 3.2</td></tr>
       </table></div>
     </section>
 
@@ -274,7 +274,7 @@ PY=../.venv/bin/python</code></pre>
         <div class="step"><div class="step-title">url：<code>vigil/urls.py</code> 加</div>
 <pre><code>path("top-sources/", views.TopSourcesView.as_view(), name="vigil-top-sources"),</code></pre></div>
         <div class="step"><div class="step-title">检查并重启</div>
-<pre><code>cd $N/backend &amp;&amp; ../.venv/bin/python manage.py check
+<pre class="on-dev"><code>cd <span class="vn">$N</span>/backend &amp;&amp; ../.venv/bin/python manage.py check
 ../.venv/bin/python manage.py runserver 8090      # runserver 改代码自动重载</code></pre></div>
         <div class="step"><div class="step-title">用 curl 验证</div>
 <pre><code>TOKEN=$(curl -s -X POST localhost:8090/api/auth/token/ -H 'Content-Type: application/json' \
@@ -282,12 +282,12 @@ PY=../.venv/bin/python</code></pre>
 curl -s "localhost:8090/api/vigil/top-sources/?limit=3" -H "Authorization: Bearer $TOKEN" | python3 -m json.tool</code></pre>
           <div class="expect">预期：<code>{"status":"success","code":0,"message":"Success","data":{"sources":[{"src_ip":"192.168.100.23","count":...}]}}</code></div></div>
         <div class="step"><div class="step-title">写测试（可选但推荐）</div><p>参照 <code>vigil/tests.py</code> 的写法加一个用例。</p></div>
-        <div class="step"><div class="step-title">提交并上线</div><pre><code>cd $N &amp;&amp; git add -A &amp;&amp; git commit -m "vigil: top-sources 接口" &amp;&amp; scripts/deploy.sh -backend</code></pre></div>
+        <div class="step"><div class="step-title">提交并上线</div><pre class="on-both"><code>cd <span class="vn">$N</span> &amp;&amp; git add -A &amp;&amp; git commit -m "vigil: top-sources 接口" &amp;&amp; scripts/deploy.sh -backend</code></pre></div>
       </div>
       <h3>改数据库结构的流程</h3>
       <ul>
-        <li><b>kcore / autotf</b>（SQLite）：在 <code>$N</code> 改 models.py → <code>makemigrations</code> → <code>sqlmigrate</code> 看 SQL → 在开发库 <code>migrate</code> 试 → 提交 → 备份线上 <code>$P/backend/db.sqlite3</code> → <code>deploy.sh -backend</code>（自动 migrate default）。</li>
-        <li><b>vigil</b>（<code>managed=False</code>）：改 models.py 只生成不执行 SQL 的状态迁移。真正改表要在迁移里加 <code>migrations.RunSQL("ALTER TABLE vigil_detectionrecord ADD COLUMN ...", reverse_sql=...)</code>；对父表的 ALTER 自动作用于所有分区。先在开发库（<code>vigil_dev</code>）<code>migrate --database=vigil</code> 试，部署后再在 <code>$P</code> 里对线上库执行。</li>
+        <li><b>kcore / autotf</b>（SQLite）：在 <code class="vn">$N</code> 改 models.py → <code>makemigrations</code> → <code>sqlmigrate</code> 看 SQL → 在开发库 <code>migrate</code> 试 → 提交 → 备份线上 <code class="vp">$P/backend/db.sqlite3</code> → <code>deploy.sh -backend</code>（自动 migrate default）。</li>
+        <li><b>vigil</b>（<code>managed=False</code>）：改 models.py 只生成不执行 SQL 的状态迁移。真正改表要在迁移里加 <code>migrations.RunSQL("ALTER TABLE vigil_detectionrecord ADD COLUMN ...", reverse_sql=...)</code>；对父表的 ALTER 自动作用于所有分区。先在开发库（<code>vigil_dev</code>）<code>migrate --database=vigil</code> 试，部署后再在 <code class="vp">$P</code> 里对线上库执行。</li>
       </ul>
     </section>
   </div>

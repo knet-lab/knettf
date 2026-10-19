@@ -44,10 +44,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const form = ref({ username: '', password: '' })
@@ -63,7 +64,10 @@ async function handleLogin() {
     error.value = err
     return
   }
-  if (auth.isAdmin) {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
+    router.push(redirect)
+  } else if (auth.isAdmin) {
     router.push('/admin/dashboard')
   } else {
     router.push('/kcore')

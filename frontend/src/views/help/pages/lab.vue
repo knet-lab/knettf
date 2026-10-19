@@ -90,11 +90,11 @@ tail -f send.log read.log</code></pre>
       </table></div>
       <div class="danger">后端<b>没有</b> <code>ws/vigil/</code> 这个路由（只有 <code>ws/detector/push/</code> 和 Pod 日志），所以 <code>run.sh</code> 的 monitor 目前连不上、拿不到结果。评估改用 SQL 或 REST：<br>
         <code>docker exec pg psql -U vigil vigil -c "select src_ip, is_attack, attack_type, count(*) from vigil_detectionrecord where created_at &gt; now() - interval '5 min' group by 1,2,3 order by 4 desc;"</code></div>
-<pre><code><span class="c"># 在线仿真（结果用上面的 SQL 看）</span>
+<pre class="on-dev"><code><span class="c"># 在线仿真（结果用上面的 SQL 看）</span>
 cd $K &amp;&amp; sudo .venv/bin/python3 simulation/simulate_3.py
 
 <span class="c"># 离线评估：必须用 NetSentinel 的 venv，因为要导入 Django 和模型</span>
-cd $K/simulation &amp;&amp; $N/.venv/bin/python simulate_4.py</code></pre>
+cd $K/simulation &amp;&amp; <span class="vn">$N</span>/.venv/bin/python simulate_4.py</code></pre>
       <p>注意 .170-.184 不在 bridge 的标签规则里，仿真流量的 label 为空，算准确率时要用源 IP 自己判断。</p>
     </section>
 

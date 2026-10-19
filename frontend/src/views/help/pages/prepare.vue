@@ -148,7 +148,7 @@ git config --global --list</code></pre>
 cd /srv/netsentinel/knetsentinel
 git remote set-url origin git@github.com:Wk-P/knetsentinel.git   # 原来是 HTTPS，改成 SSH 才能用密钥 push</code></pre>
       <p><b>还没迁移</b>：你的账户对 soar009 的目录只有读权限，只能克隆到自己家目录开发：</p>
-      <pre><code>mkdir -p ~/github && cd ~/github
+      <pre class="on-prod"><code>mkdir -p ~/github && cd ~/github
 git clone git@github.com:Wk-P/NetSentinel.git
 git clone git@github.com:Wk-P/knetsentinel.git ~/knetsentinel
 # 改完 push 到 GitHub 后，部署到线上：
@@ -194,7 +194,7 @@ git switch main && git push origin --delete test/handover && git branch -D test/
     <section id="transition">
       <h2>2.1 日常怎么操作服务（迁移前）</h2>
       <p>迁移（3.1）之前，后端、隧道、crontab 都是 soar009 的，你直接执行 <code>systemctl --user</code> 看到的是自己的（空的）。用 sudo 切过去：</p>
-      <pre><code>sudo -iu soar009                         # 输入的是你自己的密码
+      <pre class="on-prod"><code>sudo -iu soar009                         # 输入的是你自己的密码
 systemctl --user status netsentinel cloudflared-knettf
 systemctl --user restart netsentinel
 journalctl --user -u netsentinel -f
@@ -231,7 +231,7 @@ sudo usermod -aG netsentinel NEWUSER
 sudo mkdir -p /srv/netsentinel</code></pre>
 
       <h3>第 2 步：停服务、搬代码（三个目录）</h3>
-      <pre><code>sudo -iu soar009 systemctl --user stop cloudflared-knettf netsentinel
+      <pre class="on-prod"><code>sudo -iu soar009 systemctl --user stop cloudflared-knettf netsentinel
 sudo mv /home/soar009/github/NetSentinel /srv/netsentinel/NetSentinel
 sudo mv /home/soar009/knetsentinel        /srv/netsentinel/knetsentinel
 sudo mv /home/soar009/terraform           /srv/netsentinel/terraform     # autotf 用的 checkov
@@ -311,7 +311,7 @@ EOF
 sudo touch /var/log/netsentinel-rotate.log && sudo chown soar009:netsentinel /var/log/netsentinel-rotate.log</code></pre>
 
       <h3>第 7 步：切换并验证</h3>
-      <pre><code>sudo -iu soar009 systemctl --user disable netsentinel cloudflared-knettf
+      <pre class="on-prod"><code>sudo -iu soar009 systemctl --user disable netsentinel cloudflared-knettf
 sudo systemctl daemon-reload
 sudo systemctl enable --now netsentinel cloudflared-knettf
 sudo systemctl status netsentinel cloudflared-knettf

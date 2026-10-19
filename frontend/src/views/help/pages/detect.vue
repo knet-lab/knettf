@@ -146,7 +146,7 @@ def detect_batch(flows, model_name=None):
         <div class="step"><div class="step-title">零样本学习 <code>zero_shot_learning(X_pca, prediction, prototypes)</code></div>
           <p>正常样本：<code>Normal</code>，相似度 0。攻击样本：与每个攻击类别的每个原型算余弦相似度，取最高的；≥ <code>SEEN_SIM_THRESHOLD=0.50</code> 则为该类（<code>Seen_Attack</code>），否则 <code>Unknown_Attack</code>。</p>
           <p>当前原型里的类别名就是前端日志页写死的 9 个：<code>Dos-TCP SYN flood</code>、<code>ddos-TCP SYN flood</code>、<code>DoS Get</code>、<code>TCP sequence prediction</code>、<code>Slowloris</code>、<code>Slow-body</code>、<code>Slow-read</code>、<code>Slow-range</code>、<code>Credentials hijacking</code>。查看实际名字：</p>
-<pre><code>cd $P/backend &amp;&amp; ../.venv/bin/python -c "import joblib;print(list(joblib.load('vigil/ml/ads_ml/trained/multi_attack_semantic_prototypes_kmeans.joblib')))"</code></pre></div>
+<pre class="on-prod"><code>cd <span class="vp">$P</span>/backend &amp;&amp; ../.venv/bin/python -c "import joblib;print(list(joblib.load('vigil/ml/ads_ml/trained/multi_attack_semantic_prototypes_kmeans.joblib')))"</code></pre></div>
         <div class="step"><div class="step-title">报告 <code>report_results(...)</code></div><p>把这一条写到 <code>results/Anomaly_Detection_Report.csv</code>（覆盖）。</p></div>
       </div>
       <h3>适配器 <code>ml/models/ads_ml_model.py</code></h3>
@@ -196,10 +196,10 @@ docker exec pg psql -U vigil vigil -c "create table if not exists vigil_detectio
       <h3>与入口 A 的差异（重要）</h3>
       <div class="note"><code>detector.py</code> 的 <code>_infer()</code> <b>不是</b>调用 <code>ads_ml/main.py</code>，而是自己重写的简化版：异常判断用 <code>decision_function</code> 按训练集最小最大值归一化后与 <code>REVIEW_THRESHOLD</code> 比较，没有余弦复核；ZSL 用 <code>prototypes.values()</code> 直接算相似度（假设原型文件是 <code>{名字: 向量}</code> 结构，而当前文件是 <code>{名字: {"prototypes": [...]}}</code>）。所以 A、B 的结果不可直接对比，部署 B 前要先在本地验证它能跑通。后端收到 B 的结果时 <code>model_name</code> 一律记为 <code>ads_ml_ocsvm</code>。</div>
       <h3>部署步骤</h3>
-<pre><code>cd $N/detector &amp;&amp; bash build.sh
+<pre class="on-both"><code>cd <span class="vn">$N</span>/detector &amp;&amp; bash build.sh
 kubectl create ns netsentinel --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n netsentinel create secret generic detector-secret \
-  --from-literal=django-token="$(grep ^VIGIL_BRIDGE_TOKEN= $P/backend/backend/.env | cut -d= -f2-)" \
+  --from-literal=django-token="$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">$P</span>/backend/backend/.env | cut -d= -f2-)" \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f $K/detector/detector-deployment.yaml
 kubectl -n netsentinel logs deploy/netsentinel-detector -f     <span class="c"># 应看到 connected to Django</span></code></pre>
@@ -209,8 +209,8 @@ kubectl -n netsentinel logs deploy/netsentinel-detector -f     <span class="c">#
     <section id="entryc">
       <h2>4.10 入口 C：宿主机脚本 <span class="tag tag-k">K</span> <code>kafka/vigil_bridge.py</code></h2>
       <p>按 5 元组维护 <code>FlowState</code>，一条流超过 <code>--window</code>（默认 5 秒）没有新包就结束，凑够 <code>--batch-size</code>（默认 20）条就 <code>POST {backend}/api/vigil/detect/batch/</code>。切流方式与训练数据一致，适合做对比实验。</p>
-<pre><code>cd $K
-TOKEN=$(grep ^VIGIL_BRIDGE_TOKEN= $P/backend/backend/.env | cut -d= -f2-)   <span class="c"># 10 年有效的 JWT</span>
+<pre class="on-prod"><code>cd $K
+TOKEN=$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">$P</span>/backend/backend/.env | cut -d= -f2-)   <span class="c"># 10 年有效的 JWT</span>
 uv run python kafka/vigil_bridge.py --backend http://localhost:8080 --token "$TOKEN" --window 5 --batch-size 20</code></pre>
       <p>同样要先关入口 A。</p>
     </section>
@@ -219,11 +219,11 @@ uv run python kafka/vigil_bridge.py --backend http://localhost:8080 --token "$TO
       <h2>4.11 实战：换模型与加模型</h2>
       <h3>只换模型文件（同结构）</h3>
       <ol>
-        <li>备份：<code>tar czf ~/ads_ml_$(date +%F).tgz -C $P/backend/vigil/ml ads_ml/trained ads_ml/config.yaml</code></li>
+        <li>备份：<code class="vp">tar czf ~/ads_ml_$(date +%F).tgz -C $P/backend/vigil/ml ads_ml/trained ads_ml/config.yaml</code></li>
         <li>把新文件放进 <code>trained/</code>，文件名不同就改 <code>config.yaml</code>。</li>
         <li>确认 scikit-learn 版本与训练时一致（当前锁定 1.7.2，见 <code>pyproject.toml</code>），不一致 joblib 加载会报错或给出错误结果。</li>
         <li>离线自测：
-<pre><code>cd $P/backend &amp;&amp; ../.venv/bin/python -c "
+<pre class="on-prod"><code>cd <span class="vp">$P</span>/backend &amp;&amp; ../.venv/bin/python -c "
 import os,django;os.environ['DJANGO_SETTINGS_MODULE']='backend.settings';django.setup()
 from vigil.ml.models import registry, flow_from_dict, run_all
 print(registry.list_models())

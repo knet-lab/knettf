@@ -144,8 +144,8 @@ kubectl exec kafka-broker-0 -- /opt/kafka/bin/kafka-console-consumer.sh --bootst
     <section id="hostsvc">
       <h2>5.10 宿主机上的服务（NetSentinel 侧）</h2>
       <h3>后端：<code>~/.config/systemd/user/netsentinel.service</code></h3>
-<pre><code>[Service]
-WorkingDirectory=/home/soar009/netsentinel-prod/backend      <span class="c"># 线上目录 $P，不是开发目录</span>
+<pre class="on-prod"><code>[Service]
+WorkingDirectory=/home/soar009/netsentinel-prod/backend      <span class="c"># 线上目录 <span class="vp">$P</span>，不是开发目录</span>
 Environment=DJANGO_SETTINGS_MODULE=backend.settings
 ExecStart=/home/soar009/netsentinel-prod/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
 Restart=always          RestartSec=3       <span class="c"># 挂了 3 秒后自动拉起</span>
@@ -163,14 +163,14 @@ ingress:
       <h3>PostgreSQL：Docker 容器 <code>pg</code></h3>
       <p>镜像 <code>postgres</code>（当前 18.4），<code>--restart unless-stopped</code>，端口 <code>5432:5432</code>，数据卷挂在 <code>/var/lib/postgresql</code>。库 / 用户 / 密码 <code>vigil / vigil / vigil123</code>。注意 <code>unless-stopped</code>：你手动 <code>docker stop pg</code> 后，开机<b>不会</b>自动启动它。</p>
       <h3>crontab</h3>
-<pre><code>0 0 * * * $P/.venv/bin/python $P/backend/manage.py rotate_partitions --database vigil &gt;&gt; /tmp/rotate_partitions.log 2&gt;&amp;1</code></pre>
-      <p>必须用 <code>$P</code>：开发目录 <code>$N</code> 的默认库是 <code>vigil_dev</code>，用它跑分区会建错库。按宿主机本地时间 0 点执行，而分区边界是 UTC。只要每天都跑，明天的分区总会提前建好。<code>/tmp</code> 下的日志重启后清空。</p>
+<pre class="on-prod"><code>0 0 * * * <span class="vp">$P</span>/.venv/bin/python <span class="vp">$P</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /tmp/rotate_partitions.log 2&gt;&amp;1</code></pre>
+      <p>必须用 <code class="vp">$P</code>：开发目录 <code class="vn">$N</code> 的默认库是 <code>vigil_dev</code>，用它跑分区会建错库。按宿主机本地时间 0 点执行，而分区边界是 UTC。只要每天都跑，明天的分区总会提前建好。<code>/tmp</code> 下的日志重启后清空。</p>
     </section>
 
     <section id="bootstrap">
       <h2>5.11 从零到可用的完整顺序</h2>
       <p>换一台新机器或全部重建时按这个顺序（依赖关系的详细说明见 <a href="/help/index#order">系统总览 · 构建顺序</a>）：</p>
-<pre><code><span class="c"># —— K：集群 ——</span>
+<pre class="on-both"><code><span class="c"># —— K：集群 ——</span>
 cd $K/kubeadm-cluster
 bash 01-setup-vms.sh
 bash 02-setup-cluster.sh
@@ -184,36 +184,36 @@ docker run -d --name pg --restart unless-stopped -p 5432:5432 \
   -e POSTGRES_USER=vigil -e POSTGRES_PASSWORD=vigil123 -e POSTGRES_DB=vigil postgres
 docker exec pg psql -U vigil -c "CREATE DATABASE vigil_dev"      <span class="c"># 开发库</span>
 
-<span class="c"># —— N：开发目录 $N ——</span>
-git clone git@github.com:Wk-P/NetSentinel.git $N
-cd $N &amp;&amp; uv sync
-printf 'ENVIRONMENT=linux_development\nVIGIL_KAFKA_GROUP_ID=vigil-bridge-dev\n' &gt; $N/backend/backend/.env
-printf 'VITE_API_BASE=/api\nVITE_WS_BASE=\n' &gt; $N/frontend/.env
-cd $N/backend &amp;&amp; ../.venv/bin/python manage.py migrate &amp;&amp; ../.venv/bin/python manage.py migrate --database=vigil
+<span class="c"># —— N：开发目录 <span class="vn">$N</span> ——</span>
+git clone git@github.com:Wk-P/NetSentinel.git <span class="vn">$N</span>
+cd <span class="vn">$N</span> &amp;&amp; uv sync
+printf 'ENVIRONMENT=linux_development\nVIGIL_KAFKA_GROUP_ID=vigil-bridge-dev\n' &gt; <span class="vn">$N</span>/backend/backend/.env
+printf 'VITE_API_BASE=/api\nVITE_WS_BASE=\n' &gt; <span class="vn">$N</span>/frontend/.env
+cd <span class="vn">$N</span>/backend &amp;&amp; ../.venv/bin/python manage.py migrate &amp;&amp; ../.venv/bin/python manage.py migrate --database=vigil
 
-<span class="c"># —— N：线上目录 $P ——</span>
-git clone $N $P                                   <span class="c"># origin 指向开发目录，deploy.sh 从这里 pull</span>
-cd $P &amp;&amp; uv sync --frozen
-cp -a $N/backend/vigil/ml/ads_ml $P/backend/vigil/ml/   <span class="c"># 模型不在 Git 里</span>
-cp $N/frontend/.env $P/frontend/.env
+<span class="c"># —— N：线上目录 <span class="vp">$P</span> ——</span>
+git clone <span class="vn">$N</span> <span class="vp">$P</span>                                   <span class="c"># origin 指向开发目录，deploy.sh 从这里 pull</span>
+cd <span class="vp">$P</span> &amp;&amp; uv sync --frozen
+cp -a <span class="vn">$N</span>/backend/vigil/ml/ads_ml <span class="vp">$P</span>/backend/vigil/ml/   <span class="c"># 模型不在 Git 里</span>
+cp <span class="vn">$N</span>/frontend/.env <span class="vp">$P</span>/frontend/.env
 <span class="c"># 线上 .env：ENVIRONMENT=linux_development、DEBUG=False、SECRET_KEY=&lt;随机&gt;、</span>
 <span class="c"># ALLOWED_HOSTS=knettf.com,localhost,127.0.0.1,192.168.100.1、CSRF_EXTRA_ORIGINS=https://knettf.com、VIGIL_DB_NAME=vigil</span>
 python3 -c "import secrets;print('SECRET_KEY='+secrets.token_urlsafe(50))"   <span class="c"># 生成 SECRET_KEY</span>
-vi $P/backend/backend/.env &amp;&amp; chmod 600 $P/backend/backend/.env
-cd $P/backend
+vi <span class="vp">$P</span>/backend/backend/.env &amp;&amp; chmod 600 <span class="vp">$P</span>/backend/backend/.env
+cd <span class="vp">$P</span>/backend
 ../.venv/bin/python manage.py migrate
 ../.venv/bin/python manage.py migrate --database=vigil
 ../.venv/bin/python manage.py users_init
 ../.venv/bin/python manage.py autotf_init
 ../.venv/bin/python manage.py generate_bridge_token --write-env
 ../.venv/bin/python manage.py collectstatic --noinput
-cd $P/frontend &amp;&amp; pnpm install --frozen-lockfile &amp;&amp; pnpm build
+cd <span class="vp">$P</span>/frontend &amp;&amp; pnpm install --frozen-lockfile &amp;&amp; pnpm build
 
 <span class="c"># —— N：服务 ——</span>
 systemctl --user daemon-reload
 systemctl --user enable --now netsentinel cloudflared-knettf
 loginctl enable-linger $USER
-(crontab -l; echo "0 0 * * * $P/.venv/bin/python $P/backend/manage.py rotate_partitions --database vigil &gt;&gt; /tmp/rotate_partitions.log 2&gt;&amp;1") | crontab -
+(crontab -l; echo "0 0 * * * <span class="vp">$P</span>/.venv/bin/python <span class="vp">$P</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /tmp/rotate_partitions.log 2&gt;&amp;1") | crontab -
 
 <span class="c"># —— 联通 ——</span>
 systemctl --user restart netsentinel      <span class="c"># Kafka 就绪后重启，bridge 才能连上</span>

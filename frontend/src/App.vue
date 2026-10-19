@@ -16,7 +16,7 @@ const route = useRoute()
 
 // Admin 有自己的 Layout，登录页不需要 Nav
 const showNav = computed(
-  () => !route.path.startsWith('/admin') && route.path !== '/login',
+  () => !route.path.startsWith('/admin') && route.path !== '/login' && route.path !== '/',
 )
 </script>
 

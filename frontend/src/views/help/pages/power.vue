@@ -47,7 +47,7 @@ vsh shutdown k8s-master</code></pre></div></div>
     <section id="startup">
       <h2>开机恢复（宿主机重启后）</h2>
       <div class="task"><h4><span class="n">1</span>确认自动恢复的部分</h4>
-        <div class="do"><div><pre><code>systemctl --user is-active netsentinel cloudflared-knettf
+        <div class="do"><div><pre class="on-prod"><code>systemctl --user is-active netsentinel cloudflared-knettf
 docker ps --filter name=pg --format '{{.Names}} {{.Status}}'
 vsh net-list --all | grep virbr-k8s
 sysctl net.ipv4.ip_forward</code></pre></div></div>
@@ -90,7 +90,7 @@ kubectl -n kube-system rollout status ds/vector --timeout=300s</code></pre></div
         <div class="res"><div>kafka-0~3-external = 192.168.100.200~203；my-nginx = .204；targets = .210~.214。<br><span class="bad">Kafka 地址变了</span>：重跑 <code>$K/kubeadm-cluster/03-deploy-5nodes.sh</code>，并改 <code>bridge.py</code> 的 <code>KAFKA_BOOTSTRAP</code>。</div></div>
       </div>
       <div class="task"><h4><span class="n">7</span>重启后端，让 bridge 重新连上 Kafka</h4>
-        <div class="do"><div><pre><code>systemctl --user restart netsentinel
+        <div class="do"><div><pre class="on-prod"><code>systemctl --user restart netsentinel
 sleep 20; journalctl --user -u netsentinel --since '-1 min' | grep -E 'AdsMLModel|bridge|drainer'</code></pre></div></div>
         <div class="why"><div>后端在第 1 步之前就已经启动了，那时 Kafka 还不在，bridge 线程已经退出且不会重连。<b>这一步最容易忘，忘了检测就一直没有数据。</b></div></div>
         <div class="res"><div>能看到 <code>AdsMLModel loaded</code>、<code>vigil bridge + drainer threads started</code>、<code>bridge starting → bootstrap=...</code>，没有 <code>bridge error</code>。</div></div>
@@ -131,7 +131,7 @@ kubectl get pods,pvc | grep kafka</code></pre></div></div>
         <div class="res"><div>最后一条没有输出。</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>重新部署、核对地址、重启后端</h4>
-        <div class="do"><div><pre><code>cd $K/kubeadm-cluster && bash 03-deploy-5nodes.sh
+        <div class="do"><div><pre class="on-prod"><code>cd $K/kubeadm-cluster && bash 03-deploy-5nodes.sh
 kubectl get svc | grep 'kafka-.-external'
 systemctl --user restart netsentinel</code></pre></div></div>
         <div class="why"><div>03 脚本是幂等的：先建 Service 拿到 MetalLB IP，再部署 controller、broker、Vector。后端要重启，bridge 才会连上新的 Kafka。</div></div>
@@ -140,7 +140,7 @@ systemctl --user restart netsentinel</code></pre></div></div>
 
       <h3 id="rebuild-cluster">重建整个集群</h3>
       <div class="task"><h4><span class="n">1</span>备份并停后端</h4>
-        <div class="do"><div><pre><code>tar czf ~/knetsentinel_backup_$(date +%F).tgz -C ~ --exclude='knetsentinel/.venv' knetsentinel
+        <div class="do"><div><pre class="on-prod"><code>tar czf ~/knetsentinel_backup_$(date +%F).tgz -C ~ --exclude='knetsentinel/.venv' knetsentinel
 kubectl get svc -A -o wide &gt; ~/svc_before_rebuild.txt
 cp ~/.kube/config ~/kubeconfig_before_rebuild
 systemctl --user stop netsentinel</code></pre></div></div>
@@ -170,8 +170,8 @@ kubectl apply -f $K/cluster-setup/host-firewall-ccnp.yaml</code></pre>以普通�
       </div>
 
       <h3 id="rebuild-db">重置 default 库（用户 / 集群 / Terraform）</h3>
-<pre><code>systemctl --user stop netsentinel
-cd $P/backend && cp db.sqlite3 db.sqlite3.bak_$(date +%F_%H%M)
+<pre class="on-prod"><code>systemctl --user stop netsentinel
+cd <span class="vp">$P</span>/backend && cp db.sqlite3 db.sqlite3.bak_$(date +%F_%H%M)
 <span class="c"># 方式一：只清业务数据</span>
 ../.venv/bin/python manage.py autotf_clear &amp;&amp; ../.venv/bin/python manage.py users_clear
 <span class="c"># 方式二：整库重建</span>
@@ -184,36 +184,36 @@ systemctl --user start netsentinel</code></pre>
       <p><b>为什么要重新生成 token</b>：vigil-bridge 服务账号也跟着删掉了。<b>结果</b>：<code>autotf_clear</code> 会删除整个 <code>backend/terraform/</code> 目录；部署了入口 B 的话，要同步更新 Secret <code>detector-secret</code>。</p>
 
       <h3 id="rebuild-vigil">重置 vigil 库（检测记录）</h3>
-<pre><code>systemctl --user stop netsentinel
-cd $P/backend
+<pre class="on-prod"><code>systemctl --user stop netsentinel
+cd <span class="vp">$P</span>/backend
 ../.venv/bin/python manage.py migrate vigil zero --database=vigil   # DROP TABLE ... CASCADE
 ../.venv/bin/python manage.py migrate vigil --database=vigil        # 重建父表 + 91 个分区
 systemctl --user start netsentinel</code></pre>
       <p>只想清数据、不动表结构：<code>docker exec pg psql -U vigil vigil -c "TRUNCATE vigil_detectionrecord;"</code>。</p>
 
       <h3 id="rebuild-env">重建运行环境</h3>
-<pre><code>systemctl --user stop netsentinel
-cd $P &amp;&amp; rm -rf .venv frontend/node_modules frontend/dist &amp;&amp; uv sync --frozen
-cd $N &amp;&amp; scripts/deploy.sh -all       # 一定从 $N 跑</code></pre>
-      <p>这几个目录都可以重新生成，不会丢数据。开发目录 <code>$N</code> 的环境坏了同理：<code>cd $N &amp;&amp; rm -rf .venv &amp;&amp; uv sync --frozen</code>，不影响线上。</p>
+<pre class="on-both"><code>systemctl --user stop netsentinel
+cd <span class="vp">$P</span> &amp;&amp; rm -rf .venv frontend/node_modules frontend/dist &amp;&amp; uv sync --frozen
+cd <span class="vn">$N</span> &amp;&amp; scripts/deploy.sh -all       # 一定从 <span class="vn">$N</span> 跑</code></pre>
+      <p>这几个目录都可以重新生成，不会丢数据。开发目录 <code class="vn">$N</code> 的环境坏了同理：<code class="vn">cd $N &amp;&amp; rm -rf .venv &amp;&amp; uv sync --frozen</code>，不影响线上。</p>
     </section>
 
     <section id="backup">
       <h2>备份与恢复</h2>
       <div class="table-wrap"><table>
         <tr><th>对象</th><th>备份命令</th><th>恢复</th></tr>
-        <tr><td>default 库</td><td><code>sqlite3 $P/backend/db.sqlite3 ".backup '$P/backend/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"</code></td><td>停服务 → 覆盖 <code>db.sqlite3</code> → 启服务</td></tr>
+        <tr><td>default 库</td><td><code class="vp">sqlite3 $P/backend/db.sqlite3 ".backup '$P/backend/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"</code></td><td>停服务 → 覆盖 <code>db.sqlite3</code> → 启服务</td></tr>
         <tr><td>vigil 库</td><td><code>docker exec pg pg_dump -U vigil -Fc vigil &gt; ~/vigil_$(date +%F).dump</code></td><td>见下方</td></tr>
-        <tr><td>上传的 .tf 文件</td><td><code>tar czf tf_$(date +%F).tgz -C $P/backend terraform</code></td><td>解压回 <code>backend/</code></td></tr>
-        <tr><td>后端 .env</td><td><code>cp $P/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td><td>复制回去，重启后端</td></tr>
-        <tr><td>模型文件</td><td><code>tar czf ads_ml_$(date +%F).tgz -C $P/backend/vigil/ml ads_ml/trained ads_ml/config.yaml</code></td><td>解压回去，重启后端</td></tr>
+        <tr><td>上传的 .tf 文件</td><td><code class="vp">tar czf tf_$(date +%F).tgz -C $P/backend terraform</code></td><td>解压回 <code>backend/</code></td></tr>
+        <tr><td>后端 .env</td><td><code class="vp">cp $P/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td><td>复制回去，重启后端</td></tr>
+        <tr><td>模型文件</td><td><code class="vp">tar czf ads_ml_$(date +%F).tgz -C $P/backend/vigil/ml ads_ml/trained ads_ml/config.yaml</code></td><td>解压回去，重启后端</td></tr>
         <tr><td>knetsentinel 全部</td><td><code>tar czf ~/knetsentinel_$(date +%F).tgz -C ~ --exclude='knetsentinel/.venv' knetsentinel</code></td><td>解压，<code>uv sync</code></td></tr>
         <tr><td>kubeconfig</td><td><code>cp ~/.kube/config ~/kubeconfig_$(date +%F)</code></td><td>集群没重建时才有用</td></tr>
         <tr><td>systemd / cloudflared</td><td><code>tar czf sys_$(date +%F).tgz -C ~ .config/systemd/user .cloudflared</code></td><td>解压，<code>systemctl --user daemon-reload</code></td></tr>
         <tr><td>crontab</td><td><code>crontab -l &gt; ~/crontab_$(date +%F)</code></td><td><code>crontab ~/crontab_xxx</code></td></tr>
       </table></div>
       <h3>恢复 vigil 库</h3>
-<pre><code>systemctl --user stop netsentinel
+<pre class="on-prod"><code>systemctl --user stop netsentinel
 docker exec -i pg pg_restore -U vigil -d vigil --clean --if-exists &lt; ~/vigil_2026-10-16.dump
 systemctl --user start netsentinel
 docker exec pg psql -U vigil vigil -Atc "select count(*) from vigil_detectionrecord;"</code></pre>

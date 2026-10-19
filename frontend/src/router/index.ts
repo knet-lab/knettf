@@ -14,7 +14,9 @@ const router = createRouter({
     // ── 用户区 ──────────────────────────────────────
     {
       path: '/',
-      redirect: '/kcore',
+      name: 'home',
+      component: () => import('../views/HomeView.vue'),
+      meta: { public: true, title: 'NetSentinel' },
     },
     {
       path: '/kcore',
@@ -100,7 +102,7 @@ router.beforeEach((to) => {
 
   if (to.meta.public) return true
 
-  if (!auth.isLoggedIn) return { name: 'login' }
+  if (!auth.isLoggedIn) return { name: 'login', query: { redirect: to.fullPath } }
 
   if (to.meta.requiresAdmin && !auth.isAdmin) return { path: '/kcore' }
 

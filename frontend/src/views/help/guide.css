@@ -123,3 +123,35 @@
 .guide [lang="en"] .task .res::before { content: 'Result'; }
 .guide .phase { display: flex; gap: 14px; align-items: center; background: #1e3a5f; color: #fff; border-radius: 10px; padding: 14px 18px; margin: 36px 0 8px; font-size: 14px; line-height: 1.6; }
 .guide .phase-n { font-size: 18px; font-weight: 700; white-space: nowrap; padding-right: 14px; border-right: 1px solid rgba(255,255,255,.35); }
+/* 开发 / 线上 配色：开发=绿，线上=红，两边都有=紫 */
+.guide .vn { color: #2f855a; font-weight: 700; }
+.guide .vp { color: #c53030; font-weight: 700; }
+.guide code .vn, .guide code .vp { color: inherit; }
+.guide code.vn { background: #e6ffed; color: #22543d; }
+.guide code.vp { background: #ffe8e8; color: #9b2c2c; }
+.guide pre .vn { color: #68d391; }
+.guide pre .vp { color: #fc8181; }
+.guide pre.on-dev, .guide pre.on-prod, .guide pre.on-both { border-left: 6px solid; padding-top: 0; }
+.guide pre.on-dev { border-left-color: #38a169; }
+.guide pre.on-prod { border-left-color: #e53e3e; }
+.guide pre.on-both { border-left-color: #9f7aea; }
+.guide pre.on-dev::before, .guide pre.on-prod::before, .guide pre.on-both::before {
+  display: block; margin: 0 -16px 10px; padding: 3px 12px; font-size: 11.5px; font-weight: 700; font-family: inherit;
+}
+.guide pre.on-dev::before { content: '开发环境 · 在 $N 执行，不影响线上'; background: #22543d; color: #c6f6d5; }
+.guide pre.on-prod::before { content: '线上环境 · 在 $P 执行，直接影响 knettf.com'; background: #742a2a; color: #fed7d7; }
+.guide pre.on-both::before { content: '开发 → 线上 · 先 $N 后 $P'; background: #44337a; color: #e9d8fd; }
+.guide .tag-dev { background: #c6f6d5; color: #22543d; }
+.guide .tag-prod { background: #fed7d7; color: #9b2c2c; }
+.guide .env-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 10px 0 14px; }
+.guide .env-card { border-radius: 8px; padding: 12px 16px; font-size: 13.5px; line-height: 1.8; border: 1px solid; border-top-width: 5px; }
+.guide .env-card.dev { border-color: #9ae6b4; border-top-color: #38a169; background: #f0fff4; }
+.guide .env-card.prod { border-color: #feb2b2; border-top-color: #e53e3e; background: #fff5f5; }
+.guide .env-card h4 { margin: 0 0 6px; font-size: 15px; }
+.guide .env-card.dev h4 { color: #22543d; }
+.guide .env-card.prod h4 { color: #9b2c2c; }
+.guide .env-card ul { margin: 0 0 0 18px; font-size: 13.5px; }
+.guide th.dev { background: #c6f6d5; color: #22543d; }
+.guide th.prod { background: #fed7d7; color: #9b2c2c; }
+@media (max-width: 800px) { .guide .env-cards { grid-template-columns: 1fr; } }
+.guide pre code.vn, .guide pre code.vp { background: none; color: inherit; }

@@ -70,13 +70,13 @@
       </div>
       <p>接口：<code>POST /api/kcore/users/</code>，body <code>{username, email, password, is_staff}</code>。</p>
       <div class="note"><b>Admin 开关为什么不生效</b>：<code>UserCreateSerializer</code> 的 <code>fields</code> 只有 <code>username / email / password</code>，<code>is_staff</code> 被丢弃。要设管理员用命令行（<a href="/help/account">账号与令牌</a>）：<br>
-        <code>cd $P/backend &amp;&amp; ../.venv/bin/python manage.py shell -c "from kcore.models import User;u=User.objects.get(username='alice');u.is_staff=True;u.save()"</code></div>
+        <code class="vp">cd $P/backend &amp;&amp; ../.venv/bin/python manage.py shell -c "from kcore.models import User;u=User.objects.get(username='alice');u.is_staff=True;u.save()"</code></div>
       <h3>删除用户</h3>
       <p>行尾 <span class="ui">Delete</span> → 确认。接口 <code>DELETE /api/kcore/users/&lt;id&gt;/</code>。</p>
       <div class="danger">删除用户会通过外键 <code>on_delete=CASCADE</code> <b>一并删除</b>他名下的所有集群记录和 Terraform 配置（含报告），不可恢复。不要删除 <code>vigil-bridge</code>（检测服务账号，它的 token 写在 <code>.env</code> 里），也不要删自己。</div>
       <h3>网页上做不了、要用命令行的</h3>
       <div class="table-wrap"><table>
-        <tr><th>需求</th><th>命令（在 <code>$P/backend</code> 下）</th></tr>
+        <tr><th>需求</th><th>命令（在 <code class="vp">$P/backend</code> 下）</th></tr>
         <tr><td>改密码</td><td><code>../.venv/bin/python manage.py changepassword &lt;用户名&gt;</code></td></tr>
         <tr><td>设 / 取消管理员</td><td>见上方提示，<code>is_staff=True/False</code></td></tr>
         <tr><td>停用账号（不删除）</td><td>同上，<code>is_active=False</code></td></tr>
@@ -138,7 +138,7 @@
         <li><span class="ui">Upload File</span>：填 Name，选本地 <code>.tf</code>。接口 <code>POST /api/autotf/users/&lt;id&gt;/tf-configs/</code>（multipart，字段 <code>name</code>、<code>file</code>）。</li>
         <li><span class="ui">Write Online</span>：填 Name 和 Content。接口 <code>POST /api/autotf/users/&lt;id&gt;/tf-configs/text/</code>，body <code>{name, content}</code>，后端存成 <code>&lt;name&gt;.tf</code>。</li>
       </ul>
-      <p>文件存到 <code>$P/backend/terraform/</code>（Django FileField，<code>upload_to='terraform/'</code>，相对于服务的工作目录 <code>backend/</code>）。同一用户下名称不能重复。</p>
+      <p>文件存到 <code class="vp">$P/backend/terraform/</code>（Django FileField，<code>upload_to='terraform/'</code>，相对于服务的工作目录 <code>backend/</code>）。同一用户下名称不能重复。</p>
       <h3>编辑</h3>
       <p>选中配置 → <b>Config Content</b> 卡片 <span class="ui">Edit</span> → 改 → <span class="ui">Save</span>（<code>PUT /api/autotf/tf-configs/&lt;id&gt;/</code>，body <code>{content}</code>）。<b>改内容会把 <code>is_scanned</code> 置为 False</b>，必须重新扫描才能 Apply。只改名不会。</p>
       <h3>扫描</h3>
