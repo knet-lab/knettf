@@ -291,6 +291,11 @@ class ScanService:
 
         fmt = tool.output_format
         if fmt == TerraformTool.OUTPUT_SARIF:
+            # checkov -o sarif 把结果写到 cwd 下的 results.sarif，stdout 只有 banner 和文字报告
+            sarif_file = os.path.join(target_dir, 'results.sarif')
+            if os.path.isfile(sarif_file):
+                with open(sarif_file, encoding='utf-8') as f:
+                    stdout = f.read()
             return ScanService._parse_sarif(stdout)
         return ScanService._parse_json(stdout, tool)
 
