@@ -6,27 +6,39 @@
     <section id="linux">
       <h2>Your own Linux account</h2>
       <div class="danger">Never use the shared <code>cis</code> account. It has every permission, and nothing done with it can be traced to a person.</div>
-      <div class="task"><h4><span class="n">1</span>Request the account</h4>
-        <div class="do"><div>Send the lab head your user name, your SSH public key, and which groups you need and why. Create the key on your own computer:<pre><code>ssh-keygen -t ed25519 -C "NEWUSER@cis-Z10PE-D8-WS"
-cat /home/NEWUSER/.ssh/id_ed25519.pub</code></pre></div></div>
-        <div class="why"><div>The server only accepts SSH keys, not passwords. The approval should be written (email or chat) and kept.</div></div>
-        <div class="res"><div>Written approval.</div></div>
+      <p>There are only two people: the <b>original author</b> (Linux account <code>soar009</code>) and the <b>new owner</b> (you).</p>
+      <div class="table-wrap"><table>
+        <tr><th>Step</th><th>Who</th><th>What</th></tr>
+        <tr><td>1</td><td>New owner</td><td>On your own computer, create a login key; send your user name and the public key to the original author</td></tr>
+        <tr><td>2</td><td>Original author</td><td>Create the account, add the key, add the groups</td></tr>
+        <tr><td>3</td><td>New owner</td><td>Log in and check the groups</td></tr>
+        <tr><td>4</td><td>Original author</td><td>Copy the cluster credentials; invite you to Tailscale if you need outside access</td></tr>
+        <tr><td>5</td><td>New owner</td><td>Check cluster access</td></tr>
+      </table></div>
+      <div class="task"><h4><span class="n">1</span>New owner: create a login key</h4>
+        <div class="do"><div>On your own computer; send the whole <code>id_ed25519.pub</code> line and your user name to the original author:<pre><code>ssh-keygen -t ed25519 -C "NEWUSER@cis-Z10PE-D8-WS"</code></pre></div></div>
+        <div class="why"><div>The server only accepts SSH keys, not passwords.</div></div>
       </div>
-      <div class="task"><h4><span class="n">2</span>An existing admin creates it</h4>
+      <div class="task"><h4><span class="n">2</span>Original author: create the account</h4>
         <div class="do"><div><pre><code>sudo adduser NEWUSER
-sudo usermod -aG sudo,docker,libvirt NEWUSER
+sudo usermod -aG sudo,docker,libvirt,netsentinel NEWUSER
 sudo install -d -o NEWUSER -g NEWUSER -m 700 /home/NEWUSER/.ssh
-echo 'ssh-ed25519 AAAA... NEWUSER@cis-Z10PE-D8-WS' | sudo tee -a /home/NEWUSER/.ssh/authorized_keys
+echo 'the-public-key-line' | sudo tee -a /home/NEWUSER/.ssh/authorized_keys
 sudo chown NEWUSER:NEWUSER /home/NEWUSER/.ssh/authorized_keys
 sudo chmod 600 /home/NEWUSER/.ssh/authorized_keys</code></pre></div></div>
-        <div class="why"><div>Add only the approved groups. <code>sudo</code> = full admin; <code>docker</code> = manage the database container; <code>libvirt</code> = start / stop the lab VMs.</div></div>
-        <div class="res"><div><code>ssh NEWUSER@192.168.0.247</code> logs in without a password prompt. From outside the lab, use Tailscale address <code>100.117.219.123</code> (ask the original author to invite you to the tailnet).</div></div>
+        <div class="why"><div><code>sudo</code>: manage services and logs; <code>docker</code>: the database container <code>pg</code>; <code>libvirt</code>: start / stop the lab VMs; <code>netsentinel</code>: write under <code>/srv/netsentinel</code> (releases, model files).</div></div>
       </div>
-      <div class="task"><h4><span class="n">3</span>Get cluster access</h4>
+      <div class="task"><h4><span class="n">3</span>New owner: log in and check</h4>
+        <div class="do"><div><pre><code>ssh NEWUSER@192.168.0.247
+id</code></pre></div></div>
+        <div class="res"><div>No password prompt; <code>id</code> lists sudo, docker, libvirt, netsentinel. From outside the lab use the Tailscale address <code>100.117.219.123</code> (step 4).</div></div>
+      </div>
+      <div class="task"><h4><span class="n">4</span>Original author: cluster credentials and Tailscale</h4>
         <div class="do"><div><pre><code>sudo install -d -o NEWUSER -g NEWUSER -m 700 /home/NEWUSER/.kube
-sudo install -o NEWUSER -g NEWUSER -m 600 /home/soar009/.kube/config /home/NEWUSER/.kube/config
-kubectl get nodes</code></pre></div></div>
-        <div class="why"><div><code>kubectl</code> reads this file to reach the lab cluster.</div></div>
+sudo install -o NEWUSER -g NEWUSER -m 600 /home/soar009/.kube/config /home/NEWUSER/.kube/config</code></pre>For outside access, invite the new owner in the Tailscale admin console (Users → Invite users).</div></div>
+      </div>
+      <div class="task"><h4><span class="n">5</span>New owner: check cluster access</h4>
+        <div class="do"><div><pre><code>kubectl get nodes</code></pre></div></div>
         <div class="res"><div>Five nodes, all <code>Ready</code>.</div></div>
       </div>
     </section>
@@ -69,8 +81,7 @@ ssh -T git@github.com</code></pre>The key gets its own name instead of the defau
         <div class="res"><div><code>Hi your-name!</code>.</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>Clone into your development directory and create your branch</h4>
-        <div class="do"><div><pre><code>sudo usermod -aG netsentinel NEWUSER
-mkdir -p /home/NEWUSER/github
+        <div class="do"><div><pre><code>mkdir -p /home/NEWUSER/github
 git clone git@github.com:knet-lab/NetSentinel.git /home/NEWUSER/github/NetSentinel
 git clone git@github.com:knet-lab/knetsentinel.git /home/NEWUSER/github/knetsentinel
 git -C /home/NEWUSER/github/NetSentinel switch -c NEWUSER origin/merge-dev
@@ -104,7 +115,7 @@ git -C /srv/netsentinel/prod push --dry-run origin origin/prod:prod     # dry ru
       <div class="table-wrap"><table>
         <tr><th>#</th><th>Run</th><th>Expect</th></tr>
         <tr><td>1</td><td><code>ssh NEWUSER@192.168.0.247</code></td><td>Logs in with your key, no password</td></tr>
-        <tr><td>2</td><td><code>id</code></td><td>Exactly the approved groups</td></tr>
+        <tr><td>2</td><td><code>id</code></td><td>sudo, docker, libvirt, netsentinel</td></tr>
         <tr><td>3</td><td><code>sudo systemctl is-active netsentinel cloudflared-knettf</code></td><td><code>active</code></td></tr>
         <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 nodes <code>Ready</code></td></tr>
         <tr><td>5</td><td><code>ssh -T git@github.com</code></td><td><code>Hi your-name!</code></td></tr>

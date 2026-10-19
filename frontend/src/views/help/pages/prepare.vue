@@ -11,49 +11,47 @@
 
     <section id="user">
       <h2>2.1 账户与权限</h2>
-      <div class="danger"><b>禁止用 <code>cis</code> 账户接手。</b><code>cis</code> 是装机时的共用账户，权限过大（sudo + docker + libvirt），用它操作出了问题查不到是谁做的，也没法单独收回某个人的权限。接手人必须<b>新建自己的 Linux 账户</b>，按下面流程申请权限；不要借用 <code>cis</code> 或 <code>soar009</code> 的密码、密钥。</div>
-
-      <h3>流程</h3>
+      <p>项目只有两个人：<b>原作者</b>（Linux 账户 <code>soar009</code>）和<b>接手人</b>。接手人用自己新建的 Linux 账户工作，不用 <code>cis</code>（装机时的共用账户，谁做的操作都查不到），也不借用 <code>soar009</code> 的密码或密钥。</p>
       <div class="table-wrap"><table>
-        <tr><th>步骤</th><th>谁做</th><th>做什么</th><th>结果</th></tr>
-        <tr><td>1 申请</td><td>接手人</td><td>向实验室负责人提交：想要的用户名、SSH 公钥（下文 ①）、需要哪些组及理由</td><td>负责人书面（邮件/群消息）批准，留档</td></tr>
-        <tr><td>2 建账户</td><td>现有管理员</td><td>按下面命令新建账户、放公钥、只加批准的组</td><td>接手人能用密钥登录</td></tr>
-        <tr><td>3 核对</td><td>接手人</td><td>登录后 <code>id</code>，确认组与批准的一致</td><td>多了或少了都反馈管理员</td></tr>
-        <tr><td>4 收回</td><td>管理员</td><td>人员离开时 <code>sudo usermod -L NEWUSER</code> 锁账户，删 <code>authorized_keys</code>，移出各组</td><td>不影响服务和其他人</td></tr>
+        <tr><th>步骤</th><th>谁做</th><th>做什么</th></tr>
+        <tr><td>1</td><td>接手人</td><td>在自己电脑上生成登录密钥，把想用的 Linux 用户名和公钥发给原作者</td></tr>
+        <tr><td>2</td><td>原作者</td><td>在服务器上建账户、放公钥、加组</td></tr>
+        <tr><td>3</td><td>接手人</td><td>登录，确认组都在</td></tr>
+        <tr><td>4</td><td>原作者</td><td>给接手人复制一份集群凭证，需要外网访问时邀请进 Tailscale</td></tr>
+        <tr><td>5</td><td>接手人</td><td>确认能操作集群</td></tr>
       </table></div>
 
-      <h3>管理员：新建账户</h3>
-      <pre><code>sudo adduser NEWUSER                                   # 设置密码（只用于 sudo，SSH 不收密码）
-sudo usermod -aG sudo,docker,libvirt NEWUSER           # 只加批准的组
-id NEWUSER</code></pre>
-      <div class="table-wrap"><table>
-        <tr><th>组</th><th>在这台机器上能做什么</th><th>何时批准</th></tr>
-        <tr><td><code>sudo</code></td><td>完全管理员；可以用 <code>sudo systemctl</code> 管理 NetSentinel 的服务（见 <a href="/help/firstday">接手第一天</a>）</td><td>负责运维、要重启服务时</td></tr>
-        <tr><td><code>docker</code></td><td>管理 <code>pg</code> 容器；注意也能看到/停掉 pnu-notice、emotion-talk 等别人的容器</td><td>要操作数据库时</td></tr>
-        <tr><td><code>libvirt</code></td><td><code>virsh -c qemu:///system list</code> 管理 5 台 k8s 虚拟机</td><td>要开关/重建集群时</td></tr>
-      </table></div>
-      <div class="note">组变更要<b>重新登录</b>才生效。只看网页、不运维的人不需要 Linux 账户，在网站上建普通账号即可（<a href="/help/account">账号与令牌</a>）。</div>
+      <h3>第 1 步 · 接手人：生成登录密钥</h3>
+      <p>在<b>你自己的电脑</b>上执行，把生成的 <code>id_ed25519.pub</code> 整行内容和你想用的用户名发给原作者。这台服务器只认密钥，不接受密码登录。</p>
+      <pre><code>ssh-keygen -t ed25519 -C "NEWUSER@cis-Z10PE-D8-WS"</code></pre>
 
-      <h3>SSH 登录（这台机器只认密钥）</h3>
-      <p>因为禁止了密码登录，<code>ssh-copy-id</code> 用不了，要由已能登录的人帮你放公钥：</p>
-      <pre><code># ① 接手人在自己电脑上生成密钥，把 .pub 内容发给管理员
-ssh-keygen -t ed25519 -C "NEWUSER@cis-Z10PE-D8-WS"
-cat /home/NEWUSER/.ssh/id_ed25519.pub
-
-# ② 管理员在服务器上（把引号里换成收到的整行公钥）
+      <h3>第 2 步 · 原作者：建账户、放公钥、加组</h3>
+      <pre class="on-prod"><code>sudo adduser NEWUSER                                         # 设一个密码，只用于 sudo
+sudo usermod -aG sudo,docker,libvirt,netsentinel NEWUSER
 sudo install -d -o NEWUSER -g NEWUSER -m 700 /home/NEWUSER/.ssh
-echo 'ssh-ed25519 AAAA... NEWUSER@cis-Z10PE-D8-WS' | sudo tee -a /home/NEWUSER/.ssh/authorized_keys
-sudo chown NEWUSER:NEWUSER /home/NEWUSER/.ssh/authorized_keys && sudo chmod 600 /home/NEWUSER/.ssh/authorized_keys
+echo '收到的整行公钥' | sudo tee -a /home/NEWUSER/.ssh/authorized_keys
+sudo chown NEWUSER:NEWUSER /home/NEWUSER/.ssh/authorized_keys
+sudo chmod 600 /home/NEWUSER/.ssh/authorized_keys</code></pre>
+      <div class="table-wrap"><table>
+        <tr><th>组</th><th>为什么需要</th></tr>
+        <tr><td><code>sudo</code></td><td>管理服务（<code>sudo systemctl restart netsentinel</code>）、看日志、改线上 <code>.env</code></td></tr>
+        <tr><td><code>docker</code></td><td>操作数据库容器 <code>pg</code>（备份、查数据）。也能看到别的项目的容器，不要动它们</td></tr>
+        <tr><td><code>libvirt</code></td><td>开关和重建 5 台集群虚拟机（<code>virsh -c qemu:///system</code>）</td></tr>
+        <tr><td><code>netsentinel</code></td><td>写 <code>/srv/netsentinel</code> 下的目录，发布（<code>release.sh</code>）和替换模型都需要</td></tr>
+      </table></div>
 
-# ③ 接手人登录
-ssh NEWUSER@192.168.0.247            # 在实验室内网
-ssh NEWUSER@100.117.219.123          # 在外面，需要加入 Tailscale（见下）</code></pre>
-      <p><b>Tailscale</b>：现在的 tailnet 是原作者个人 Tailscale 账号。接手人要从外网连，需原作者在 Tailscale 后台 <b>Users → Invite users</b> 邀请，或接手人用自己的 tailnet 重新在服务器上 <code>sudo tailscale up</code> 登录（会换 IP，原作者设备就连不上了）。</p>
+      <h3>第 3 步 · 接手人：登录并确认</h3>
+      <pre><code>ssh NEWUSER@192.168.0.247        # 实验室内网
+id                               # 应看到 sudo、docker、libvirt、netsentinel</code></pre>
+      <p>在外网要通过 Tailscale 地址 <code>100.117.219.123</code> 登录，见第 4 步。</p>
 
-      <h3>kubectl</h3>
-      <pre><code>sudo install -d -o NEWUSER -g NEWUSER -m 700 /home/NEWUSER/.kube
-sudo install -o NEWUSER -g NEWUSER -m 600 /home/soar009/.kube/config /home/NEWUSER/.kube/config
-kubectl get nodes        # 接手人执行，应看到 k8s-master + k8s-node1~4 共 5 个 Ready</code></pre>
+      <h3>第 4 步 · 原作者：集群凭证和 Tailscale</h3>
+      <pre class="on-prod"><code>sudo install -d -o NEWUSER -g NEWUSER -m 700 /home/NEWUSER/.kube
+sudo install -o NEWUSER -g NEWUSER -m 600 /home/soar009/.kube/config /home/NEWUSER/.kube/config</code></pre>
+      <p>Tailscale 网络在原作者的账号下：接手人需要从外网登录时，原作者在 Tailscale 后台 <b>Users → Invite users</b> 邀请接手人。</p>
+
+      <h3>第 5 步 · 接手人：确认能操作集群</h3>
+      <pre><code>kubectl get nodes                # 应看到 k8s-master、k8s-node1~4 共 5 个 Ready</code></pre>
     </section>
 
     <section id="github">
@@ -118,9 +116,8 @@ ssh -T git@github.com                          # 第一次问 Are you sure you w
       <div class="note">只用你自己的密钥。<code>ssh -T</code> 若输出的不是你的 GitHub 用户名，说明你不在自己的账户下。</div>
 
       <h3>第 2 步：从 GitHub 克隆到你的开发目录，建个人分支</h3>
-      <p>代码只在自己家目录的开发目录里改，<b>不要</b>在 <code>/srv/netsentinel/prod</code> 或 <code>/srv/netsentinel/knetsentinel</code> 里改。先把自己加进 <code>netsentinel</code> 组（加完重新登录，<code>id</code> 里能看到才算生效），发布时才能写 <code>/srv</code> 下的目录：</p>
-      <pre class="on-prod"><code>sudo usermod -aG netsentinel NEWUSER
-mkdir -p /home/NEWUSER/github
+      <p>代码只在自己家目录的开发目录里改，<b>不要</b>在 <code>/srv/netsentinel/prod</code> 或 <code>/srv/netsentinel/knetsentinel</code> 里改。发布要写 <code>/srv</code> 下的目录，所以 2.1 已经把你加进了 <code>netsentinel</code> 组：</p>
+      <pre><code>mkdir -p /home/NEWUSER/github
 git clone git@github.com:knet-lab/NetSentinel.git /home/NEWUSER/github/NetSentinel
 git clone git@github.com:knet-lab/knetsentinel.git /home/NEWUSER/github/knetsentinel
 git -C /home/NEWUSER/github/NetSentinel switch -c NEWUSER origin/merge-dev
@@ -153,7 +150,7 @@ git branch -D test/handover</code></pre>
       <p>发布时两个脚本都在 <code>/srv/netsentinel/prod</code> 里操作 GitHub：<code>release.sh</code> 执行 <code>git push origin origin/merge-dev:prod</code>（往 GitHub 推），<code>deploy.sh</code> 执行 <code>git pull</code>（从 GitHub 拉）。这个目录归 <code>netsentinel</code>，但 Git 命令由<b>运行 release.sh 的那个账户</b>执行，用的是<b>那个账户</b>的 GitHub 密钥，也就是你在第 1 步加的 <code>/home/NEWUSER/.ssh/github_ssh_key</code>。所以要确认它在这里既能拉也能推：</p>
       <pre><code>git -C /srv/netsentinel/prod fetch origin                                   # 能拉：不报错即可
 git -C /srv/netsentinel/prod push --dry-run origin origin/prod:prod         # 能推：只演练不推送，输出 Everything up-to-date 即可</code></pre>
-      <p>报 <code>Permission denied (publickey)</code> → 回到第 1 步；push 报 <code>Permission to knet-lab/NetSentinel.git denied</code> → 你的 GitHub 账号在组织里没有写权限（2.2）；报 <code>insufficient permission</code> 或 <code>dubious ownership</code> → 还没加进 <code>netsentinel</code> 组或没重新登录（第 2 步）。</p>
+      <p>报 <code>Permission denied (publickey)</code> → 回到第 1 步；push 报 <code>Permission to knet-lab/NetSentinel.git denied</code> → 你的 GitHub 账号在组织里没有写权限（2.2）；报 <code>insufficient permission</code> 或 <code>dubious ownership</code> → 还没加进 <code>netsentinel</code> 组（2.1 第 2 步），或加组后没重新登录。</p>
 
       <h3>常见错误</h3>
       <div class="table-wrap"><table>
@@ -171,10 +168,10 @@ git -C /srv/netsentinel/prod push --dry-run origin origin/prod:prod         # �
       <p>用<b>你自己的账户</b>登录服务器，逐条执行。7 条都符合，准备工作才算结束；任何一条不符合，回到对应小节。</p>
       <div class="table-wrap"><table>
         <tr><th>#</th><th>检查</th><th>应该看到</th><th>不符合回到</th></tr>
-        <tr><td>1</td><td><code>ssh NEWUSER@192.168.0.247</code></td><td>用密钥直接登录，不问密码</td><td>2.1 SSH 登录</td></tr>
-        <tr><td>2</td><td><code>id</code></td><td>组和批准的一致（如 sudo、docker、libvirt）</td><td>2.1 流程第 3 步</td></tr>
-        <tr><td>3</td><td><code>sudo systemctl is-active netsentinel cloudflared-knettf</code>；<code>id</code> 里有 <code>netsentinel</code> 组</td><td><code>active</code></td><td>2.1（缺 sudo 组）</td></tr>
-        <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 个节点 <code>Ready</code></td><td>2.1 kubectl</td></tr>
+        <tr><td>1</td><td><code>ssh NEWUSER@192.168.0.247</code></td><td>用密钥直接登录，不问密码</td><td>2.1 第 1–3 步</td></tr>
+        <tr><td>2</td><td><code>id</code></td><td>有 sudo、docker、libvirt、netsentinel</td><td>2.1 第 2 步</td></tr>
+        <tr><td>3</td><td><code>sudo systemctl is-active netsentinel cloudflared-knettf</code></td><td><code>active</code></td><td>2.1 第 2 步（缺 sudo 组）</td></tr>
+        <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 个节点 <code>Ready</code></td><td>2.1 第 4–5 步</td></tr>
         <tr><td>5</td><td><code>ssh -T git@github.com</code></td><td><code>Hi 你的GitHub用户名!</code></td><td>2.3 第 1 步</td></tr>
         <tr><td>6</td><td>在两个仓库各试一次提交并 push</td><td>GitHub 上作者是你，不是 Wk-P</td><td>2.2、2.3 第 2–4 步</td></tr>
         <tr><td>7</td><td><code>git -C /srv/netsentinel/prod fetch origin</code>，以自己的账户执行</td><td>不报错</td><td>2.3 第 1、5 步</td></tr>

@@ -19,7 +19,7 @@ tail /srv/netsentinel/logs/rotate_partitions.log</code></pre>
         <div class="step"><div class="step-title">改掉网站默认账号的密码</div>
           <p><code>admin</code>、<code>alice</code>、<code>bob</code> 的初始密码写在代码里，等于公开。做法见上一步 <a href="/help/account">网站账号与令牌</a>。</p></div>
         <div class="step"><div class="step-title">核对网站用户</div>
-          <p>登录网站 → 管理后台 Users。网站允许任何人注册，不认识的账号先删掉，再告诉实验室负责人。</p></div>
+          <p>登录网站 → 管理后台 Users。网站允许任何人注册，不认识的账号直接删掉。</p></div>
         <div class="step"><div class="step-title">知道服务器重启后要做什么</div>
           <p>读一遍 <a href="/help/power#startup">开机恢复</a>。服务器重启后实验集群不会自己起来，最容易忘的是最后一步「重启后端」。</p></div>
         <div class="step"><div class="step-title">读一遍「不要做的事」</div>

@@ -11,7 +11,7 @@
         <li>Cloudflare: knettf.com and its tunnel are in the original author's Cloudflare account; add the people who stay as members (Manage Account → Members).</li>
         <li>Tailscale: the tailnet belongs to the original author; invite the people who stay, or switch to their own tailnet.</li>
         <li>Hand over in person: site admin account, <code>/srv/netsentinel/prod/backend/backend/.env</code> (SECRET_KEY, VIGIL_BRIDGE_TOKEN), PostgreSQL password (user vigil, currently the default in <code>settings.py</code>).</li>
-        <li>Lock the leaving account. NetSentinel production is not under any personal account, so this does not affect it. The my-code services and tunnel do run under soar009: locking soar009 (or disabling linger) stops them too, so check with whoever owns my-code first.
+        <li>Lock the leaving account. NetSentinel production is not under any personal account, so this does not affect it. The my-code services and tunnel do run under soar009: locking soar009 (or disabling linger) stops them too, so decide what happens to my-code first.
           <pre><code>sudo usermod -L USERNAME              # password only; for key login also remove /home/USERNAME/.ssh/authorized_keys
 sudo gpasswd -d USERNAME sudo</code></pre></li>
       </ol>
