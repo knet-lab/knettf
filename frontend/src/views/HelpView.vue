@@ -140,10 +140,10 @@ function onClick(e: MouseEvent) {
 
 // 首页四个入口
 const entries = [
-  { to: bookHome('tutorial'), tag: '先读这个', title: '入门教程', lang: '中文', icon: Guide, accent: '#14b8a6',
-    desc: '接手的第一步。4 页按顺序做：认识项目，拿到账户、权限和 GitHub，改掉默认密码，做完第一天的事。', primary: true },
-  { to: bookHome('manual'), tag: '查阅', title: '项目手册', lang: '中文', icon: Notebook, accent: '#2563eb',
-    desc: '日常运维（健康检查、上线、开关机、排障）和开发参考。遇到具体任务时来这里查。' },
+  { to: bookHome('tutorial'), tag: 'Start here', title: 'Getting Started', lang: 'Chinese', icon: Guide, accent: '#14b8a6',
+    desc: 'First step for a new maintainer. Four pages in order: the project at a glance, accounts, permissions and GitHub, default passwords, and your first day.', primary: true },
+  { to: bookHome('manual'), tag: 'Reference', title: 'Project Handbook', lang: 'Chinese', icon: Notebook, accent: '#2563eb',
+    desc: 'Full handbook: daily operations (health check, deploy, startup, troubleshooting) plus developer reference for code, API and database.' },
   { to: bookHome('manual-en'), tag: 'Reference', title: 'Project Handbook', lang: 'English', icon: Reading, accent: '#2563eb',
     desc: 'Operations and setup in English: overview, accounts and GitHub, health check, deploy, startup, troubleshooting.' },
   { to: bookHome('web'), tag: 'Users', title: 'Web Guide', lang: 'English', icon: Monitor, accent: '#8b5cf6',
@@ -152,10 +152,10 @@ const entries = [
 
 // 最常做的几件事，一键直达项目手册
 const quick = [
-  { text: '每日健康检查', desc: '确认系统在跑、检测有数据', page: '/help/health', icon: FirstAidKit },
-  { text: '改动上线', desc: '把修改发布到线上', page: '/help/deploy', icon: Upload },
-  { text: '开机恢复', desc: '服务器重启后让检测恢复', page: '/help/power#startup', icon: SwitchButton },
-  { text: '出问题了', desc: '按现象找原因和处理', page: '/help/trouble', icon: Warning },
+  { text: 'Daily health check', desc: 'Confirm services are up and detection has data', page: '/help/en-health', icon: FirstAidKit },
+  { text: 'Deploy a change', desc: 'Ship your changes to production', page: '/help/en-deploy', icon: Upload },
+  { text: 'Startup after reboot', desc: 'Bring detection back after a server restart', page: '/help/en-power', icon: SwitchButton },
+  { text: 'Something broke', desc: 'Find the cause by symptom and fix it', page: '/help/en-trouble', icon: Warning },
 ]
 </script>
 
@@ -164,19 +164,19 @@ const quick = [
     <div v-if="!pageKey" class="help-home">
       <header class="hh-hero">
         <span class="hh-eyebrow">NetSentinel Help</span>
-        <h1>帮助中心</h1>
-        <p>第一次接手，先从「入门教程」开始，按顺序做完 4 页。之后遇到具体任务查「项目手册」。只是使用网站的人，看英文的 Web Guide 就够了。</p>
+        <h1>Help Center</h1>
+        <p>Taking over the project? Start with Getting Started and work through the four pages in order. For specific tasks later, use the Project Handbook. If you only use the website, the Web Guide is all you need.</p>
         <div class="entry-grid">
           <RouterLink v-for="e in entries" :key="e.to" :to="e.to" :class="['entry', { primary: e.primary }]" :style="{ '--accent': e.accent }">
             <div class="e-top"><el-icon class="e-ico"><component :is="e.icon" /></el-icon><span class="e-tag">{{ e.tag }}</span></div>
             <strong>{{ e.title }}<em>{{ e.lang }}</em></strong>
             <p>{{ e.desc }}</p>
-            <span class="e-go">{{ e.lang === 'English' ? 'Open' : '打开' }}<el-icon><ArrowRight /></el-icon></span>
+            <span class="e-go">Open<el-icon><ArrowRight /></el-icon></span>
           </RouterLink>
         </div>
       </header>
       <div class="hh-quick">
-        <h3 class="hh-sub">项目手册 · 常用操作</h3>
+        <h3 class="hh-sub">Common tasks</h3>
         <div class="quick-grid">
           <RouterLink v-for="q in quick" :key="q.page" :to="q.page" class="quick">
             <el-icon class="q-ico"><component :is="q.icon" /></el-icon>
@@ -190,7 +190,7 @@ const quick = [
     <div v-else class="guide" :style="{ '--accent': accent }">
       <aside :class="['sidebar', { tut: book?.tutorial }]">
         <div class="sb-head">
-          <RouterLink to="/help" class="sb-home"><el-icon><ArrowLeft /></el-icon>{{ en ? 'Help home' : '帮助中心' }}</RouterLink>
+          <RouterLink to="/help" class="sb-home"><el-icon><ArrowLeft /></el-icon>Help home</RouterLink>
           <RouterLink v-if="book?.twin" :to="bookHome(book.twin)" class="sb-lang">{{ en ? '中文' : 'EN' }}</RouterLink>
         </div>
         <div class="sb-book">{{ book?.name }}<span v-if="book?.tutorial">共 {{ STEPS.length }} 步，按顺序做</span></div>
