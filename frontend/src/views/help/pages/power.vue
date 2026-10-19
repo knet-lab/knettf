@@ -106,7 +106,7 @@ docker exec pg psql -U vigil vigil -c "select created_at, src_ip, is_attack, att
 
     <section id="rebuild">
       <h2>重建</h2>
-      <div class="danger">重建前必须先做 <a href="#backup">备份</a>。knetsentinel 的脚本和数据<b>不在 Git 里</b>，删了就找不回来。</div>
+      <div class="danger">重建前必须先做 <a href="#backup">备份</a>。knetsentinel 的脚本在 Git 里，但数据（<code>dataset/</code>、<code>logs/</code>、<code>*.csv</code>）<b>不在 Git 里</b>，删了就找不回来。</div>
       <div class="table-wrap"><table>
         <tr><th>重建什么</th><th>会丢失</th><th>耗时</th></tr>
         <tr><td><a href="#rebuild-kafka">Kafka / Vector</a></td><td>topic 中还没消费的事件</td><td>10 分钟</td></tr>
