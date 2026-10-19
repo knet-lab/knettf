@@ -4,6 +4,7 @@
     <div class="app-content">
       <RouterView />
     </div>
+    <FooterComponent />
   </div>
 </template>
 
@@ -11,6 +12,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import NavComponent from '@/components/NavComponent.vue'
+import FooterComponent from '@/components/FooterComponent.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
