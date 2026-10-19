@@ -62,7 +62,7 @@ deploy_backend() {
   log "后端：migrate（default）"
   "$PY" manage.py migrate --noinput
 
-  if "$PY" manage.py showmigrations --database=vigil --plan 2>/dev/null | grep -q '^\[ \]'; then
+  if "$PY" manage.py showmigrations vigil --database=vigil 2>/dev/null | grep -q "\[ \]"; then
     printf '\033[1;33m! vigil 库有未应用的迁移，请确认后手动执行:\n  cd %s/backend && %s manage.py migrate --database=vigil\033[0m\n' "$ROOT" "$PY"
   fi
 
