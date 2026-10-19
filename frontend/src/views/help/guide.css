@@ -155,3 +155,12 @@
 .guide th.prod { background: #fed7d7; color: #9b2c2c; }
 @media (max-width: 800px) { .guide .env-cards { grid-template-columns: 1fr; } }
 .guide pre code.vn, .guide pre code.vp { background: none; color: inherit; }
+/* 按分组主色区分：侧栏分组圆点、当前页、标题强调 */
+.guide .nav-section { display: flex; align-items: center; gap: 8px; color: #94a3b8; }
+.guide .nav-section::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--dot, #64748b); }
+.guide .nav-page.current { background: color-mix(in srgb, var(--accent) 22%, #1d2535); border-left-color: var(--accent); }
+.guide h1 { font-size: 30px; letter-spacing: -0.01em; padding-left: 16px; border-left: 5px solid var(--accent, #3b82f6); }
+.guide h2 { display: flex; align-items: center; gap: 10px; }
+.guide h2::before { content: ''; width: 4px; height: 1.1em; border-radius: 2px; background: var(--accent, #3b82f6); flex-shrink: 0; }
+.guide h3 { color: color-mix(in srgb, var(--accent, #3b82f6) 75%, #1a202c); }
+.guide section { border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 14px rgba(15,23,42,.04); }

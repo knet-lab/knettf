@@ -119,7 +119,7 @@ _HOST_GW     = 192.168.100.1</code></pre>
     return [...]
 
 def detect_batch(flows, model_name=None):
-    with transaction.atomic():      <span class="c"># ⚠ 这是 default 库的事务，vigil 库的写入不在其中</span>
+    with transaction.atomic():      <span class="c"># 注意：这是 default 库的事务，vigil 库的写入不在其中</span>
         for d in flows: results.extend(detect_flow(d))</code></pre>
       <p><code>get_stats()</code>：<code>count()</code> 全表、攻击数、按 <code>attack_type</code> 分组、按 <code>model_name</code> 分组、最近 10 条。<code>list_models()</code>：注册表里的名字。</p>
     </section>
