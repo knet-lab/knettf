@@ -39,7 +39,7 @@
     <section id="s00">
       <h2>5.3 00-clear.sh：彻底清理（不可逆）</h2>
       <p>按顺序：杀掉 hubble <code>port-forward</code>、minikube tunnel 后台进程 → <code>virsh destroy/undefine</code> 5 台 VM → 删网络 virbr-k8s → 删 <code>/home/vm-images</code> 下 VM 磁盘 → 删 cloud image → 删 <code>/tmp/cidata-*</code>、<code>/tmp/k8s-network.xml</code> → 删 <code>~/.kube/config</code> → 从 <code>/etc/hosts</code> 删 k8s 相关行 → 从 <code>known_hosts</code> 删 .10-.14。</p>
-      <div class="danger">执行后集群、Kafka 中的数据、kubeconfig 全部消失。执行前按 <a href="/help/power#rebuild-cluster">重建整个集群</a> 第 1 步备份 <code>/srv/netsentinel/knetsentinel</code> 整个目录（它不在 Git 里）。</div>
+      <div class="danger">执行后集群、Kafka 中的数据、kubeconfig 全部消失。执行前按 <a href="/help/power#rebuild-cluster">重建整个集群</a> 第 1 步备份 <code>/srv/netsentinel/knetsentinel</code> 整个目录（脚本在 Git 里，但 <code>dataset/</code>、<code>logs/</code>、<code>*.csv</code> 这些数据不在）。</div>
     </section>
 
     <section id="s01">
@@ -134,7 +134,7 @@ kubectl exec kafka-broker-0 -- /opt/kafka/bin/kafka-console-consumer.sh --bootst
         <tr><th>文件</th><th>内容</th></tr>
         <tr><td><code>cluster-setup/targets.yaml</code></td><td>命名空间 <code>targets</code>，5 个 DaemonSet + LoadBalancer：<code>http-api</code> .210（http-echo）、<code>mysql-sim</code> .211、<code>ftp-sim</code> .212、<code>udp-echo</code> .213、<code>dns-sim</code> .214（alpine 模拟）。地址用注解 <code>metallb.universe.tf/loadBalancerIPs</code> 指定</td></tr>
         <tr><td><code>cluster-setup/host-firewall-ccnp.yaml</code></td><td><code>CiliumClusterwideNetworkPolicy host-visibility</code>：对所有节点的 host endpoint 放行来自 cluster/host/remote-node、<code>192.168.100.0/24</code>、<code>10.244.0.0/16</code> 的入站。作用是让 Hubble 能看到发往节点本身的伪造源 IP 流量</td></tr>
-        <tr><td><code>cluster-setup/init*.sh</code>、<code>minikube-check.sh</code></td><td>旧 minikube 时代的脚本，不再使用</td></tr>
+        <tr><td><code>cluster-setup/init*.sh</code>、<code>minikube-check.sh</code></td><td>旧 minikube 时代的脚本，不再使用，也不在 Git 里（只有上面两个 yaml 纳入了 Git）</td></tr>
         <tr><td><code>ingress-controller/my-nginx-ingress.yaml</code></td><td>nginx Ingress 示例</td></tr>
         <tr><td><code>hubble-scripts/last_record.sh</code></td><td>空文件</td></tr>
         <tr><td><code>kubeadm-cluster/host-info.sh</code></td><td>宿主机诊断（CPU、内存、磁盘、网卡、KVM），输出 <code>host-info.log</code></td></tr>

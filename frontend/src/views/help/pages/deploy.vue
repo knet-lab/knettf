@@ -84,7 +84,8 @@ git push origin origin/merge-dev:prod             # 只能快进，不能快进�
         <div class="why"><div><code>prod</code> 和 <code>merge-dev</code> 是同一串提交，发布时不产生新提交、不改代码，上线的就是 merge-dev 上确认过的那个版本。部署脚本只认 GitHub 上的 <code>prod</code>：线上目录 <code class="vp">/srv/netsentinel/prod</code> 停在 <code>prod</code> 分支，从 GitHub 执行 <code>git pull --ff-only</code>（用运行者自己的 GitHub 密钥）。运行者必须在 <code>netsentinel</code> 组里；线上目录有本地改动或不在 <code>prod</code> 分支时脚本拒绝部署。出了问题用 <code>git log</code> 查是哪次改动，在个人分支上 <code>git revert</code> 后照常走 1–3 步。</div></div>
         <div class="res"><div>输出 <code>... -&gt; prod</code>。<span class="bad">rejected (non-fast-forward)</span>：有人直接改了 prod，先查清楚，不要 force push。</div></div>
       </div>
-      <div class="note"><span class="tag tag-k">K</span> knetsentinel 的脚本大多<b>不在 Git 里</b>，改之前先手动备份：<code>cp 03-deploy-5nodes.sh 03-deploy-5nodes.sh.bak_$(date +%F)</code>。</div>
+      <div class="note"><span class="tag tag-k">K</span> knetsentinel 走同样的流程：在开发目录 <code>/home/用户名/github/knetsentinel</code> 的个人分支上改 → PR 合并到 <code>merge-dev</code> → 把 <code>master</code> 快进到 merge-dev，并更新运行目录：<pre><code>git -C /srv/netsentinel/knetsentinel push origin origin/merge-dev:master
+git -C /srv/netsentinel/knetsentinel pull --ff-only origin master</code></pre>不要直接在 <code>/srv/netsentinel/knetsentinel</code> 里改代码。数据（<code>dataset/</code>、<code>logs/</code>、<code>*.csv</code>）和 minikube 旧脚本不在 Git 里，只在运行目录。</div>
     </section>
 
     <section id="script">
