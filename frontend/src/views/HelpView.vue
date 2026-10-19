@@ -321,26 +321,27 @@ const quick = [
   backdrop-filter: blur(6px);
   transition: background .15s, border-color .15s, transform .15s;
 }
-.quick:hover { background: rgba(255,255,255,.10); border-color: rgba(94,234,212,.5); transform: translateY(-2px); }
+.quick:hover { transform: translateY(-2px); }
 .q-ico {
   flex-shrink: 0;
   width: 40px;
   height: 40px;
   font-size: 20px;
   border-radius: 10px;
-  color: #5eead4;
-  background: rgba(20,184,166,.15);
+  color: #2563eb;
+  background: #eff6ff;
 }
 .quick div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .quick strong { font-size: 15px; color: #fff; }
 .quick span { font-size: 12.5px; color: #94a3b8; }
 .q-go { color: #64748b; transition: transform .15s, color .15s; }
-.quick:hover .q-go { color: #5eead4; transform: translateX(3px); }
+.quick:hover .q-go { color: #2563eb; transform: translateX(3px); }
 
 .hh-hero { padding-bottom: clamp(40px, 6vh, 64px); }
 .entry-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 32px; }
-.entry { display: flex; flex-direction: column; gap: 10px; padding: 22px; border-radius: 14px; text-decoration: none; background: #fff; border-top: 4px solid var(--accent); box-shadow: 0 10px 28px rgba(0,0,0,.25); transition: transform .15s; }
-.entry:hover { transform: translateY(-3px); }
+.entry { display: flex; flex-direction: column; gap: 10px; padding: 22px; border-radius: 14px; text-decoration: none; background: #fff; border-top: 4px solid var(--accent); box-shadow: 0 10px 28px rgba(0,0,0,.25); transition: transform .15s, box-shadow .15s; }
+.entry:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0,0,0,.3), 0 0 0 2px var(--accent); }
+.entry:hover strong { color: var(--accent); }
 .entry.primary { background: linear-gradient(160deg, #fff 55%, color-mix(in srgb, var(--accent) 12%, #fff)); outline: 2px solid var(--accent); outline-offset: -2px; }
 .e-top { display: flex; align-items: center; justify-content: space-between; }
 .e-ico { width: 44px; height: 44px; font-size: 22px; border-radius: 12px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, #fff); }
@@ -353,7 +354,7 @@ const quick = [
 .hh-quick { width: min(1240px, 100% - 48px); margin: 32px auto 0; }
 .hh-quick .hh-sub { color: #64748b; }
 .hh-quick .quick { background: #fff; border-color: #e2e8f0; backdrop-filter: none; }
-.hh-quick .quick:hover { background: #fff; border-color: #93c5fd; }
+.hh-quick .quick:hover { background: #fff; border-color: #2563eb; box-shadow: 0 6px 18px rgba(37,99,235,.12); }
 .hh-quick .quick strong { color: #0f172a; }
 .hh-quick .quick span { color: #64748b; }
 .hh-quick .q-ico { color: #2563eb; background: #eff6ff; }
