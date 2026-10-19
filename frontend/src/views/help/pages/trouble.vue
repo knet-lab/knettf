@@ -84,7 +84,7 @@
         <tr><td><code>docker stop pg</code></td><td>手动停过的容器开机后不会自启</td></tr>
         <tr><td>在生产库上跑 <code>users_clear</code> / <code>autotf_clear</code></td><td>会清空全部用户和 Terraform 数据</td></tr>
         <tr><td>Apply 不了解的 Terraform 配置</td><td>会真实创建资源，而且不保留 tfstate，没法从网页 destroy</td></tr>
-        <tr><td>删 <code>~/vm-images/ubuntu-22.04-cloudimg.qcow2</code></td><td>5 台 VM 的基础镜像</td></tr>
+        <tr><td>删 <code>/home/vm-images/ubuntu-22.04-cloudimg.qcow2</code></td><td>5 台 VM 的基础镜像</td></tr>
       </table></div>
     </section>
   </div>

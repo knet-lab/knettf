@@ -35,7 +35,7 @@
         <tr><td>Secrets</td><td><code>/srv/netsentinel/prod/backend/backend/.env</code> (not in Git)</td></tr>
         <tr><td>Model files</td><td><code>/srv/netsentinel/prod/backend/vigil/ml/ads_ml/trained/</code></td></tr>
         <tr><td>Daily partition job</td><td><code>/etc/cron.d/netsentinel</code>, runs <code>rotate_partitions</code> as <code>netsentinel</code> at midnight</td></tr>
-        <tr><td>Lab VMs</td><td>libvirt <code>k8s-master</code> (<code>192.168.100.10</code>), <code>k8s-node1–4</code> (<code>.11–.14</code>); disks in <code>~/vm-images/</code></td></tr>
+        <tr><td>Lab VMs</td><td>libvirt <code>k8s-master</code> (<code>192.168.100.10</code>), <code>k8s-node1–4</code> (<code>.11–.14</code>); disks in <code>/home/vm-images/</code></td></tr>
       </table></div>
       <div class="note">Other projects run on this server too (my-code services, pnu-notice and emotion-talk containers, ports 3306 / 8000 / 8081 / 8099). They are not NetSentinel — do not stop or delete them.</div>
     </section>

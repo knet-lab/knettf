@@ -46,7 +46,7 @@ kubectl get pods -A | grep -vE 'Running|Completed'</code></pre></div></div>
       </div>
 
       <div class="task"><h4><span class="n">6</span>磁盘空间</h4>
-        <div class="do"><div><pre class="on-prod"><code>df -h / /home /home/soar009/vm-images /home/docker-data | sort -u
+        <div class="do"><div><pre class="on-prod"><code>df -h / /home /home/vm-images /home/docker-data | sort -u
 du -sh <span class="vp">/srv/netsentinel/prod</span>/backend/vigil/ml/ads_ml/results</code></pre></div></div>
         <div class="why"><div>pg 数据、Kafka、VM 磁盘都在本机。磁盘满会让数据库和集群同时出问题。<code>results/</code> 下的推理报告每条推理追加一行，会持续变大。</div></div>
         <div class="res"><div>使用率低于 85%。<br><span class="bad">超过</span>：先清 <code>/tmp</code>、旧日志、<code>results/</code> 下的 CSV。</div></div>

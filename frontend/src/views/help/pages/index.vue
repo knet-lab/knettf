@@ -102,7 +102,7 @@
         <tr><td>后端服务定义</td><td><code>deploy/systemd/netsentinel.service</code></td><td>装到 <code>/etc/systemd/system/</code> 的系统服务，以 <code>netsentinel</code> 账户运行</td></tr>
         <tr><td>集群脚本</td><td><code>/srv/netsentinel/knetsentinel/kubeadm-cluster/</code></td><td>00 清理 / 01 建 VM / 02 装集群 / 03 部署数据管道</td></tr>
         <tr><td>集群凭证</td><td><code>~/.kube/config</code></td><td>宿主机上 <code>kubectl</code> 用它；登记集群时把它的内容贴到网页上</td></tr>
-        <tr><td>VM 磁盘</td><td><code>~/vm-images/</code></td><td>5 个 qcow2 + Ubuntu 22.04 cloud image</td></tr>
+        <tr><td>VM 磁盘</td><td><code>/home/vm-images/</code></td><td>5 个 qcow2 + Ubuntu 22.04 cloud image</td></tr>
       </table></div>
       <h3>项目目录以外的相关位置</h3>
       <div class="table-wrap"><table>
@@ -112,7 +112,7 @@
         <tr><td>Docker 容器 <code>pg</code></td><td>PostgreSQL :5432，restart=<code>unless-stopped</code>；库 / 用户 <code>vigil</code>；数据卷 <code>/home/docker-data/volumes/fe9ba015…/_data</code></td><td><span class="tag tag-n">N</span></td></tr>
         <tr><td><code>/etc/cron.d/netsentinel</code></td><td><code class="vp">0 0 * * * netsentinel /srv/netsentinel/prod/.venv/bin/python /srv/netsentinel/prod/backend/manage.py rotate_partitions --database vigil &gt;&gt; /srv/netsentinel/logs/rotate_partitions.log</code>（必须用 <code class="vp">/srv/netsentinel/prod</code>：<code class="vn">~/github/NetSentinel</code> 的默认库是 vigil_dev）</td><td><span class="tag tag-n">N</span></td></tr>
         <tr><td><code>/usr/bin/terraform</code>、<code>tflint</code>、<code>tfsec</code>、<code>trivy</code>、<code>/srv/netsentinel/tools/checkov/bin/checkov</code></td><td>autotf 扫描与 apply 依赖的外部二进制</td><td><span class="tag tag-n">N</span></td></tr>
-        <tr><td><code>~/vm-images/</code></td><td>★ k8s-master / node1~4 的 qcow2 + Ubuntu 22.04 cloud image</td><td><span class="tag tag-k">K</span></td></tr>
+        <tr><td><code>/home/vm-images/</code></td><td>★ k8s-master / node1~4 的 qcow2 + Ubuntu 22.04 cloud image</td><td><span class="tag tag-k">K</span></td></tr>
         <tr><td>libvirt（<code>qemu:///system</code>）</td><td>网络 <code>virbr-k8s</code>（autostart=yes）、VM <code>k8s-master</code>、<code>k8s-node1~4</code>（autostart=<b>否</b>）</td><td><span class="tag tag-k">K</span></td></tr>
         <tr><td><code>~/.kube/config</code></td><td>宿主机访问集群的凭证（server 192.168.100.10:6443）</td><td><span class="tag tag-k">K</span></td></tr>
         <tr><td><code>/etc/hosts</code></td><td>k8s-master / node、<code>kafka-svc.default.svc.cluster.local</code></td><td><span class="tag tag-k">K</span></td></tr>

@@ -30,7 +30,7 @@
       <ul>
         <li>Ubuntu，支持 KVM（<code>kvm-ok</code> 或 <code>ls /dev/kvm</code>），能 sudo，能访问外网。</li>
         <li>出网网卡 <code>enp6s0</code>（02 脚本写死在 <code>HOST_NIC</code>，换机器要改；<code>ip route get 1.1.1.1</code> 查）。</li>
-        <li><code>~/vm-images</code> 所在分区可用 ≥ 420GB（01 脚本检查；master 120G + 4×60G，qcow2 稀疏分配，实际占用小得多）。</li>
+        <li><code>/home/vm-images</code> 所在分区可用 ≥ 420GB（01 脚本检查；master 120G + 4×60G，qcow2 稀疏分配，实际占用小得多）。</li>
         <li>工具：<code>virtinst qemu-utils genisoimage wget python3</code>（01 自动装）、<code>kubectl</code>、<code>helm</code>（02 自动装）、<code>docker</code>、<code>uv</code>、<code>pnpm</code>、<code>terraform</code>、<code>tflint</code>、<code>tfsec</code>、<code>trivy</code>、checkov（在 <code>/srv/netsentinel/tools/checkov</code>，依赖见 <code>deploy/checkov-requirements.txt</code>）、<code>hubble</code> CLI（可选）。</li>
         <li>SSH 密钥 <code>~/.ssh/id_rsa</code>（01 没有就生成），公钥会写进每台 VM 的 <code>k8s</code> 用户。</li>
       </ul>
@@ -38,7 +38,7 @@
 
     <section id="s00">
       <h2>5.3 00-clear.sh：彻底清理（不可逆）</h2>
-      <p>按顺序：杀掉 hubble <code>port-forward</code>、minikube tunnel 后台进程 → <code>virsh destroy/undefine</code> 5 台 VM → 删网络 virbr-k8s → 删 <code>~/vm-images</code> 下 VM 磁盘 → 删 cloud image → 删 <code>/tmp/cidata-*</code>、<code>/tmp/k8s-network.xml</code> → 删 <code>~/.kube/config</code> → 从 <code>/etc/hosts</code> 删 k8s 相关行 → 从 <code>known_hosts</code> 删 .10-.14。</p>
+      <p>按顺序：杀掉 hubble <code>port-forward</code>、minikube tunnel 后台进程 → <code>virsh destroy/undefine</code> 5 台 VM → 删网络 virbr-k8s → 删 <code>/home/vm-images</code> 下 VM 磁盘 → 删 cloud image → 删 <code>/tmp/cidata-*</code>、<code>/tmp/k8s-network.xml</code> → 删 <code>~/.kube/config</code> → 从 <code>/etc/hosts</code> 删 k8s 相关行 → 从 <code>known_hosts</code> 删 .10-.14。</p>
       <div class="danger">执行后集群、Kafka 中的数据、kubeconfig 全部消失。执行前按 <a href="/help/power#rebuild-cluster">重建整个集群</a> 第 1 步备份 <code>/srv/netsentinel/knetsentinel</code> 整个目录（它不在 Git 里）。</div>
     </section>
 
@@ -49,9 +49,9 @@
         <tr><td>配置区</td><td><code>VM_VCPUS=2</code>、<code>VM_RAM_MB=8192</code>、磁盘 <code>120 60 60 60 60</code>、IP 和 MAC 数组</td><td>改规格就改这里</td></tr>
         <tr><td>1</td><td>检查并安装依赖，启动 <code>libvirtd</code>，等 socket 就绪</td><td></td></tr>
         <tr><td>2</td><td>当前用户不在 libvirt 组 → 加入 libvirt、kvm 组，用 <code>exec sg libvirt</code> 重新执行自己</td><td>免得要求重新登录</td></tr>
-        <tr><td>3</td><td>建 <code>~/vm-images</code>（root:libvirt 775），检查可用空间 ≥ 420GB</td><td></td></tr>
+        <tr><td>3</td><td>建 <code>/home/vm-images</code>（root:libvirt 775），检查可用空间 ≥ 420GB</td><td></td></tr>
         <tr><td>4</td><td>用内嵌 Python 生成网络 XML：NAT 模式、网桥 virbr-k8s、<code>.1/24</code>、DHCP 池 .50-.99、5 条 <code>&lt;host mac name ip&gt;</code> 绑定；<code>net-define</code>、<code>net-start</code>、<code>net-autostart</code></td><td><b>用 DHCP 绑定代替 netplan 静态 IP</b>：VM 网卡名不可靠，cloud-init 写 netplan 时序问题多；绑定后效果等同静态</td></tr>
-        <tr><td>5</td><td>下载 Ubuntu 22.04 cloud image 到 <code>~/vm-images/ubuntu-22.04-cloudimg.qcow2</code></td><td>已存在则跳过</td></tr>
+        <tr><td>5</td><td>下载 Ubuntu 22.04 cloud image 到 <code>/home/vm-images/ubuntu-22.04-cloudimg.qcow2</code></td><td>已存在则跳过</td></tr>
         <tr><td>6</td><td>准备 SSH 密钥</td><td></td></tr>
         <tr><td>7</td><td>每台 VM：<code>qemu-img create -b 基础镜像</code> 建差量盘 → 写 cloud-init <code>user-data</code>（用户 k8s、免密 sudo、公钥、关 swap、关 ufw、growpart 扩容）和 <code>meta-data</code> → <code>genisoimage</code> 打成 cidata ISO → <code>virt-install --import</code>，指定固定 MAC，<code>driver.queues=2</code></td><td>差量盘：5 台共用一个只读基础镜像，<b>基础镜像不能删</b>；已存在的 VM 跳过（幂等）</td></tr>
         <tr><td>8</td><td>等待 5 台 SSH 就绪（最多 8 分钟），每 2 分钟自动诊断一次（DHCP 租约、VM 状态）</td><td></td></tr>
