@@ -37,12 +37,12 @@ kubectl get nodes</code></pre></div></div>
       <pre><code>sudo systemctl status netsentinel cloudflared-knettf
 sudo systemctl restart netsentinel
 sudo journalctl -u netsentinel -f</code></pre>
-      <div class="note">Never <code>git commit</code> while switched to <code>soar009</code>: its global identity is GitHub Wk-P, so the commit would be recorded under the original author's name.</div>
+      <div class="note">Never <code>git commit</code> while switched to <code>soar009</code>: it would be recorded under the original author's GitHub account Wk-P.</div>
     </section>
 
     <section id="github">
       <h2>GitHub access</h2>
-      <p>Each Linux account on the server maps to one GitHub account and uses its own key and its own commit identity. The Linux user name is also your personal branch name. The original author is Linux <code>soar009</code> = GitHub <code>Wk-P</code> (key <code>/home/soar009/.ssh/github_ssh_key</code>).</p>
+      <p>Each Linux account on the server maps to one GitHub account and uses its own key and its own commit identity. The Linux user name is also your personal branch name. The original author is Linux <code>soar009</code> = GitHub <code>Wk-P</code>.</p>
       <pre><code>/home/NEWUSER/github/NetSentinel   edit, commit and push on your branch NEWUSER
         ▼  PR NEWUSER → merge-dev, reviewed and approved by the other person, then merged
 merge-dev
@@ -55,8 +55,8 @@ prod
         <div class="do"><div>Any Owner invites your GitHub username at <code>https://github.com/orgs/knet-lab/people</code>; accept at <code>https://github.com/orgs/knet-lab/invitation</code>. Then, logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -C "your-github-email"
 cat /home/NEWUSER/.ssh/id_ed25519.pub
 ssh -T git@github.com</code></pre>Add the printed key in GitHub → Settings → SSH and GPG keys → New SSH key, then run the last line.</div></div>
-        <div class="why"><div>This key is for GitHub only, not for logging in to the server. Never copy <code>/home/soar009/.ssh/github_ssh_key</code>: it is the soar009 account's key for Wk-P.</div></div>
-        <div class="res"><div><code>Hi your-name!</code>. If it says <code>Hi Wk-P!</code>, you are using soar009's key.</div></div>
+        <div class="why"><div>This key is for GitHub only, not for logging in to the server. Never borrow someone else's key.</div></div>
+        <div class="res"><div><code>Hi your-name!</code>.</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>Clone into your development directory and create your branch</h4>
         <div class="do"><div><pre><code>sudo usermod -aG netsentinel NEWUSER
@@ -81,9 +81,9 @@ git -C /home/NEWUSER/github/knetsentinel config --local --get-regexp user</code>
         <div class="res"><div>The last two commands print your name and email. A test commit pushed on a temporary branch shows you as the author on GitHub.</div></div>
       </div>
       <div class="task"><h4><span class="n">4</span>Check that you can release (pull in the production directory)</h4>
-        <div class="do"><div><p><code>release.sh</code> → <code>deploy.sh</code> runs <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the GitHub key of <b>whoever runs it</b>: you use <code>/home/NEWUSER/.ssh/id_ed25519</code> from step 1; soar009 uses <code>github_ssh_key</code> (Wk-P, kept on purpose).</p>
+        <div class="do"><div><p><code>release.sh</code> → <code>deploy.sh</code> runs <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the GitHub key of <b>whoever runs it</b>: you use <code>/home/NEWUSER/.ssh/id_ed25519</code> from step 1.</p>
 <pre><code>git -C /srv/netsentinel/prod fetch origin     # as NEWUSER</code></pre></div></div>
-        <div class="why"><div><code>Permission denied (publickey)</code> → step 1. <code>insufficient permission</code> / <code>dubious ownership</code> → not yet in group <code>netsentinel</code> or not logged in again. If Wk-P's key is ever removed, only soar009 can no longer release; production is unaffected.</div></div>
+        <div class="why"><div><code>Permission denied (publickey)</code> → step 1. <code>insufficient permission</code> / <code>dubious ownership</code> → not yet in group <code>netsentinel</code> or not logged in again.</div></div>
         <div class="res"><div>The fetch succeeds.</div></div>
       </div>
     </section>
