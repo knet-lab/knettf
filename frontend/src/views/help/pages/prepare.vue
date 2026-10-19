@@ -106,7 +106,7 @@ kubectl get nodes        # 接手人执行，应看到 k8s-master + k8s-node1~4 
       <div class="table-wrap"><table>
         <tr><th>密钥</th><th>私钥在哪</th><th>公钥加到哪</th><th>用途</th></tr>
         <tr><td>登录密钥（2.1）</td><td>你自己的电脑</td><td>服务器 <code>/home/NEWUSER/.ssh/authorized_keys</code></td><td>你从自己电脑 ssh 登录服务器</td></tr>
-        <tr><td>GitHub 密钥（本步）</td><td>服务器 <code>/home/NEWUSER/.ssh/github_ssh_key</code></td><td>你自己的 GitHub 账号 Settings → SSH and GPG keys</td><td>服务器上以你的身份 clone / push / pull，发布时 <code>deploy.sh</code> 的 <code>git pull</code> 也用它</td></tr>
+        <tr><td>GitHub 密钥（本步）</td><td>服务器 <code>/home/NEWUSER/.ssh/github_ssh_key</code></td><td>你自己的 GitHub 账号 Settings → SSH and GPG keys</td><td>服务器上以你的身份 clone / push / pull，发布时 <code>release.sh</code> 的 push 和 <code>deploy.sh</code> 的 <code>git pull</code> 也用它</td></tr>
       </table></div>
       <p>以 NEWUSER 登录服务器后执行。密钥单独命名为 <code>github_ssh_key</code>，不占用默认的 <code>id_ed25519</code>，只在连 github.com 时使用，不会被拿去连别的主机：</p>
       <pre><code>ssh-keygen -t ed25519 -N "" -C "你的GitHub邮箱" -f /home/NEWUSER/.ssh/github_ssh_key
@@ -149,10 +149,11 @@ git switch NEWUSER
 git push origin --delete test/handover
 git branch -D test/handover</code></pre>
 
-      <h3>第 5 步：确认你能发布（线上目录的 pull）</h3>
-      <p>发布时 <code>release.sh</code> → <code>deploy.sh</code> 会在 <code>/srv/netsentinel/prod</code> 里执行 <code>git pull</code>。这个目录归 <code>netsentinel</code>，但 <code>git pull</code> 由<b>运行 release.sh 的那个账户</b>执行，用的是<b>那个账户</b>的 GitHub 密钥：也就是你在第 1 步加的 <code>/home/NEWUSER/.ssh/github_ssh_key</code>。先确认它能从这里 fetch：</p>
-      <pre><code>git -C /srv/netsentinel/prod fetch origin     # 以 NEWUSER 执行，不报错即可</code></pre>
-      <p>报 <code>Permission denied (publickey)</code> → 回到第 1 步；报 <code>insufficient permission</code> 或 <code>dubious ownership</code> → 还没加进 <code>netsentinel</code> 组或没重新登录（第 2 步）。</p>
+      <h3>第 5 步：确认你能发布（push prod、pull 线上目录）</h3>
+      <p>发布时两个脚本都在 <code>/srv/netsentinel/prod</code> 里操作 GitHub：<code>release.sh</code> 执行 <code>git push origin origin/merge-dev:prod</code>（往 GitHub 推），<code>deploy.sh</code> 执行 <code>git pull</code>（从 GitHub 拉）。这个目录归 <code>netsentinel</code>，但 Git 命令由<b>运行 release.sh 的那个账户</b>执行，用的是<b>那个账户</b>的 GitHub 密钥，也就是你在第 1 步加的 <code>/home/NEWUSER/.ssh/github_ssh_key</code>。所以要确认它在这里既能拉也能推：</p>
+      <pre><code>git -C /srv/netsentinel/prod fetch origin                                   # 能拉：不报错即可
+git -C /srv/netsentinel/prod push --dry-run origin origin/prod:prod         # 能推：只演练不推送，输出 Everything up-to-date 即可</code></pre>
+      <p>报 <code>Permission denied (publickey)</code> → 回到第 1 步；push 报 <code>Permission to knet-lab/NetSentinel.git denied</code> → 你的 GitHub 账号在组织里没有写权限（2.2）；报 <code>insufficient permission</code> 或 <code>dubious ownership</code> → 还没加进 <code>netsentinel</code> 组或没重新登录（第 2 步）。</p>
 
       <h3>常见错误</h3>
       <div class="table-wrap"><table>

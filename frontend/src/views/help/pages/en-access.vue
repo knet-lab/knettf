@@ -90,11 +90,12 @@ git -C /home/NEWUSER/github/knetsentinel config --local --get-regexp user</code>
         <div class="why"><div>The identity is set in your own two development repositories only, so it affects nothing else in your account. Never set one in the shared directories under <code>/srv/netsentinel</code>: they are only pulled, never committed in.</div></div>
         <div class="res"><div>The last two commands print your name and email. A test commit pushed on a temporary branch shows you as the author on GitHub.</div></div>
       </div>
-      <div class="task"><h4><span class="n">4</span>Check that you can release (pull in the production directory)</h4>
-        <div class="do"><div><p><code>release.sh</code> → <code>deploy.sh</code> runs <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the GitHub key of <b>whoever runs it</b>: you use <code>/home/NEWUSER/.ssh/github_ssh_key</code> from step 1.</p>
-<pre><code>git -C /srv/netsentinel/prod fetch origin     # as NEWUSER</code></pre></div></div>
+      <div class="task"><h4><span class="n">4</span>Check that you can release (push prod, pull production)</h4>
+        <div class="do"><div><p>Both scripts talk to GitHub from <code>/srv/netsentinel/prod</code> with the key of <b>whoever runs them</b> (you: <code>/home/NEWUSER/.ssh/github_ssh_key</code>): <code>release.sh</code> runs <code>git push origin origin/merge-dev:prod</code>, <code>deploy.sh</code> runs <code>git pull</code>. Check both directions:</p>
+<pre><code>git -C /srv/netsentinel/prod fetch origin
+git -C /srv/netsentinel/prod push --dry-run origin origin/prod:prod     # dry run only</code></pre></div></div>
         <div class="why"><div><code>Permission denied (publickey)</code> → step 1. <code>insufficient permission</code> / <code>dubious ownership</code> → not yet in group <code>netsentinel</code> or not logged in again.</div></div>
-        <div class="res"><div>The fetch succeeds.</div></div>
+        <div class="res"><div>The fetch succeeds; the dry-run push prints <code>Everything up-to-date</code>.</div></div>
       </div>
     </section>
 
