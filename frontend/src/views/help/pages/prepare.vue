@@ -16,20 +16,30 @@
       </table></div>
 
       <h3>属于 NetSentinel 的东西</h3>
-      <p>2026-10-19 起线上已迁出 soar009 家目录（见 <a href="#migrate">3.1</a>）：线上目录、服务、定时任务都归 <code>netsentinel</code> 账户；soar009 名下只剩它自己的开发目录。</p>
+      <p>结构分两半：<b>线上</b>全部放在 <code>/srv/netsentinel</code>，由没有登录权限的系统账户 <code>netsentinel</code> 运行；<b>开发</b>在每个人自己的 <code>/home/NEWUSER/github</code> 里。这样线上不依赖任何个人账户，谁离开、谁的账户被锁都不影响 knettf.com；每人改代码互不干扰，只有经过 PR 和 <code>release.sh</code> 的提交才会进入线上。</p>
       <div class="table-wrap"><table>
         <tr><th>资源</th><th>位置</th><th>说明</th></tr>
-        <tr><td>平台代码（开发）</td><td>每人自己的 <code>/home/NEWUSER/github/NetSentinel</code>（soar009 的是 <code>/home/soar009/github/NetSentinel</code>）</td><td>GitHub <code>knet-lab/NetSentinel</code>（SSH 远程，个人分支如 soar009）；平时改代码、提交都在这里</td></tr>
-        <tr><td>平台代码（线上）</td><td><code>/srv/netsentinel/prod</code></td><td>归 <code>netsentinel</code> 账户和组；GitHub <code>knet-lab/NetSentinel</code> 的 clone，停在 <code>prod</code> 分支，只由 <code>scripts/deploy.sh</code> 从 GitHub <code>prod</code> 更新，不要在里面改代码</td></tr>
-        <tr><td>集群/检测代码（开发）</td><td>每人自己的 <code>/home/NEWUSER/github/knetsentinel</code></td><td>GitHub <code>knet-lab/knetsentinel</code>（第二个独立仓库，SSH 远程，个人分支如 soar009）；平时改代码、提交都在这里</td></tr>
-        <tr><td>集群/检测代码（运行）</td><td><code>/srv/netsentinel/knetsentinel</code>（<code>/home/soar009/knetsentinel</code> 是指向它的软链接）</td><td>同一仓库的 clone，停在 <code>master</code> 分支，只从 merge-dev 快进；集群脚本在这里运行，数据也放在这里，不要在里面改代码</td></tr>
+        <tr><td>平台代码（开发）</td><td>每人自己的 <code>/home/NEWUSER/github/NetSentinel</code></td><td>GitHub <code>knet-lab/NetSentinel</code>（SSH 远程，个人分支名 = 你的 Linux 用户名）；平时改代码、提交都在这里</td></tr>
+        <tr><td>平台代码（线上）</td><td><code>/srv/netsentinel/prod</code></td><td>归 <code>netsentinel</code> 账户和组；GitHub <code>knet-lab/NetSentinel</code> 的 clone，停在 <code>prod</code> 分支，只由 <code>/srv/netsentinel/release.sh</code>（内部调用 <code>scripts/deploy.sh</code>）从 GitHub <code>prod</code> 更新，不要在里面改代码</td></tr>
+        <tr><td>集群/检测代码（开发）</td><td>每人自己的 <code>/home/NEWUSER/github/knetsentinel</code></td><td>GitHub <code>knet-lab/knetsentinel</code>（第二个独立仓库，SSH 远程，个人分支名 = 你的 Linux 用户名）；平时改代码、提交都在这里</td></tr>
+        <tr><td>集群/检测代码（运行）</td><td><code>/srv/netsentinel/knetsentinel</code></td><td>同一仓库的 clone，停在 <code>master</code> 分支，只从 merge-dev 快进；集群脚本在这里运行，数据也放在这里，不要在里面改代码</td></tr>
         <tr><td>Python 环境</td><td>两个目录各有一个 <code>.venv</code>（uv 管理）</td><td>依赖见 <code>pyproject.toml</code> / <code>uv.lock</code></td></tr>
         <tr><td>Terraform 扫描工具</td><td><code>/srv/netsentinel/tools/checkov/bin/checkov</code></td><td>归 <code>netsentinel</code> 账户的独立 venv，依赖见 <code>deploy/checkov-requirements.txt</code>；路径由 settings 的 <code>AUTOTF_TOOLS_BIN</code> 决定</td></tr>
         <tr><td>后端服务</td><td><code>/etc/systemd/system/netsentinel.service</code></td><td>系统服务，以 <code>netsentinel</code> 账户运行 <code>/srv/netsentinel/prod</code>，uvicorn 监听 8080</td></tr>
         <tr><td>隧道</td><td><code>/etc/systemd/system/cloudflared-knettf.service</code> + <code>/etc/cloudflared/knettf/config.yml</code></td><td>knettf.com → localhost:8080，以 <code>netsentinel</code> 账户运行</td></tr>
         <tr><td>定时任务</td><td><code>/etc/cron.d/netsentinel</code></td><td>每天 0 点以 <code>netsentinel</code> 账户用 <code>/srv/netsentinel/prod</code> 执行 <code>manage.py rotate_partitions --database vigil</code></td></tr>
-        <tr><td>数据库</td><td>SQLite：两个目录各自的 <code>backend/db.sqlite3</code>（线上以 <code>/srv/netsentinel/prod</code> 为准）；PostgreSQL：Docker 容器 <code>pg</code>（5432，线上库 <code>vigil</code>，开发库 <code>vigil_dev</code>）</td><td>容器数据在 <code>/home/docker-data</code>，与 soar009 家目录无关</td></tr>
+        <tr><td>数据库</td><td>SQLite：两个目录各自的 <code>backend/db.sqlite3</code>（线上以 <code>/srv/netsentinel/prod</code> 为准）；PostgreSQL：Docker 容器 <code>pg</code>（5432，线上库 <code>vigil</code>，开发库 <code>vigil_dev</code>）</td><td>容器数据在 <code>/home/docker-data</code>，不属于任何个人家目录</td></tr>
         <tr><td>密钥/口令</td><td>两个目录各自的 <code>backend/backend/.env</code>：线上那份有 <code>SECRET_KEY</code>、<code>DEBUG=False</code>、<code>VIGIL_BRIDGE_TOKEN</code>；PostgreSQL 密码目前是 <code>settings.py</code> 里的默认值</td><td>.env 不在 Git 里，权限 600</td></tr>
+        <tr><td>运行工具</td><td><code>/usr/local/bin/uv</code>、<code>/opt/node-v22.21.1</code>；日志 <code>/srv/netsentinel/logs</code>，备份 <code>/srv/netsentinel/backups</code></td><td>装在系统路径，<code>netsentinel</code> 账户和每个人都能用，不依赖某人的家目录</td></tr>
+      </table></div>
+      <p>服务、隧道、定时任务、sudo 规则的配置文件都在仓库的 <code>deploy/</code> 目录里，改了要提交，重装时照下表复制，机器上的配置因此始终能从 Git 恢复：</p>
+      <div class="table-wrap"><table>
+        <tr><th>仓库文件</th><th>装到</th></tr>
+        <tr><td><code>deploy/systemd/netsentinel.service</code></td><td><code>/etc/systemd/system/netsentinel.service</code></td></tr>
+        <tr><td><code>deploy/systemd/cloudflared-knettf.service</code></td><td><code>/etc/systemd/system/cloudflared-knettf.service</code></td></tr>
+        <tr><td><code>deploy/cloudflared-knettf.yml</code></td><td><code>/etc/cloudflared/knettf/config.yml</code>（隧道凭证 JSON 在同一目录，不进 Git）</td></tr>
+        <tr><td><code>deploy/cron.netsentinel</code></td><td><code>/etc/cron.d/netsentinel</code></td></tr>
+        <tr><td><code>deploy/sudoers.netsentinel</code></td><td><code>/etc/sudoers.d/netsentinel</code></td></tr>
       </table></div>
 
       <h3>同一台机器上的其他项目——不要碰</h3>
@@ -46,9 +56,9 @@
       <h2>全流程一览</h2>
       <div class="table-wrap"><table>
         <tr><th>阶段</th><th>内容</th><th>做完的标志</th></tr>
-        <tr><td><b>一 准备工作</b><br>（只做一次，必做）</td><td>1.1 申请 Linux 账户 → 1.2 加入 GitHub 仓库 → 1.3 配置 Git → 1.4 验收</td><td><a href="#ready">准备完成验收</a> 6 项全部通过</td></tr>
+        <tr><td><b>一 准备工作</b><br>（只做一次，必做）</td><td>1.1 申请 Linux 账户 → 1.2 加入 GitHub 仓库 → 1.3 配置 Git → 1.4 验收</td><td><a href="#ready">准备完成验收</a> 7 项全部通过</td></tr>
         <tr><td><b>二 正式接手</b><br>（验收通过后开始）</td><td>2.1 学会操作服务 → 2.2 接手第一天 → 之后每天 <a href="/help/health">健康检查</a></td><td>第一天清单做完，之后进入日常</td></tr>
-        <tr><td><b>三 后续</b><br>（可选，择机）</td><td>3.1 迁出 soar009 家目录 → 3.2 原作者离开时收尾</td><td>原作者账户可以安全锁定</td></tr>
+        <tr><td><b>三 交接</b><br>（有人离开时）</td><td>3.1 外部账号与口令移交 → 锁定离开者的账户</td><td>离开者的账户锁定后线上照常</td></tr>
       </table></div>
       <div class="note">验收没通过之前<b>不要</b>开始阶段二：账户、权限、Git 身份没配好就操作服务，容易出现权限错误或提交记到别人名下。</div>
     </section>
@@ -168,12 +178,14 @@ git -C /home/NEWUSER/github/knetsentinel switch -c NEWUSER origin/merge-dev
 git -C /home/NEWUSER/github/knetsentinel push -u origin NEWUSER</code></pre>
 
       <h3>第 3 步：本地仓库的提交设置</h3>
-      <pre><code>git config --global user.name  "你的名字"
-git config --global user.email "你在GitHub已验证的邮箱"   # 或 GitHub 提供的 数字+用户名@users.noreply.github.com
-git config --global --list</code></pre>
-      <p>身份只设在各账户的全局配置里，仓库的 <code>.git/config</code> 里不写身份（仓库级配置会覆盖个人配置，谁提交都显示成同一个人）。2026-10-19 已把原来写在仓库里的 Wk-P 身份移到了 soar009 账户的全局配置。确认两个仓库里没有写身份：</p>
-      <pre><code>git -C /home/NEWUSER/github/NetSentinel config --local --get-regexp user     # 应无输出
-git -C /home/NEWUSER/github/knetsentinel config --local --get-regexp user    # 应无输出</code></pre>
+      <p>提交身份写在<b>你自己的两个开发仓库</b>里（仓库内的 <code>.git/config</code>），只对这两个仓库生效，不影响你账户下的其他项目：</p>
+      <pre><code>git -C /home/NEWUSER/github/NetSentinel  config user.name  "你的GitHub用户名"
+git -C /home/NEWUSER/github/NetSentinel  config user.email "你在GitHub已验证的邮箱"   # 或 GitHub 提供的 数字+用户名@users.noreply.github.com
+git -C /home/NEWUSER/github/knetsentinel config user.name  "你的GitHub用户名"
+git -C /home/NEWUSER/github/knetsentinel config user.email "你在GitHub已验证的邮箱"
+git -C /home/NEWUSER/github/NetSentinel  config --local --get-regexp user     # 应显示你的名字和邮箱
+git -C /home/NEWUSER/github/knetsentinel config --local --get-regexp user     # 同上</code></pre>
+      <p>为什么只写在开发仓库：这两个目录只有你自己用，写在这里最精确。邮箱必须是 GitHub 上已验证的，GitHub 才会把提交关联到你的账号。线上目录 <code>/srv/netsentinel/prod</code> 和 <code>/srv/netsentinel/knetsentinel</code> 是大家共用的、只 pull 不提交，<b>不要</b>在里面设身份，否则谁在那里提交都会显示成同一个人。</p>
 
       <h3>第 4 步：试一次提交</h3>
       <p>用一个临时分支试，不弄脏个人分支。knetsentinel 把路径换成 <code>/home/NEWUSER/github/knetsentinel</code> 再做一遍：</p>
@@ -197,7 +209,7 @@ git branch -D test/handover</code></pre>
         <tr><th>现象</th><th>原因</th><th>处理</th></tr>
         <tr><td><code>Permission denied (publickey)</code></td><td>服务器上你账户的公钥没加到 GitHub</td><td>第 1 步</td></tr>
         <tr><td><code>Permission to knet-lab/NetSentinel.git denied to 你的用户名</code></td><td>还没接受 knet-lab 组织的邀请</td><td>1.2</td></tr>
-        <tr><td>提交作者显示 Wk-P</td><td>在 soar009 账户下提交了，或仓库 <code>.git/config</code> 里又写了身份</td><td>第 3 步</td></tr>
+        <tr><td>提交作者显示 Wk-P</td><td>在 soar009 账户下提交了，或你的开发仓库里没设身份</td><td>第 3 步</td></tr>
         <tr><td><code>detected dubious ownership</code></td><td>仓库属于别的账户</td><td><code>git config --global --add safe.directory 仓库路径</code>（线上目录已在系统级配置里加过）</td></tr>
         <tr><td><code>insufficient permission for adding an object</code></td><td>/srv 下有文件不是组可写</td><td><code>sudo chmod -R g+rwX /srv/netsentinel/prod/.git</code>，确认 umask 002</td></tr>
       </table></div>
@@ -228,7 +240,7 @@ sudo systemctl restart netsentinel
 sudo journalctl -u netsentinel -f
 cat /etc/cron.d/netsentinel              # 看定时任务
 tail /srv/netsentinel/logs/rotate_partitions.log</code></pre>
-      <div class="note">不要在 <code>sudo -iu soar009</code> 下 <b>git commit</b>：soar009 账户的全局身份是它的 GitHub 账号 Wk-P，提交会记到原作者名下（见 1.3 整体流程）。my-code 的服务仍是 soar009 的 user 服务（<code>sudo -iu soar009 systemctl --user ...</code>），不归你管。</div>
+      <div class="note">不要在 <code>sudo -iu soar009</code> 下 <b>git commit</b>：soar009 账户的全局身份是它的 GitHub 账号 Wk-P，提交会记到原作者名下（见 1.3 整体流程）。my-code 的服务是 soar009 的 user 服务（<code>sudo -iu soar009 systemctl --user ...</code>），不归你管。</div>
     </section>
 
     <section id="day1">
@@ -239,41 +251,25 @@ tail /srv/netsentinel/logs/rotate_partitions.log</code></pre>
         <li>改掉网站默认账号 admin / alice / bob 的密码（<a href="/help/account">账号与令牌</a>）——它们写在代码里，等于公开。</li>
         <li>在网站管理后台 Users 里核对账号，删掉或停用陌生账号。</li>
         <li>读一遍 <a href="/help/trouble#dont">不要做的事</a> 和 <a href="/help/power">开关机与恢复</a>，知道宿主机重启后要做什么。</li>
-        <li>确认已经从原作者那里当面拿到：网页管理员账号、线上 <code>.env</code> 里的 token、PostgreSQL 密码（见 3.2 第 5 条）。</li>
-        <li>读 <a href="/help/index#envs">开发与生产</a>：知道哪个目录是线上、怎么用 <code>deploy.sh</code> 上线。</li>
+        <li>确认已经从原作者那里当面拿到：网页管理员账号、线上 <code>.env</code> 里的 token、PostgreSQL 密码（见 3.1 第 5 条）。</li>
+        <li>读 <a href="/help/index#envs">开发与生产</a>：知道哪个目录是线上、怎么用 <code>release.sh</code> 上线。</li>
       </ol>
-      <div class="learn">做到这里，你已经正式接手。阶段三不着急，等系统稳定、有停机窗口时再做。</div>
+      <div class="learn">做到这里，你已经正式接手。阶段三在以后有人离开时再做。</div>
     </section>
 
-    <div class="phase"><div class="phase-n">阶段三</div><div><b>后续（可选）</b><br>不影响日常运维，择机进行。</div></div>
-
-    <section id="migrate">
-      <h2>3.1 迁出 soar009 家目录（2026-10-19 已完成）</h2>
-      <p>线上已从 <code>/srv/netsentinel/prod</code> 搬到 <code>/srv/netsentinel/prod</code>，由系统账户 <code>netsentinel</code>（nologin）以系统服务运行。用的是仓库里的 <code>scripts/migrate-to-srv.sh</code>（<code>prep</code> 不停服准备，<code>cutover</code> 停服约 1 分钟切换），配置文件都在 <code>deploy/</code>：</p>
-      <div class="table-wrap"><table>
-        <tr><th>仓库文件</th><th>装到</th></tr>
-        <tr><td><code>deploy/systemd/netsentinel.service</code></td><td><code>/etc/systemd/system/netsentinel.service</code></td></tr>
-        <tr><td><code>deploy/systemd/cloudflared-knettf.service</code></td><td><code>/etc/systemd/system/cloudflared-knettf.service</code></td></tr>
-        <tr><td><code>deploy/cloudflared-knettf.yml</code></td><td><code>/etc/cloudflared/knettf/config.yml</code>（凭证 JSON 在同一目录）</td></tr>
-        <tr><td><code>deploy/cron.netsentinel</code></td><td><code>/etc/cron.d/netsentinel</code></td></tr>
-        <tr><td><code>deploy/sudoers.netsentinel</code></td><td><code>/etc/sudoers.d/netsentinel</code></td></tr>
-      </table></div>
-      <p><code>/srv/netsentinel</code> 下另有 <code>knetsentinel</code>（原 <code>/home/soar009/knetsentinel</code>，旧路径留了软链接）、<code>logs</code>、<code>backups</code>。uv 和 Node 装到了系统路径（<code>/usr/local/bin/uv</code>、<code>/opt/node-v22.21.1</code>）。</p>
-      <div class="note">回滚：<code>scripts/migrate-to-srv.sh rollback</code>，依赖旧目录 <code>/srv/netsentinel/prod.migrated-20261019_183652</code> 和 <code>/home/soar009/knetsentinel.migrated-20261019_183652</code>，knettf.com 稳定一周后可删除，删除后就不能回滚。<br>
-        checkov 已迁到 <code>/srv/netsentinel/tools/checkov</code>；my-code 的服务和隧道仍在 soar009 下，不属于 NetSentinel。</div>
-    </section>
+    <div class="phase"><div class="phase-n">阶段三</div><div><b>交接</b><br>任何一个 owner 离开时做，保证剩下的人仍能管住所有外部账号。</div></div>
 
     <section id="offboard">
-      <h2>3.2 原作者离开时的收尾</h2>
+      <h2>3.1 有人离开时的交接</h2>
       <ol>
         <li><a href="#ready">准备完成验收</a> 全部通过。</li>
-        <li>GitHub：两个仓库转到组织，或至少确认接手人已是协作者。</li>
-        <li>Cloudflare：knettf.com 和两条隧道都在原作者的 Cloudflare 账号里，要把接手人加为成员（Manage Account → Members）。</li>
-        <li>Tailscale：tailnet 是原作者的，要么邀请接手人，要么接手人用自己的账号重新登录（1.1）。</li>
-        <li>当面交接：网页管理员账号、<code>/srv/netsentinel/prod/backend/backend/.env</code>（SECRET_KEY、VIGIL_BRIDGE_TOKEN）、PostgreSQL 密码（vigil 用户，当前是 <code>settings.py</code> 里的默认值）。</li>
-        <li><b>不能直接锁 soar009</b>：NetSentinel 已迁出，但 my-code 的三个服务和 my-code 隧道仍是 soar009 的 user 服务，锁账户（或关 linger）会把它们一起停掉。先和 my-code 的负责人确认怎么处理，再执行：
-          <pre><code>sudo usermod -L soar009              # 只锁密码；密钥登录要另外删 authorized_keys
-sudo gpasswd -d soar009 sudo</code></pre></li>
+        <li>GitHub：knet-lab 组织里保持至少两个 Owner，离开者移出前确认其余 Owner 已在（1.2）。</li>
+        <li>Cloudflare：knettf.com 和隧道在原作者的 Cloudflare 账号里，要把留下的人加为成员（Manage Account → Members）。</li>
+        <li>Tailscale：tailnet 属于原作者，要么邀请留下的人，要么改用留下的人自己的 tailnet（1.1）。</li>
+        <li>当面移交：网页管理员账号、<code>/srv/netsentinel/prod/backend/backend/.env</code>（SECRET_KEY、VIGIL_BRIDGE_TOKEN）、PostgreSQL 密码（vigil 用户，当前是 <code>settings.py</code> 里的默认值）。</li>
+        <li>锁定离开者的账户。NetSentinel 线上不在任何个人账户下，锁谁都不影响它；但 soar009 下还跑着 my-code 的服务和隧道，锁 soar009（或关 linger）会把它们一起停掉，要先和 my-code 的负责人确认：
+          <pre><code>sudo usermod -L 用户名              # 只锁密码；密钥登录要另外删 /home/用户名/.ssh/authorized_keys
+sudo gpasswd -d 用户名 sudo</code></pre></li>
       </ol>
     </section>
   </div>

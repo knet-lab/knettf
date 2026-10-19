@@ -71,12 +71,14 @@ git -C /home/NEWUSER/github/knetsentinel push -u origin NEWUSER</code></pre></di
         <div class="res"><div>Both repositories cloned; your branch exists on GitHub.</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>Set your commit identity</h4>
-        <div class="do"><div><pre><code>git config --global user.name  "Your Name"
-git config --global user.email "your-verified-github-email"
-git -C /home/NEWUSER/github/NetSentinel config --local --get-regexp user
-git -C /srv/netsentinel/knetsentinel config --local --get-regexp user</code></pre></div></div>
-        <div class="why"><div>Identity lives only in each account's global config. A repository-level identity would override everyone's; Wk-P's was moved to soar009's global config on 2026-10-19.</div></div>
-        <div class="res"><div>The last two commands print nothing. A test commit pushed on a temporary branch shows you as the author on GitHub.</div></div>
+        <div class="do"><div><pre><code>git -C /home/NEWUSER/github/NetSentinel  config user.name  "your-github-username"
+git -C /home/NEWUSER/github/NetSentinel  config user.email "your-verified-github-email"
+git -C /home/NEWUSER/github/knetsentinel config user.name  "your-github-username"
+git -C /home/NEWUSER/github/knetsentinel config user.email "your-verified-github-email"
+git -C /home/NEWUSER/github/NetSentinel  config --local --get-regexp user
+git -C /home/NEWUSER/github/knetsentinel config --local --get-regexp user</code></pre></div></div>
+        <div class="why"><div>The identity is set in your own two development repositories only, so it affects nothing else in your account. Never set one in the shared directories under <code>/srv/netsentinel</code>: they are only pulled, never committed in.</div></div>
+        <div class="res"><div>The last two commands print your name and email. A test commit pushed on a temporary branch shows you as the author on GitHub.</div></div>
       </div>
       <div class="task"><h4><span class="n">4</span>Check that you can release (pull in the production directory)</h4>
         <div class="do"><div><p><code>release.sh</code> → <code>deploy.sh</code> runs <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the GitHub key of <b>whoever runs it</b>: you use <code>/home/NEWUSER/.ssh/id_ed25519</code> from step 1; soar009 uses <code>github_ssh_key</code> (Wk-P, kept on purpose).</p>

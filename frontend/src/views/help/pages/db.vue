@@ -8,7 +8,7 @@
       <div class="table-wrap"><table>
         <tr><th>别名</th><th>引擎</th><th>位置</th><th>存放</th><th>连接方式</th></tr>
         <tr><td><code>default</code></td><td>SQLite</td><td><code>backend/db.sqlite3</code>（线上 <code class="vp">/srv/netsentinel/prod/backend/</code>，开发 <code class="vn">/home/NEWUSER/github/NetSentinel/backend/</code>，互不相通）</td><td>kcore、autotf、Django 内置（auth、admin、session、contenttypes、migrations）</td><td><code>sqlite3 backend/db.sqlite3</code></td></tr>
-        <tr><td><code>vigil</code></td><td>PostgreSQL</td><td>Docker 容器 <code>pg</code>，127.0.0.1:5432，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>（2026-10-19 从线上复制），用户 <code>vigil</code> / 密码 <code>vigil123</code>；用哪个库由 .env 的 <code>VIGIL_DB_NAME</code> 决定</td><td>只有 <code>vigil_detectionrecord</code>（分区表）</td><td><code>docker exec -it pg psql -U vigil vigil</code></td></tr>
+        <tr><td><code>vigil</code></td><td>PostgreSQL</td><td>Docker 容器 <code>pg</code>，127.0.0.1:5432，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>（线上的副本，开发随便用），用户 <code>vigil</code> / 密码 <code>vigil123</code>；用哪个库由 .env 的 <code>VIGIL_DB_NAME</code> 决定</td><td>只有 <code>vigil_detectionrecord</code>（分区表）</td><td><code>docker exec -it pg psql -U vigil vigil</code></td></tr>
       </table></div>
       <p>路由规则（<code>backend/backend/db_router.py AppRouter</code>）：</p>
       <ul>
