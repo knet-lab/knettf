@@ -47,7 +47,7 @@
       <div class="table-wrap"><table>
         <tr><th>Don't</th><th>Because</th></tr>
         <tr><td>Delete the <code>kafka-controller</code> pod or any namespace</td><td>It is not recreated; Kafka must be rebuilt</td></tr>
-        <tr><td>Edit, commit or <code>git pull</code> inside <code>/srv/netsentinel/prod</code></td><td><code>deploy.sh</code> refuses to deploy over local changes; production is only updated by <code>deploy.sh</code> from GitHub <code>main</code></td></tr>
+        <tr><td>Edit, commit or <code>git pull</code> inside <code>/srv/netsentinel/prod</code></td><td><code>deploy.sh</code> refuses to deploy over local changes; production is only updated by <code>deploy.sh</code> from GitHub <code>prod</code></td></tr>
         <tr><td>Run <code>manage.py runserver</code> in production</td><td>Starts a second bridge that steals Kafka traffic</td></tr>
         <tr><td><code>docker stop pg</code></td><td>A manually stopped container does not start after reboot</td></tr>
         <tr><td>Run cluster scripts with <code>sudo bash</code></td><td>The kubeconfig is written to root's home</td></tr>

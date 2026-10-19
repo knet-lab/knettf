@@ -9,7 +9,7 @@
         <tr><th>组件</th><th>开机自动恢复</th><th>备注</th></tr>
         <tr><td>后端 <code>netsentinel</code>、隧道 <code>cloudflared-knettf</code></td><td>是</td><td>但后端起来时集群还没开，bridge 会连不上 Kafka 而退出，<b>集群起来后必须重启后端</b></td></tr>
         <tr><td>PostgreSQL 容器 <code>pg</code></td><td>是（<code>unless-stopped</code>）</td><td>手动 <code>docker stop</code> 过的不会自启</td></tr>
-        <tr><td>crontab、网桥 <code>virbr-k8s</code></td><td>是</td><td></td></tr>
+        <tr><td>/etc/cron.d 定时任务、网桥 <code>virbr-k8s</code></td><td>是</td><td></td></tr>
         <tr><td>5 台 VM</td><td><b>否</b></td><td>需要手动启动</td></tr>
         <tr><td>iptables NAT / FORWARD</td><td><b>否</b></td><td>02 脚本临时加的，没有持久化</td></tr>
         <tr><td>Kafka、Vector、MetalLB</td><td>随 VM 起来</td><td><code>kafka-controller</code> 是裸 Pod，被删了不会重建</td></tr>

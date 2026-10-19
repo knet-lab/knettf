@@ -19,8 +19,8 @@
       <p>2026-10-19 起线上已迁出 soar009 家目录（见 <a href="#migrate">3.1</a>）：线上目录、服务、定时任务都归 <code>netsentinel</code> 账户；soar009 名下只剩它自己的开发目录。</p>
       <div class="table-wrap"><table>
         <tr><th>资源</th><th>位置</th><th>说明</th></tr>
-        <tr><td>平台代码（开发）</td><td><code>/home/soar009/github/NetSentinel</code></td><td>GitHub <code>knet-lab/NetSentinel</code>（SSH 远程，分支 main）；平时改代码、提交都在这里</td></tr>
-        <tr><td>平台代码（线上）</td><td><code>/srv/netsentinel/prod</code></td><td>归 <code>netsentinel</code> 账户和组；GitHub <code>knet-lab/NetSentinel</code> 的 clone，只由 <code>scripts/deploy.sh</code> 从 GitHub main 更新，不要在里面改代码</td></tr>
+        <tr><td>平台代码（开发）</td><td><code>/home/soar009/github/NetSentinel</code></td><td>GitHub <code>knet-lab/NetSentinel</code>（SSH 远程，个人分支如 soar009）；平时改代码、提交都在这里</td></tr>
+        <tr><td>平台代码（线上）</td><td><code>/srv/netsentinel/prod</code></td><td>归 <code>netsentinel</code> 账户和组；GitHub <code>knet-lab/NetSentinel</code> 的 clone，停在 <code>prod</code> 分支，只由 <code>scripts/deploy.sh</code> 从 GitHub <code>prod</code> 更新，不要在里面改代码</td></tr>
         <tr><td>集群/检测代码</td><td><code>/srv/netsentinel/knetsentinel</code>（<code>/home/soar009/knetsentinel</code> 是指向它的软链接）</td><td>GitHub <code>knet-lab/knetsentinel</code>（SSH 远程，分支 master）——是第二个独立仓库</td></tr>
         <tr><td>Python 环境</td><td>两个目录各有一个 <code>.venv</code>（uv 管理）</td><td>依赖见 <code>pyproject.toml</code> / <code>uv.lock</code></td></tr>
         <tr><td>Terraform 扫描工具</td><td><code>/srv/netsentinel/tools/checkov/bin/checkov</code></td><td>归 <code>netsentinel</code> 账户的独立 venv，依赖见 <code>deploy/checkov-requirements.txt</code>；路径由 settings 的 <code>AUTOTF_TOOLS_BIN</code> 决定</td></tr>
@@ -106,7 +106,7 @@ kubectl get nodes        # 接手人执行，应看到 k8s-master + k8s-node1~4 
       <p>两个仓库都在实验室组织 <code>knet-lab</code> 下。<code>user.email</code> 只决定提交上<b>显示</b>谁，能不能 push 取决于你的 GitHub <b>账号</b>在不在组织里：</p>
       <div class="table-wrap"><table>
         <tr><th>仓库</th><th>本地目录</th><th>远程地址</th></tr>
-        <tr><td><code>knet-lab/NetSentinel</code></td><td><code>/home/soar009/github/NetSentinel</code></td><td><code>git@github.com:knet-lab/NetSentinel.git</code>（分支 main）</td></tr>
+        <tr><td><code>knet-lab/NetSentinel</code></td><td><code>/home/soar009/github/NetSentinel</code></td><td><code>git@github.com:knet-lab/NetSentinel.git</code>（个人分支 → <code>merge-dev</code> → <code>prod</code>）</td></tr>
         <tr><td><code>knet-lab/knetsentinel</code></td><td><code>/home/soar009/knetsentinel</code></td><td><code>git@github.com:knet-lab/knetsentinel.git</code>（分支 master）</td></tr>
       </table></div>
       <ol>
@@ -148,9 +148,10 @@ git config --global --list</code></pre>
       <pre class="on-prod"><code>sudo usermod -aG netsentinel NEWUSER
 mkdir -p /home/NEWUSER/github && cd /home/NEWUSER/github
 git clone git@github.com:knet-lab/NetSentinel.git
-# 改完 commit、push 到 GitHub 后，部署到线上：
+git switch -c NEWUSER origin/merge-dev && git push -u origin NEWUSER   # 建自己的个人分支
+# 改完 commit、push，PR 合并到 merge-dev、快进到 prod 后，部署到线上：
 /home/NEWUSER/github/NetSentinel/scripts/deploy.sh -all</code></pre>
-      <p>链路是 你的 clone → GitHub main → <code>deploy.sh</code> 在线上目录 <code>/srv/netsentinel/prod</code> 里用<b>你自己的</b> GitHub 密钥 <code>git pull</code>，再构建、重启。没 push 的提交不会上线；线上目录有本地改动时 <code>deploy.sh</code> 会拒绝部署。</p>
+      <p>链路是 你的个人分支 → PR 合并到 <code>merge-dev</code> → 快进到 <code>prod</code> → <code>deploy.sh</code> 在线上目录 <code>/srv/netsentinel/prod</code> 里用<b>你自己的</b> GitHub 密钥 <code>git pull</code>，再构建、重启。没 push 的提交不会上线；线上目录有本地改动时 <code>deploy.sh</code> 会拒绝部署。</p>
 
       <h3>第 5 步：试一次提交</h3>
       <pre><code>cd /home/NEWUSER/github/NetSentinel
@@ -158,7 +159,7 @@ git switch -c test/handover
 echo "" >> README.md && git commit -am "test: handover commit"
 git log -1 --format='%an <%ae>'     # 应是你自己
 git push -u origin test/handover
-git switch main && git push origin --delete test/handover && git branch -D test/handover</code></pre>
+git switch merge-dev && git push origin --delete test/handover && git branch -D test/handover</code></pre>
 
       <h3>第 6 步：确认两个账户都能从 GitHub pull</h3>
       <p>线上目录 <code>/srv/netsentinel/prod</code> 本身是 git clone，<code>deploy.sh</code> 在里面 <code>git pull</code> 时用的是<b>运行者自己的</b> SSH 密钥：soar009 运行用 Wk-P 的密钥（<code>/home/soar009/.ssh/github_ssh_key</code>），你运行用你在第 1 步加的密钥。所以两个账户都要能 pull knet-lab 的仓库，<b>Wk-P 的密钥保留</b>，以后再加入的 owner 也照第 1 步加自己的密钥。</p>

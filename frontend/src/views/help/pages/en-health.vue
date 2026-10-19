@@ -22,7 +22,7 @@ sudo journalctl -u netsentinel --since '-10 min' | grep -E 'vigil.bridge|bridge 
 docker exec pg psql -U vigil vigil -Atc "select to_regclass('vigil_detectionrecord_'||to_char(now()+interval '1 day','YYYY_MM_DD'));"
 tail -1 /srv/netsentinel/logs/rotate_partitions.log</code></pre></div></div>
         <div class="why"><div>Records are stored in one partition per day. If tomorrow's is missing, every write fails after midnight.</div></div>
-        <div class="res"><div>A recent time; a table name (not empty); <code>rotate_partitions done</code>. <span class="bad">Empty second line</span>: <code>cd /srv/netsentinel/prod/backend && ../.venv/bin/python manage.py rotate_partitions --database vigil</code>, then check <code>crontab -l</code>.</div></div>
+        <div class="res"><div>A recent time; a table name (not empty); <code>rotate_partitions done</code>. <span class="bad">Empty second line</span>: <code>cd /srv/netsentinel/prod/backend && ../.venv/bin/python manage.py rotate_partitions --database vigil</code>, then check that <code>/etc/cron.d/netsentinel</code> still exists (<code>cat /etc/cron.d/netsentinel</code>).</div></div>
       </div>
       <div class="task"><h4><span class="n">4</span>Cluster</h4>
         <div class="do"><div><pre><code>virsh -c qemu:///system list --all

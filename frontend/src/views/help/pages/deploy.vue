@@ -2,15 +2,31 @@
   <div v-pre>
         <h1>改动上线</h1>
     <div class="meta">改了代码或配置之后，怎么让它在线上生效、会影响谁、怎么确认成功。<br>
-      流程固定为：在开发目录 <code class="vn">~/github/NetSentinel</code> 改并 <code>git commit</code>、<code>git push</code> 到 GitHub → 在 <code class="vn">~/github/NetSentinel</code> 里跑 <code>scripts/deploy.sh</code>，脚本把 GitHub 上的 main 拉到线上目录 <code class="vp">/srv/netsentinel/prod</code> 再构建、重启。两个目录的分工见 <a href="/help/index#envs">开发与生产</a>。其他改动按后面几节逐项做。</div>
+      流程固定为：在开发目录 <code class="vn">~/github/NetSentinel</code> 的<b>个人分支</b>上改、<code>git commit</code>、<code>git push</code> → 在 GitHub 开 PR 合并到 <code>merge-dev</code> → 确认后把 <code>merge-dev</code> 原样快进到 <code>prod</code> → 跑 <code>scripts/deploy.sh</code>，脚本把 GitHub 上的 <code>prod</code> 拉到线上目录 <code class="vp">/srv/netsentinel/prod</code> 再构建、重启。两个目录的分工见 <a href="/help/index#envs">开发与生产</a>。其他改动按后面几节逐项做。</div>
 
     <section id="before">
       <h2>上线前</h2>
-      <div class="task"><h4><span class="n">1</span>在开发环境验证并提交</h4>
-        <div class="do"><div><pre class="on-dev"><code>cd <span class="vn">~/github/NetSentinel</span> && git status && git diff
-git add -A && git commit -m "说明"</code></pre>提交前先在开发环境（<code>runserver 8090</code> + <code>pnpm dev</code>）跑一遍。</div></div>
-        <div class="why"><div>部署脚本只认 GitHub 上的 main：线上目录 <code class="vp">/srv/netsentinel/prod</code> 从 GitHub 执行 <code>git pull --ff-only</code>（用运行者自己的 GitHub 密钥），没 push 的提交不会上线。运行者必须在 <code>netsentinel</code> 组里；线上目录有本地改动时脚本拒绝部署。每次上线对应一个提交，出了问题能用 <code>git log</code> 查到是哪次改动、用 <code>git revert</code> 退回。</div></div>
+      <div class="note">分支：每人一个个人分支（如 <code>soar009</code>），只在自己的分支上 commit；<code>merge-dev</code> 只通过 PR 合并；<code>prod</code> 只从 <code>merge-dev</code> 快进，不在上面做任何修改。没有 main 分支。</div>
+      <div class="task"><h4><span class="n">1</span>在个人分支上验证并提交</h4>
+        <div class="do"><div><pre class="on-dev"><code>cd <span class="vn">~/github/NetSentinel</span> && git switch <span class="vn">soar009</span>
+git pull origin merge-dev                 # 先合进别人已合并的改动
+git status && git diff
+git add -A && git commit -m "模块：说明"
+git push origin <span class="vn">soar009</span></code></pre>提交前先在开发环境（<code>runserver 8090</code> + <code>pnpm dev</code>）跑一遍。</div></div>
+        <div class="why"><div>先合进 <code>merge-dev</code>，冲突在自己的分支上解决，不会带进 PR。</div></div>
         <div class="res"><div>只有你这次的改动。<code>dist/</code>、<code>.venv/</code>、<code>node_modules/</code>、<code>db.sqlite3</code>、<code>.env</code> 不提交。</div></div>
+      </div>
+      <div class="task"><h4><span class="n">2</span>开 PR 合并到 merge-dev</h4>
+        <div class="do"><div>GitHub 上 knet-lab/NetSentinel → Pull requests → New：base 选 <code>merge-dev</code>，compare 选你的分支。对方看过后合并。</div></div>
+        <div class="why"><div><code>merge-dev</code> 是两个人改动的汇合点，只通过 PR 进入，每次合并都有记录、有人看过。</div></div>
+        <div class="res"><div>PR 显示 Merged，<code>merge-dev</code> 上出现这次的提交。</div></div>
+      </div>
+      <div class="task"><h4><span class="n">3</span>把 merge-dev 发布到 prod</h4>
+        <div class="do"><div><pre class="on-dev"><code>cd <span class="vn">~/github/NetSentinel</span> && git fetch origin
+git log --oneline origin/prod..origin/merge-dev   # 这次要发布的提交
+git push origin origin/merge-dev:prod             # 只能快进，不能快进时会被拒绝</code></pre></div></div>
+        <div class="why"><div><code>prod</code> 和 <code>merge-dev</code> 是同一串提交，发布时不产生新提交、不改代码，上线的就是 merge-dev 上确认过的那个版本。部署脚本只认 GitHub 上的 <code>prod</code>：线上目录 <code class="vp">/srv/netsentinel/prod</code> 停在 <code>prod</code> 分支，从 GitHub 执行 <code>git pull --ff-only</code>（用运行者自己的 GitHub 密钥）。运行者必须在 <code>netsentinel</code> 组里；线上目录有本地改动或不在 <code>prod</code> 分支时脚本拒绝部署。出了问题用 <code>git log</code> 查是哪次改动，在个人分支上 <code>git revert</code> 后照常走 1–3 步。</div></div>
+        <div class="res"><div>输出 <code>... -&gt; prod</code>。<span class="bad">rejected (non-fast-forward)</span>：有人直接改了 prod，先查清楚，不要 force push。</div></div>
       </div>
       <div class="note"><span class="tag tag-k">K</span> knetsentinel 的脚本大多<b>不在 Git 里</b>，改之前先手动备份：<code>cp 03-deploy-5nodes.sh 03-deploy-5nodes.sh.bak_$(date +%F)</code>。</div>
     </section>

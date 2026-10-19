@@ -101,7 +101,7 @@
         <tr><th>name</th><th>cmd</th><th>格式</th><th>依赖的二进制</th></tr>
         <tr><td>terraform_validate</td><td><code>terraform validate -json</code>（init：<code>terraform init -backend=false -input=false</code>）</td><td>json</td><td><code>/usr/bin/terraform</code></td></tr>
         <tr><td>tflint</td><td><code>tflint --format json {target_dir}</code></td><td>json</td><td><code>tflint</code>（PATH）</td></tr>
-        <tr><td>checkov</td><td><code>~/terraform/.venv/bin/checkov -d {target_dir} -o sarif --quiet</code></td><td>sarif</td><td>checkov（独立 venv）</td></tr>
+        <tr><td>checkov</td><td><code>/srv/netsentinel/tools/checkov/bin/checkov -d {target_dir} -o sarif --quiet</code>（结果读 cwd 下的 <code>results.sarif</code>）</td><td>sarif</td><td>checkov（独立 venv，路径由 <code>settings.AUTOTF_TOOLS_BIN</code> 配置）</td></tr>
         <tr><td>tfsec</td><td><code>tfsec {target_dir} --format sarif --no-color</code></td><td>sarif</td><td><code>tfsec</code></td></tr>
         <tr><td>trivy</td><td><code>trivy config {target_dir} --format sarif</code></td><td>sarif</td><td><code>trivy</code></td></tr>
       </table></div>
