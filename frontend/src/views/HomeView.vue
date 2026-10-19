@@ -16,10 +16,11 @@
         <b>{{ c.title }}</b>
         <span>{{ c.desc }}</span>
         <em v-if="c.admin">Admin</em>
+        <em v-else-if="c.to === '/help'" class="open">Public</em>
       </a>
     </section>
 
-    <footer class="home-foot">Sign in required. Pick a card and you will return to it after signing in.</footer>
+    <footer class="home-foot">The manual is open to everyone; other pages require signing in. Pick a card and you will return to it after signing in.</footer>
   </div>
 </template>
 
@@ -40,7 +41,7 @@ const cards = [
 ]
 
 function go(to: string) {
-  router.push(auth.isLoggedIn ? to : { path: '/login', query: { redirect: to } })
+  router.push(auth.isLoggedIn || to === '/help' ? to : { path: '/login', query: { redirect: to } })
 }
 </script>
 
@@ -57,5 +58,6 @@ function go(to: string) {
 .card b { display: block; font-size: 16px; color: #1a202c; margin-bottom: 6px; }
 .card span { font-size: 13px; color: #718096; line-height: 1.6; }
 .card em { position: absolute; top: 12px; right: 12px; font-style: normal; font-size: 11px; background: #faf5ff; color: #6b46c1; padding: 1px 8px; border-radius: 10px; }
+.card em.open { background: #e6fffa; color: #2c7a7b; }
 .home-foot { text-align: center; font-size: 12.5px; color: #a0aec0; padding: 24px 16px 40px; }
 </style>

@@ -46,7 +46,7 @@ const router = createRouter({
       path: '/help/:page?',
       name: 'help',
       component: () => import('../views/HelpView.vue'),
-      meta: { requiresAuth: true, title: 'NetSentinel - Help' },
+      meta: { public: true, title: 'NetSentinel - Help' },
     },
 
     // 旧的静态手册地址 → /help/<页>
