@@ -52,9 +52,11 @@ prod
 /srv/netsentinel/prod</code></pre>
       <p>knetsentinel is the same up to merge-dev; then <code>master</code> is fast-forwarded and <code>/srv/netsentinel/knetsentinel</code> pulled (see Deploying Changes). Review happens only on the PR. So, in order: your GitHub key → clone and create your branch → commit identity → test commit.</p>
       <div class="task"><h4><span class="n">1</span>Join knet-lab and give the server your GitHub key</h4>
-        <div class="do"><div>Any Owner invites your GitHub username at <code>https://github.com/orgs/knet-lab/people</code>; accept at <code>https://github.com/orgs/knet-lab/invitation</code>. Then, logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -C "your-github-email"
-cat /home/NEWUSER/.ssh/id_ed25519.pub
-ssh -T git@github.com</code></pre>Add the printed key in GitHub → Settings → SSH and GPG keys → New SSH key, then run the last line.</div></div>
+        <div class="do"><div>Any Owner invites your GitHub username at <code>https://github.com/orgs/knet-lab/people</code>; accept at <code>https://github.com/orgs/knet-lab/invitation</code>. Then, logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -N "" -C "your-github-email" -f /home/NEWUSER/.ssh/github_ssh_key
+printf 'Host github.com\n    HostName github.com\n    User git\n    IdentityFile /home/NEWUSER/.ssh/github_ssh_key\n    IdentitiesOnly yes\n' &gt;&gt; /home/NEWUSER/.ssh/config
+chmod 600 /home/NEWUSER/.ssh/config
+cat /home/NEWUSER/.ssh/github_ssh_key.pub
+ssh -T git@github.com</code></pre>The key gets its own name instead of the default <code>id_ed25519</code> and is used only for github.com. Add the printed key in GitHub → Settings → SSH and GPG keys → New SSH key, then run the last line.</div></div>
         <div class="why"><div>This key is for GitHub only, not for logging in to the server. Never borrow someone else's key.</div></div>
         <div class="res"><div><code>Hi your-name!</code>.</div></div>
       </div>
@@ -81,7 +83,7 @@ git -C /home/NEWUSER/github/knetsentinel config --local --get-regexp user</code>
         <div class="res"><div>The last two commands print your name and email. A test commit pushed on a temporary branch shows you as the author on GitHub.</div></div>
       </div>
       <div class="task"><h4><span class="n">4</span>Check that you can release (pull in the production directory)</h4>
-        <div class="do"><div><p><code>release.sh</code> → <code>deploy.sh</code> runs <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the GitHub key of <b>whoever runs it</b>: you use <code>/home/NEWUSER/.ssh/id_ed25519</code> from step 1.</p>
+        <div class="do"><div><p><code>release.sh</code> → <code>deploy.sh</code> runs <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the GitHub key of <b>whoever runs it</b>: you use <code>/home/NEWUSER/.ssh/github_ssh_key</code> from step 1.</p>
 <pre><code>git -C /srv/netsentinel/prod fetch origin     # as NEWUSER</code></pre></div></div>
         <div class="why"><div><code>Permission denied (publickey)</code> → step 1. <code>insufficient permission</code> / <code>dubious ownership</code> → not yet in group <code>netsentinel</code> or not logged in again.</div></div>
         <div class="res"><div>The fetch succeeds.</div></div>

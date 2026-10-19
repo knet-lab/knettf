@@ -157,13 +157,15 @@ prod                                    只从 merge-dev 快进，从不直接�
       <div class="table-wrap"><table>
         <tr><th>密钥</th><th>私钥在哪</th><th>公钥加到哪</th><th>用途</th></tr>
         <tr><td>登录密钥（1.1）</td><td>你自己的电脑</td><td>服务器 <code>/home/NEWUSER/.ssh/authorized_keys</code></td><td>你从自己电脑 ssh 登录服务器</td></tr>
-        <tr><td>GitHub 密钥（本步）</td><td>服务器 <code>/home/NEWUSER/.ssh/id_ed25519</code></td><td>你自己的 GitHub 账号 Settings → SSH and GPG keys</td><td>服务器上以你的身份 clone / push / pull，发布时 <code>deploy.sh</code> 的 <code>git pull</code> 也用它</td></tr>
+        <tr><td>GitHub 密钥（本步）</td><td>服务器 <code>/home/NEWUSER/.ssh/github_ssh_key</code></td><td>你自己的 GitHub 账号 Settings → SSH and GPG keys</td><td>服务器上以你的身份 clone / push / pull，发布时 <code>deploy.sh</code> 的 <code>git pull</code> 也用它</td></tr>
       </table></div>
-      <p>以 NEWUSER 登录服务器后执行（三个提示：保存位置直接回车用默认 <code>/home/NEWUSER/.ssh/id_ed25519</code>；口令建议<b>留空</b>回车两次，否则每次 push、发布都要输口令）：</p>
-      <pre><code>ssh-keygen -t ed25519 -C "你的GitHub邮箱"
-cat /home/NEWUSER/.ssh/id_ed25519.pub     # 整行复制 → GitHub 右上头像 → Settings → SSH and GPG keys → New SSH key，Key type 选 Authentication Key
-ssh -T git@github.com                     # 第一次问 Are you sure you want to continue connecting 输入 yes</code></pre>
-      <p>期望输出 <code>Hi 你的GitHub用户名! You've successfully authenticated</code>。默认文件名 <code>id_ed25519</code> 会被 ssh 自动使用，不需要再写 <code>/home/NEWUSER/.ssh/config</code>；如果你已有别的 <code>id_ed25519</code>，直接把它的 <code>.pub</code> 加到 GitHub 即可，不用重新生成。</p>
+      <p>以 NEWUSER 登录服务器后执行。密钥单独命名为 <code>github_ssh_key</code>，不占用默认的 <code>id_ed25519</code>，只在连 github.com 时使用，不会被拿去连别的主机：</p>
+      <pre><code>ssh-keygen -t ed25519 -N "" -C "你的GitHub邮箱" -f /home/NEWUSER/.ssh/github_ssh_key
+printf 'Host github.com\n    HostName github.com\n    User git\n    IdentityFile /home/NEWUSER/.ssh/github_ssh_key\n    IdentitiesOnly yes\n' &gt;&gt; /home/NEWUSER/.ssh/config
+chmod 600 /home/NEWUSER/.ssh/config
+cat /home/NEWUSER/.ssh/github_ssh_key.pub     # 整行复制 → GitHub 右上头像 → Settings → SSH and GPG keys → New SSH key，Key type 选 Authentication Key
+ssh -T git@github.com                          # 第一次问 Are you sure you want to continue connecting 输入 yes</code></pre>
+      <p>期望输出 <code>Hi 你的GitHub用户名! You've successfully authenticated</code>。<code>-N ""</code> 表示不设口令，否则每次 push、发布都要输口令；<code>IdentitiesOnly yes</code> 让 ssh 连 GitHub 时只用这一把，不去试其他密钥。</p>
       <div class="note">只用你自己的密钥。<code>ssh -T</code> 若输出的不是你的 GitHub 用户名，说明你不在自己的账户下。</div>
 
       <h3>第 2 步：从 GitHub 克隆到你的开发目录，建个人分支</h3>
@@ -199,7 +201,7 @@ git push origin --delete test/handover
 git branch -D test/handover</code></pre>
 
       <h3>第 5 步：确认你能发布（线上目录的 pull）</h3>
-      <p>发布时 <code>release.sh</code> → <code>deploy.sh</code> 会在 <code>/srv/netsentinel/prod</code> 里执行 <code>git pull</code>。这个目录归 <code>netsentinel</code>，但 <code>git pull</code> 由<b>运行 release.sh 的那个账户</b>执行，用的是<b>那个账户</b>的 GitHub 密钥：也就是你在第 1 步加的 <code>id_ed25519</code>。先确认它能从这里 fetch：</p>
+      <p>发布时 <code>release.sh</code> → <code>deploy.sh</code> 会在 <code>/srv/netsentinel/prod</code> 里执行 <code>git pull</code>。这个目录归 <code>netsentinel</code>，但 <code>git pull</code> 由<b>运行 release.sh 的那个账户</b>执行，用的是<b>那个账户</b>的 GitHub 密钥：也就是你在第 1 步加的 <code>/home/NEWUSER/.ssh/github_ssh_key</code>。先确认它能从这里 fetch：</p>
       <pre><code>git -C /srv/netsentinel/prod fetch origin     # 以 NEWUSER 执行，不报错即可</code></pre>
       <p>报 <code>Permission denied (publickey)</code> → 回到第 1 步；报 <code>insufficient permission</code> 或 <code>dubious ownership</code> → 还没加进 <code>netsentinel</code> 组或没重新登录（第 2 步）。</p>
 
