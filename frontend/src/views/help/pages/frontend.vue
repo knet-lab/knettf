@@ -181,7 +181,7 @@ app.mount('#app')</code></pre>
 socket = new WebSocket(`${WS_BASE}/ws/clusters/${clusterId}/pods/${ns}/${name}/logs/`)
 socket.onmessage = (e) =&gt; { logContent.value += JSON.parse(e.data).log; 滚动到底 }
 socket.onclose = () =&gt; { wsConnected.value = false }</code></pre>
-      <p>后端每读到一行日志就发一条 <code>{"log": "..."}</code>。注意 URL 里<b>没有 token</b>，后端也不校验（<a href="/help/issues">《已知问题与练习》</a>已知问题）。页面卸载（<code>onUnmounted</code>）或关闭窗口时 <code>socket.close()</code>。</p>
+      <p>后端每读到一行日志就发一条 <code>{"log": "..."}</code>。注意 URL 里<b>没有 token</b>，后端也不校验（<a href="/help/issues#security">《已知问题》</a>）。页面卸载（<code>onUnmounted</code>）或关闭窗口时 <code>socket.close()</code>。</p>
       <h3><span class="file">stores/kcore.ts</span></h3>
       <p>只缓存“每个集群有哪些 namespace”，供下拉框用。<code>fetchNamespaces(clusterId)</code> 用一个 <code>Map&lt;clusterId, Promise&gt;</code> 去重并发请求；更新时用 <code>{...old, [id]: names}</code> 生成新对象，保证 Vue 能侦测到变化。</p>
     </section>
@@ -249,7 +249,7 @@ socket.onclose = () =&gt; { wsConnected.value = false }</code></pre>
     </section>
 
     <section id="practice">
-      <h2>2.11 实战：新增一个“系统状态”页面</h2>
+      <h2>2.11 新增一个页面的步骤（以“系统状态”页为例）</h2>
       <p>目标：顶部导航多一个 <b>Status</b>，显示已注册的模型和检测总数。按顺序做：</p>
       <div class="steps">
         <div class="step"><div class="step-title">新建 <code>src/views/StatusView.vue</code></div>

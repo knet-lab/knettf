@@ -37,7 +37,7 @@
   DJ->>VG: AppConfig.ready()
   VG->>VG: _should_start_bridge()：argv[0] 含 uvicorn → True
   VG->>BR: bridge.start()：守护线程 vigil-bridge、vigil-drainer
-  DJ->>DJ: 导入 vigil/ml/models/registry.py，加载 AdsMLModel（日志 AdsMLModel loaded）
+  DJ->>DJ: 导入 vigil/ml/models/registry.py，按 VIGIL_MODELS 加载模型（AdsMLModel 读 models/ads_ml/current，日志 AdsMLModel loaded from ...）
   ASGI-->>UV: ProtocolTypeRouter：http → Django，websocket → kcore.routing + vigil.routing</pre>
       <p>只有<b>一个</b> uvicorn 进程（没开 <code>--workers</code>），bridge 线程因此只有一份。如果将来加 workers，每个进程都会起一份 bridge，导致重复消费入库。</p>
       <p><code>_should_start_bridge()</code> 规则：<code>migrate</code>、<code>shell</code>、<code>check</code>、<code>test</code> 等命令不启动；<code>runserver</code> 只在自动重载的子进程（<code>RUN_MAIN=true</code>）启动；<code>argv[0]</code> 含 daphne / uvicorn / gunicorn 时启动。所以你在命令行跑 <code>manage.py shell</code> 不会多出一个 Kafka 消费者，但 <b><code>manage.py runserver</code> 会</b>。开发目录的 <code>.env</code> 设了 <code>VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev</code>，开发 bridge 用自己的 consumer group，拿到一份完整的流量写进 <code>vigil_dev</code>，不影响线上。<b>新建开发环境时一定要设这个变量</b>：不设就默认 <code>vigil-bridge</code>，会和线上分走 Kafka 分区，线上漏收流量。</p>
@@ -252,7 +252,7 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
     </section>
 
     <section id="practice">
-      <h2>3.11 实战：新增一个接口</h2>
+      <h2>3.11 新增一个接口的步骤</h2>
       <p>目标：<code>GET /api/vigil/top-sources/?limit=5</code> 返回攻击次数最多的源 IP。</p>
       <div class="steps">
         <div class="step"><div class="step-title">service：<code>vigil/services.py</code> 末尾加</div>

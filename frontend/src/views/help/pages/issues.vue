@@ -1,7 +1,7 @@
 <template>
   <div v-pre>
-        <h1>9 已知问题与练习</h1>
-    <div class="meta">第一部分列出 2026-10-18 核对代码时发现的问题，接手后可按优先级逐个解决。第二部分是一组由浅入深的练习，做完说明你已经掌握了整个项目。</div>
+        <h1>9 已知问题</h1>
+    <div class="meta">对照代码发现的问题，按类别列出，接手后可以按优先级逐个解决。解决一项就从这里删掉。</div>
 
     <section id="security">
       <h2>9.1 安全问题（站点在公网，优先处理）</h2>
@@ -22,7 +22,6 @@
       <div class="table-wrap"><table>
         <tr><th>问题</th><th>位置</th><th>影响</th><th>建议</th></tr>
         <tr><td>bridge 出错后线程退出、不重连</td><td><code>vigil/bridge.py run_bridge()</code></td><td>集群重启 / Kafka 抖动后检测停止，必须人工重启后端</td><td>外层加 while True + 退避重试</td></tr>
-        <tr><td>每条流都重新加载模型文件</td><td><code>ads_ml/main.py main()</code> 调 <code>_load_resources()</code></td><td>推理慢，流量大时 <code>flow_queue</code> 堆满丢批</td><td>在 <code>AdsMLModel.__init__</code> 缓存资源，<code>predict</code> 直接调 utils</td></tr>
         <tr><td>每条推理都覆盖写报告 CSV</td><td><code>utils/cloud_reporting.py</code></td><td>额外磁盘 IO，且只留最后一条</td><td>在线推理时不写</td></tr>
         <tr><td><code>detect_batch</code> 的事务在 default 库</td><td><code>vigil/services.py</code></td><td>以为整批原子，实际 vigil 库逐条提交</td><td><code>transaction.atomic(using="vigil")</code>，并用 <code>bulk_create</code></td></tr>
         <tr><td>Kafka 地址写死</td><td><code>bridge.py KAFKA_BOOTSTRAP</code></td><td>MetalLB 地址变化要改代码</td><td>从 .env 读</td></tr>
@@ -52,54 +51,6 @@
         <tr><td><code>handle_addr.py</code> 只清理 .16-.29</td><td>写死范围</td><td>增加 .50-.64、.170-.184</td></tr>
         <tr><td>检测器 ConfigMap 的 <code>FLOW_TIMEOUT_SEC</code>、<code>BATCH_SIZE</code> 不生效</td><td><code>detector.py</code> 读的是 <code>PKT_BATCH_SIZE</code></td><td>统一变量名</td></tr>
       </table></div>
-    </section>
-
-    <section id="ex1">
-      <h2>9.4 练习一：使用</h2>
-      <ol>
-        <li>用 admin 登录，新建用户 <code>trainee</code>，再用命令行把它设为管理员，确认 Role 变成 Admin。</li>
-        <li>以 trainee 登记实验集群，找到 <code>default</code> 命名空间里 <code>kafka-broker-0</code> 的日志，说出它最后一行在干什么。</li>
-        <li>对 <code>my-nginx</code> 做一次 Normal 重启，观察 Pod 名字变化。</li>
-        <li>在线新建一个 Terraform 配置（只写一个 <code>terraform {}</code> 块），Full Scan，读懂报告。再故意写一个语法错误，看哪个工具报 HIGH、Apply 按钮的提示是什么。</li>
-        <li>在 Detection Log 里筛选最近 1 小时的攻击，打开一条，解释 Confidence、Attack Type、Ground Truth 分别是什么意思。</li>
-      </ol>
-    </section>
-
-    <section id="ex2">
-      <h2>9.5 练习二：代码阅读</h2>
-      <ol>
-        <li>access token 过期的瞬间，页面同时发出 3 个请求，<code>auth.ts</code> 会调用几次刷新接口？为什么？</li>
-        <li>浏览器直接打开 <code>https://knettf.com/vigil/log</code>，从 Cloudflare 到 Vue 组件渲染，依次经过了哪些代码？</li>
-        <li>普通用户 bob 请求 <code>GET /api/kcore/clusters/1/</code>（集群 1 属于 alice），返回什么？哪一行代码决定的？</li>
-        <li>为什么后端在 <code>manage.py shell</code> 时不启动 bridge，在 uvicorn 下会？</li>
-        <li>一个只有 1 个 SYN 包的流，<code>packets_per_second</code>、<code>iat_mean</code>、<code>syn_ratio</code> 各是多少？</li>
-        <li>如果把 <code>bridge.py</code> 的标签规则改成 .30-.39 为攻击，还要改哪些地方，实验才能对得上？</li>
-        <li>明天的分区不存在时，drainer 日志会出现什么？网页上表现如何？</li>
-      </ol>
-      <details><summary>参考答案</summary>
-        <ol>
-          <li>1 次。<code>tryRefresh</code> 用模块级 <code>refreshPromise</code> 合并并发刷新。</li>
-          <li>cloudflared → uvicorn → <code>asgi.py</code> http → 中间件（WhiteNoise 找不到 <code>/vigil/log</code> 文件）→ <code>urls.py</code> 的 <code>spa_view</code> 返回 <code>dist/index.html</code> → 浏览器加载 JS → <code>main.ts</code> → router 守卫（检查 token）→ 懒加载 <code>VigilLogView.vue</code> → <code>onMounted</code> 调 <code>/api/vigil/records/</code>。</li>
-          <li>403，<code>{"status":"error","code":1,"message":"You do not have permission..."}</code>；<code>common/permissions.py check_owner()</code>。</li>
-          <li><code>vigil/apps.py _should_start_bridge()</code>：<code>shell</code> 在排除列表里；uvicorn 时 <code>argv[0]</code> 含 uvicorn。</li>
-          <li>duration 取 1e-6，所以 pps = 1 000 000；无间隔，iat_mean = 0；syn_ratio = 1.0。</li>
-          <li><code>spoof_attack.py</code> 的 FAKE_IPS、<code>handle_addr.py</code>、<code>dataset_collector.py</code>、<code>kafka_read_csv.py</code>、<code>kafka/vigil_bridge.py</code>、<code>detector.py</code>，以及本手册和运维手册的说明。</li>
-          <li><code>drainer failed on batch of N flows</code> + <code>no partition of relation "vigil_detectionrecord" found for row</code>；网页上过了 UTC 0 点后不再有新记录。</li>
-        </ol>
-      </details>
-    </section>
-
-    <section id="ex3">
-      <h2>9.6 练习三：动手改</h2>
-      <ol>
-        <li>按<a href="/help/backend#practice">《后端代码》· 实战：新增一个接口</a> 加 <code>/api/vigil/top-sources/</code>，再按<a href="/help/frontend#practice">《前端代码》· 实战</a> 的方式在看板上展示它。</li>
-        <li>修复 Dashboard 恒为 0 的问题（<a href="#bugs">功能缺陷</a> 第一条），写一个后端测试。</li>
-        <li>给 <code>run_bridge()</code> 加自动重连：停掉一个 Kafka broker 再恢复，确认无需重启后端就能继续入库。</li>
-        <li>把模型资源缓存到 <code>AdsMLModel</code> 实例里，用 <code>raw_output.inference_ms</code> 对比改前改后的平均耗时（<a href="/help/lab#eval">《实验脚本》· 评估常用 SQL</a>）。</li>
-        <li>完整做一次计划停机和开机恢复（<a href="/help/power">开关机 · 重建 · 备份</a>），记录每一步花的时间。</li>
-        <li>在一个不影响他人的时间窗口，按 <a href="/help/power#rebuild-kafka">重建 Kafka</a>，并确认端到端恢复。</li>
-      </ol>
-      <div class="ok">全部做完，你就能独立负责这个项目了。遇到手册与代码不一致的地方，以代码为准，并更新本手册（<code>frontend/src/views/help/pages/</code>，改完走 PR，合并后 <code>/srv/netsentinel/release.sh -frontend</code>）。</div>
     </section>
   </div>
 </template>

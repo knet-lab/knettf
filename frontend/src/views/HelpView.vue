@@ -39,7 +39,7 @@ const BOOKS: Book[] = [
       { key: 'lab', title: '6 实验脚本' },
       { key: 'api', title: '7 API 逐接口' },
       { key: 'db', title: '8 数据库与字段' },
-      { key: 'issues', title: '9 已知问题与练习' },
+      { key: 'issues', title: '9 已知问题' },
     ] },
   ] },
   { id: 'manual-en', name: 'Project Handbook', lang: 'en', accent: '#2563eb', twin: 'manual', groups: [

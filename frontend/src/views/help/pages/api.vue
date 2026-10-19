@@ -266,7 +266,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
       </div>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-get">GET</span><code>/api/vigil/models/</code><span class="perm">登录</span></div>
-        <p>返回 <code>{"models": ["ads_ml_ocsvm"]}</code>。若为空数组，说明 ads_ml 模型加载失败（后端日志有 <code>AdsMLModel not loaded</code>），此时检测接口返回空结果。</p>
+        <p>返回 <code>{"models": ["ads_ml_ocsvm"]}</code>。若为空数组，说明 ads_ml 模型加载失败（后端日志有 <code>model ... not loaded</code>），此时检测接口返回空结果。</p>
       </div>
     </section>
 

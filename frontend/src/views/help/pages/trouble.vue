@@ -43,7 +43,7 @@
         <tr><td>登录后马上掉线</td><td>F12 看 <code>/api/auth/token/refresh/</code></td><td>refresh 过期（7 天）→ 重新登录，清 localStorage</td></tr>
         <tr><td>日志 <code>bridge error</code></td><td><code>nc -zv 192.168.100.200 9094</code></td><td>Kafka 连不上 → 恢复 Kafka 后重启后端</td></tr>
         <tr><td>日志 <code>drainer failed</code> + <code>no partition of relation</code></td><td>分区缺失</td><td><code>manage.py rotate_partitions --database vigil</code>；当天的分区缺失就用 SQL 手动建</td></tr>
-        <tr><td>Detection model 为空</td><td><code>journalctl ... | grep 'AdsMLModel not loaded'</code></td><td><code>trained/</code> 文件缺失，或 scikit-learn 版本和训练时不一致（固定 1.7.2）</td></tr>
+        <tr><td>Detection model 为空</td><td><code>journalctl ... | grep 'not loaded'</code></td><td><code>trained/</code> 文件缺失，或 scikit-learn 版本和训练时不一致（固定 1.7.2）</td></tr>
         <tr><td>推理很慢</td><td>记录里的 <code>raw_output.inference_ms</code></td><td>每条流都会重新加载模型，属已知问题（<a href="/help/issues">已知问题</a>）</td></tr>
         <tr><td>Kafka 无数据</td><td><code>kubectl -n kube-system logs -l app=vector --tail=50</code>；<code>kubectl -n kube-system get svc hubble-relay</code></td><td>hubble-relay 端口必须是 4245；必要时 <code>rollout restart ds/vector</code></td></tr>
         <tr><td>Hubble 看不到伪造源 IP</td><td><code>ip addr show virbr-k8s</code></td><td>源 IP 没绑上；apply <code>host-firewall-ccnp.yaml</code></td></tr>
@@ -66,7 +66,6 @@
         <tr><td>隧道</td><td><code>sudo journalctl -u cloudflared-knettf -f</code></td><td></td></tr>
         <tr><td>分区轮转</td><td><code>/srv/netsentinel/logs/rotate_partitions.log</code>（重启后清空）</td><td><code>rotate_partitions done</code></td></tr>
         <tr><td>PostgreSQL</td><td><code>docker logs --tail 100 pg</code></td><td></td></tr>
-        <tr><td>模型最近一次推理</td><td><code class="vp">/srv/netsentinel/prod/backend/vigil/ml/ads_ml/results/Anomaly_Detection_Report.csv</code></td><td></td></tr>
         <tr><td>Vector / Kafka / hubble-relay</td><td><code>kubectl -n kube-system logs -l app=vector --tail=50</code>；<code>kubectl logs kafka-broker-0</code>；<code>kubectl -n kube-system logs deploy/hubble-relay</code></td><td></td></tr>
         <tr><td>入口 B 检测器</td><td><code>kubectl -n netsentinel logs deploy/netsentinel-detector -f</code></td><td><code>connected to Django</code></td></tr>
         <tr><td>knetsentinel 脚本</td><td><code>/srv/netsentinel/knetsentinel/logs/</code>、<code>/srv/netsentinel/knetsentinel/kafka/*.log</code>、<code>/srv/netsentinel/knetsentinel/traffic_request/*.log</code>、<code>/srv/netsentinel/knetsentinel/simulation/monitor/send.log</code></td><td></td></tr>

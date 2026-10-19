@@ -239,11 +239,10 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
         <tr><td><code>trained/ebpf_ocsvm_pipeline.joblib</code>（69 KB）</td><td>dict：encoder（OrdinalEncoder）、scaler、PCA(20)、detector=<code>OneClassSVM(nu=0.01)</code>、列定义、clip 范围</td></tr>
         <tr><td><code>trained/multi_attack_semantic_prototypes_kmeans.joblib</code>（43 KB）</td><td>9 类攻击的 KMeans 原型向量，共 190 个</td></tr>
         <tr><td><code>trained/step_10_final_train_data.csv</code>（11 MB）</td><td>PCA 后的训练样本（PC1..PC20），用于余弦复核</td></tr>
-        <tr><td><code>main.py</code></td><td><code>_load_resources()</code>、<code>main(35 个特征)</code></td></tr>
+        <tr><td><code>main.py</code></td><td><code>_load_resources(config_path)</code>：读取上面三个文件</td></tr>
         <tr><td><code>utils/data_preprocessing.py</code></td><td>编码 → 去常量列 → log1p → clip → 选 28 列 → 标准化 → PCA</td></tr>
         <tr><td><code>utils/anomaly_detection.py</code></td><td>OCSVM 判定 + 边界样本余弦复核</td></tr>
         <tr><td><code>utils/zero_shot_learning.py</code></td><td>攻击类型匹配</td></tr>
-        <tr><td><code>utils/cloud_reporting.py</code></td><td>每次推理追加一行到 <code>results/Anomaly_Detection_Report.csv</code></td></tr>
       </table></div>
       <h3>推理流程</h3>
       <ol>
@@ -261,12 +260,12 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
         <tr><td><code>DoS Get</code></td><td>20</td><td><code>Slow-range</code></td><td>10</td></tr>
         <tr><td><code>Credentials hijacking</code></td><td>10</td><td><code>Unknown_Attack</code></td><td>相似度 &lt; 0.5 时</td></tr>
       </table></div>
-      <div class="note"><b>性能注意</b>：<code>main()</code> 每次调用都会重新执行 <code>_load_resources()</code>，即每条流都重新读取两个 joblib 和 11 MB 的 CSV，并向报告 CSV 追加一行。流量大时推理耗时主要花在这里（见 <code>raw_output.inference_ms</code>）。</div>
+      
 
       <h3>模型注册（<code>ml/models/registry.py</code>）</h3>
       <ul>
-        <li>导入时实例化 <code>AdsMLModel</code>；失败只记 warning（<code>AdsMLModel not loaded</code>），注册表为空，检测接口返回空结果。</li>
-        <li><code>example_threshold.py</code> 的 <code>ThresholdModel</code>（<code>threshold_v1</code>，规则：syn_ratio ≥ 0.8 / pps ≥ 500 / 回包率 ≤ 0.05）存在但<b>未注册</b>。注册方法：在 registry.py 末尾加 <code>registry.register(ThresholdModel())</code>，重启后端。</li>
+        <li>按 <code>VIGIL_MODELS</code> 实例化模型；失败只记 warning（<code>model ... not loaded</code>），注册表为空，检测接口返回空结果。</li>
+        <li><code>example_threshold.py</code> 的 <code>ThresholdModel</code>（<code>threshold_v1</code>，规则：syn_ratio ≥ 0.8 / pps ≥ 500 / 回包率 ≤ 0.05）存在但<b>未启用</b>。启用方法：把 <code>vigil.ml.models.example_threshold.ThresholdModel</code> 加进 <code>.env</code> 的 <code>VIGIL_MODELS</code>，重启后端。</li>
         <li>新模型：继承 <code>BaseDetectionModel</code>，实现 <code>name</code> 与 <code>predict(DetectionInput) -&gt; DetectionResult</code>，然后注册。不指定 <code>model</code> 时每条流会跑<b>所有</b>已注册模型，各写一条记录。</li>
       </ul>
     </section>

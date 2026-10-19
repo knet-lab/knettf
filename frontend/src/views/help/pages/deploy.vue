@@ -153,26 +153,8 @@ sudo systemctl start netsentinel</code></pre></div></div>
 
     <section id="model">
       <h2>检测模型文件（ads_ml）</h2>
-      <div class="task"><h4><span class="n">1</span>替换文件</h4>
-        <div class="do"><div>新的 joblib / CSV 放到 <code class="vp">/srv/netsentinel/prod/backend/vigil/ml/ads_ml/trained/</code>；文件名变了就同步改 <code>config.yaml</code>。旧文件先改名留着。<br><code>ads_ml/</code> 整个目录不在 Git 里，<b>部署脚本不会同步它</b>：线上用 <code class="vp">/srv/netsentinel/prod</code> 那份，开发用 <code class="vn">/home/NEWUSER/github/NetSentinel</code> 那份，在开发目录试好后手动复制到 <code class="vp">/srv/netsentinel/prod</code>。</div></div>
-        <div class="why"><div>新模型不好用时，换回旧文件、重启就能回滚。</div></div>
-        <div class="res"><div>文件就位。</div></div>
-      </div>
-      <div class="task"><h4><span class="n">2</span>离线自测</h4>
-        <div class="do"><div><pre class="on-prod"><code>cd <span class="vp">/srv/netsentinel/prod</span>/backend && ../.venv/bin/python -c "
-import django,os;os.environ['DJANGO_SETTINGS_MODULE']='backend.settings';django.setup()
-from vigil.ml.models import registry;print(registry.list_models())"</code></pre></div></div>
-        <div class="why"><div>模型加载失败时，后端照样能启动，只是不出检测结果。上线前先单独加载一次，确认能用。</div></div>
-        <div class="res"><div>输出 <code>['ads_ml_ocsvm']</code>。空列表说明加载失败，常见原因是 scikit-learn 版本和训练时不一致（当前固定 1.7.2）。</div></div>
-      </div>
-      <div class="task"><h4><span class="n">3</span>生效</h4>
-        <div class="do"><div><pre class="on-prod"><code>sudo systemctl restart netsentinel                      # 入口 A
-<span class="c"># 入口 B（已部署时）</span>
-cd <span class="vp">/srv/netsentinel/prod</span>/detector && bash build.sh
-kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code></pre></div></div>
-        <div class="why"><div>模型在进程启动时加载一次。入口 B 的模型打包在镜像里，要重新 build 镜像。</div></div>
-        <div class="res"><div>日志出现 <code>AdsMLModel loaded</code>；发一次测试流量（<a href="/help/power#verify">端到端验证</a>）能看到新记录。</div></div>
-      </div>
+      <p>模型文件不在 Git 里，也不随 <code>release.sh</code> 发布：线上按版本放在 <code class="vp">/srv/netsentinel/models/ads_ml/current</code> 指向的目录，由 <code>.env</code> 的 <code>VIGIL_ADS_ML_CONFIG</code> 指定。换版本 = 新建版本目录 → <code>manage.py check_model --config …</code> → 改 <code>current</code> 软链接 → 重启；回滚把软链接指回旧版本再重启。完整步骤和流程图见 <a href="/help/detect#newmodel">4.11 替换模型与新增模型</a>。</p>
+      <p>新增一个模型类（代码）照常走 PR 和 <code>release.sh -backend</code>，上线后在 <code>.env</code> 的 <code>VIGIL_MODELS</code> 里启用。</p>
     </section>
 
     <section id="other">

@@ -27,18 +27,18 @@
     <section id="big">
       <h2>1.2 全景图：一个数据包走到网页上的全过程</h2>
       <p>理解这张图就理解了一半项目。左边全部在 <span class="tag tag-k">K</span> 的实验集群里，右边全部在 <span class="tag tag-n">N</span> 的后端进程里。</p>
-<pre class="uml">flowchart TB
+<pre class="uml">flowchart LR
   subgraph HOST["宿主机（Ubuntu，物理网卡 enp6s0）"]
-    direction TB
+    direction LR
     subgraph LAB["K 实验集群：网桥 virbr-k8s 192.168.100.1/24（01-setup-vms.sh）<br>VM k8s-master .10，k8s-node1~4 .11~.14；kubeadm v1.28 + Cilium + Hubble + MetalLB（02-setup-cluster.sh）"]
-      direction TB
+      direction LR
       T["① 发包脚本 traffic/<br>伪造源 IP .20-.29（攻击）/ .50-.64（正常）"]
       C["② Cilium eBPF 看到包<br>Hubble 生成 flow 事件（JSON）"]
       V["③ Vector（每节点一个 Pod）<br>hubble observe --follow → Kafka topic ebpf-net-logs<br>（03-deploy-5nodes.sh 部署）"]
       T --> C --> V
     end
     subgraph SVC["N 后端：systemd 服务 netsentinel（uvicorn :8080）"]
-      direction TB
+      direction LR
       BR["④ bridge 线程 vigil/bridge.py<br>消费 Kafka → 按 5 元组聚成流 → 35 个特征"]
       DR["⑤ drainer 线程 services.detect_batch()<br>ads_ml：预处理 → PCA → OCSVM → 零样本猜攻击类型<br>cilium/policy.py：建议 drop / rate_limit / alert / ignore（只记日志）"]
       PG[("PostgreSQL vigil_detectionrecord<br>按天分区")]
@@ -133,7 +133,7 @@
         <tr><td>Python 环境</td><td><code class="vn">/home/NEWUSER/github/NetSentinel/.venv/</code>（开发）、<code class="vp">/srv/netsentinel/prod/.venv/</code>（线上）</td><td>都用 <code>uv sync</code> 按 <code>uv.lock</code> 生成，Python 3.12</td></tr>
         <tr><td>default 数据库</td><td><code class="vp">/srv/netsentinel/prod/backend/db.sqlite3</code>（开发用 <code class="vn">/home/NEWUSER/github/NetSentinel/backend/db.sqlite3</code>）</td><td>SQLite：用户、集群、Terraform 配置、扫描报告</td></tr>
         <tr><td>vigil 数据库</td><td>Docker 容器 <code>pg</code>，<code>127.0.0.1:5432</code>，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>，用户 <code>vigil</code></td><td>PostgreSQL：检测记录（按天分区）</td></tr>
-        <tr><td>模型文件</td><td><code class="vp">/srv/netsentinel/prod/backend/vigil/ml/ads_ml/trained/</code></td><td>OCSVM 流水线、攻击原型、训练数据</td></tr>
+        <tr><td>模型文件</td><td><code class="vp">/srv/netsentinel/models/ads_ml/current</code>（指向当前版本目录）</td><td>OCSVM 流水线、攻击原型、训练数据</td></tr>
         <tr><td>后端服务定义</td><td><code>deploy/systemd/netsentinel.service</code></td><td>装到 <code>/etc/systemd/system/</code> 的系统服务，以 <code>netsentinel</code> 账户运行</td></tr>
         <tr><td>集群脚本</td><td><code>/srv/netsentinel/knetsentinel/kubeadm-cluster/</code></td><td>00 清理 / 01 建 VM / 02 装集群 / 03 部署数据管道</td></tr>
         <tr><td>集群凭证</td><td><code>/home/NEWUSER/.kube/config</code></td><td>宿主机上 <code>kubectl</code> 用它；登记集群时把它的内容贴到网页上</td></tr>

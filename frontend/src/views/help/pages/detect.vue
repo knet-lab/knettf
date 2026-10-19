@@ -127,15 +127,15 @@ def detect_batch(flows, model_name=None):
     <section id="model">
       <h2>4.6 模型：ads_ml（OCSVM + 余弦复核 + 零样本学习）</h2>
       <h3>文件</h3>
+      <p>代码（<code>main.py</code>、<code>utils/</code>）在 <code>backend/vigil/ml/ads_ml/</code>；线上用的模型文件在版本目录 <code class="vp">/srv/netsentinel/models/ads_ml/current</code>（见 <a href="#newmodel">4.11</a>），表里的 <code>trained/</code> 指那里的文件。</p>
       <div class="table-wrap"><table>
         <tr><th>文件</th><th>内容</th></tr>
-        <tr><td><code>config.yaml</code></td><td>三个模型文件的相对路径、报告路径</td></tr>
+        <tr><td><code>config.yaml</code></td><td>三个模型文件的路径（相对 config.yaml 所在目录）</td></tr>
         <tr><td><code>trained/ebpf_ocsvm_pipeline.joblib</code></td><td>一个 dict：<code>encoder</code>（OrdinalEncoder）、<code>scaler</code>、<code>use_pca</code>、<code>pca</code>、<code>detector</code>（OneClassSVM）、<code>ebpf_35_features</code>、<code>encode_columns</code>、<code>numeric_columns</code>、<code>encoded_columns</code>、<code>constant_cols</code>、<code>log_features</code>、<code>clip_ranges</code>、<code>selected_features</code></td></tr>
         <tr><td><code>trained/multi_attack_semantic_prototypes_kmeans.joblib</code></td><td>攻击原型：<code>{攻击名: {"prototypes": [{"vector": ndarray}, ...]}}</code>，每类若干 KMeans 中心</td></tr>
         <tr><td><code>trained/step_10_final_train_data.csv</code></td><td>训练集（PCA 后），用于余弦复核</td></tr>
-        <tr><td><code>main.py</code></td><td><code>_load_resources()</code> 读上面三个文件；<code>main(35 个参数)</code> 跑完整流程</td></tr>
+        <tr><td><code>main.py</code></td><td><code>_load_resources(config_path)</code> 读上面三个文件；<code>main()</code> 是单独运行时的入口，后端不调用</td></tr>
         <tr><td><code>utils/data_preprocessing.py</code> · <code>anomaly_detection.py</code> · <code>zero_shot_learning.py</code> · <code>cloud_reporting.py</code></td><td>四个步骤</td></tr>
-        <tr><td><code>results/Anomaly_Detection_Report.csv</code></td><td>最近一次推理的结果（<b>每次覆盖写</b>，只剩最后一条）</td></tr>
       </table></div>
       <h3>四个步骤</h3>
       <div class="steps">
@@ -147,11 +147,75 @@ def detect_batch(flows, model_name=None):
           <p>正常样本：<code>Normal</code>，相似度 0。攻击样本：与每个攻击类别的每个原型算余弦相似度，取最高的；≥ <code>SEEN_SIM_THRESHOLD=0.50</code> 则为该类（<code>Seen_Attack</code>），否则 <code>Unknown_Attack</code>。</p>
           <p>当前原型里的类别名就是前端日志页写死的 9 个：<code>Dos-TCP SYN flood</code>、<code>ddos-TCP SYN flood</code>、<code>DoS Get</code>、<code>TCP sequence prediction</code>、<code>Slowloris</code>、<code>Slow-body</code>、<code>Slow-read</code>、<code>Slow-range</code>、<code>Credentials hijacking</code>。查看实际名字：</p>
 <pre class="on-prod"><code>cd <span class="vp">/srv/netsentinel/prod</span>/backend &amp;&amp; ../.venv/bin/python -c "import joblib;print(list(joblib.load('vigil/ml/ads_ml/trained/multi_attack_semantic_prototypes_kmeans.joblib')))"</code></pre></div>
-        <div class="step"><div class="step-title">报告 <code>report_results(...)</code></div><p>把这一条写到 <code>results/Anomaly_Detection_Report.csv</code>（覆盖）。</p></div>
       </div>
-      <h3>适配器 <code>ml/models/ads_ml_model.py</code></h3>
-      <p><code>AdsMLModel.__init__</code> 调一次 <code>_load_resources()</code> 只为确认文件能加载（失败则注册表跳过它，日志 <code>AdsMLModel not loaded</code>）。<code>predict()</code> 去掉 <code>label</code>、<code>extra</code> 后调 <code>main(**data)</code>，结果包装成 <code>DetectionResult</code>：<code>is_attack</code>、<code>confidence</code>=ZSL 相似度、<code>attack_type</code>、<code>explanation</code>、<code>raw_output</code>。</p>
-      <div class="note"><b>性能问题</b>：<code>main()</code> 每次调用都会重新 <code>_load_resources()</code>——每条流都重新读两个 joblib 和训练集 CSV，并重写一次报告 CSV。流量大时 drainer 跟不上、<code>flow_queue</code> 堆积。看 <code>raw_output.inference_ms</code> 能确认。改法：在 <code>AdsMLModel.__init__</code> 里把资源存成成员，<code>predict</code> 直接调用四个 utils 函数（<a href="/help/issues">《已知问题与练习》</a>）。</div>
+      <h3>模型怎么接入后端</h3>
+      <p>后端不直接认识 ads_ml，只认接口 <code>BaseDetectionModel</code>：一个模型就是一个实现了 <code>name</code> 和 <code>predict()</code> 的类。启动时注册表按 <code>.env</code> 的 <code>VIGIL_MODELS</code>（类的完整路径，逗号分隔，默认只有 <code>AdsMLModel</code>）逐个实例化；服务层对每条流调用全部已注册模型，每个模型的结果各写一条记录。这样换模型、加模型都不用改 bridge、服务层和数据库。</p>
+<pre class="uml">classDiagram
+  direction LR
+  class BaseDetectionModel {
+    <<abstract>>
+    +name str
+    +predict(flow DetectionInput) DetectionResult
+    +predict_batch(flows) list~DetectionResult~
+  }
+  class AdsMLModel {
+    +name = "ads_ml_ocsvm"
+    +config_path Path
+    -_pipeline
+    -_prototypes
+    -_X_train
+    +attack_types list~str~
+  }
+  class ThresholdModel {
+    +name = "threshold_v1"
+  }
+  class ModelRegistry {
+    +register(model)
+    +get(name) BaseDetectionModel
+    +list_models() list~str~
+  }
+  class DetectionInput {
+    src_ip, dst_ip, protocol
+    35 个流特征
+    label
+  }
+  class DetectionResult {
+    model_name str
+    is_attack bool
+    confidence float 0~1
+    attack_type str or None
+    raw_output dict
+    explanation str
+    recommended_action
+  }
+  BaseDetectionModel <|-- AdsMLModel
+  BaseDetectionModel <|-- ThresholdModel
+  ModelRegistry o-- BaseDetectionModel : VIGIL_MODELS
+  BaseDetectionModel ..> DetectionInput : 输入
+  BaseDetectionModel ..> DetectionResult : 输出</pre>
+<pre class="uml">sequenceDiagram
+  participant DJ as Django 启动
+  participant REG as registry.py
+  participant ADS as AdsMLModel
+  participant DIR as /srv/netsentinel/models/ads_ml/current
+  participant DR as drainer 线程
+  participant SV as services.detect_flow()
+  DJ->>REG: 导入，读 settings.VIGIL_MODELS
+  REG->>ADS: import_string(类路径)()
+  ADS->>DIR: 解析软链接为实际版本目录，读 config.yaml 和 trained/ 下三个文件（只读这一次）
+  ADS-->>REG: 实例（失败则日志 model ... not loaded，后端照常启动）
+  loop 每批流
+    DR->>SV: detect_batch(flows)
+    SV->>REG: run_all(flow)：每个已注册模型
+    REG->>ADS: predict(flow)
+    ADS-->>SV: DetectionResult
+    SV->>SV: policy_for_result → INSERT vigil_detectionrecord
+  end</pre>
+      <ul>
+        <li><b>只加载一次</b>：<code>AdsMLModel</code> 在构造时读完模型文件并留在内存里，之后每条流直接做预处理 → OCSVM → 零样本三步，不再读文件。</li>
+        <li><b>版本切换需要重启</b>：构造时把 <code>current</code> 软链接解析成实际目录，所以改软链接不会影响正在运行的进程，重启后才换成新版本。替换到一半的文件也不会被读到。</li>
+        <li><b>加载失败不拖垮后端</b>：某个模型构造失败只记 warning，后端照常启动，只是没有它的检测结果（看板 Detection model 为空）。</li>
+      </ul>
     </section>
 
     <section id="policy">
@@ -216,39 +280,40 @@ uv run python kafka/vigil_bridge.py --backend http://localhost:8080 --token "$TO
     </section>
 
     <section id="newmodel">
-      <h2>4.11 实战：换模型与加模型</h2>
-      <h3>只换模型文件（同结构）</h3>
+      <h2>4.11 替换模型与新增模型</h2>
+      <p>线上模型文件按版本放在 <code class="vp">/srv/netsentinel/models/ads_ml/</code>，每个版本一个目录（含 <code>config.yaml</code> 和 <code>trained/</code>），<code>current</code> 软链接指向正在用的版本，<code>.env</code> 里 <code>VIGIL_ADS_ML_CONFIG=/srv/netsentinel/models/ads_ml/current/config.yaml</code>。这样新旧版本同时在盘上，切换和回滚都只是改一个软链接再重启。</p>
+<pre class="uml">flowchart LR
+  A["新建版本目录<br>models/ads_ml/v2-日期/<br>放 config.yaml + trained/"] --> B{"check_model --config<br>v2-日期/config.yaml<br>接口通过？"}
+  B -->|否| A
+  B -->|是| C["ln -sfn v2-日期 current"]
+  C --> D["sudo systemctl restart netsentinel"]
+  D --> E{"日志 AdsMLModel loaded from<br>…/v2-日期？"}
+  E -->|否 / 结果异常| R["回滚：ln -sfn 旧版本 current<br>再重启"]
+  E -->|是| F["入口 B 已部署时：<br>detector/build.sh + rollout restart"]</pre>
+      <h3>替换 ads_ml 模型文件</h3>
+<pre class="on-prod"><code>cd /srv/netsentinel/models/ads_ml
+mkdir -p v2-20261101/trained                                   <span class="c"># 版本名自定，建议 v序号-日期</span>
+cp 新的文件 v2-20261101/trained/                                <span class="c"># ebpf_ocsvm_pipeline.joblib、*_prototypes_*.joblib、训练集 CSV</span>
+cp current/config.yaml v2-20261101/                              <span class="c"># 文件名变了就改这份 config.yaml</span>
+cd /srv/netsentinel/prod/backend &amp;&amp; ../.venv/bin/python manage.py check_model --config /srv/netsentinel/models/ads_ml/v2-20261101/config.yaml
+ln -sfn v2-20261101 /srv/netsentinel/models/ads_ml/current
+sudo systemctl restart netsentinel
+sudo journalctl -u netsentinel --since '-1 min' | grep 'AdsMLModel loaded from'</code></pre>
+      <ul>
+        <li><code>check_model</code> 只检查接口：能否加载、<code>predict</code> 返回的字段和类型是否正确。检测效果由训练模型的人负责。</li>
+        <li>scikit-learn 要与训练时版本一致（当前锁定 1.7.2，见 <code>pyproject.toml</code>），否则加载失败。</li>
+        <li>攻击类别名变了：前端 <code>VigilLogView.vue</code> 的 <code>ATTACK_TYPES</code> 和 <code>ml/cilium/policy.py</code> 的映射要同步改，走正常的 PR 和发布流程。</li>
+        <li>回滚：<code>ln -sfn 旧版本目录名 /srv/netsentinel/models/ads_ml/current</code>，再重启。旧版本目录确认不再需要之前不要删。</li>
+        <li>入口 B 部署时：<code>detector/build.sh</code> 默认从 <code>current</code> 取模型文件打进镜像，之后 <code>kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code>。</li>
+      </ul>
+      <h3>新增一个模型（与现有模型并行）</h3>
       <ol>
-        <li>备份：<code class="vp">tar czf /home/NEWUSER/ads_ml_$(date +%F).tgz -C /srv/netsentinel/prod/backend/vigil/ml ads_ml/trained ads_ml/config.yaml</code></li>
-        <li>把新文件放进 <code>trained/</code>，文件名不同就改 <code>config.yaml</code>。</li>
-        <li>确认 scikit-learn 版本与训练时一致（当前锁定 1.7.2，见 <code>pyproject.toml</code>），不一致 joblib 加载会报错或给出错误结果。</li>
-        <li>离线自测：
-<pre class="on-prod"><code>cd <span class="vp">/srv/netsentinel/prod</span>/backend &amp;&amp; ../.venv/bin/python -c "
-import os,django;os.environ['DJANGO_SETTINGS_MODULE']='backend.settings';django.setup()
-from vigil.ml.models import registry, flow_from_dict, run_all
-print(registry.list_models())
-print(run_all(flow_from_dict({'src_ip':'192.168.100.23','dst_ip':'192.168.100.11','protocol':'TCP','dst_port':80,'total_packets':1,'syn_count':1,'is_tcp':1})))"</code></pre></li>
-        <li>攻击类别名变了 → 同步改前端 <code>VigilLogView.vue</code> 的 <code>ATTACK_TYPES</code> 和 <code>policy.py</code> 的映射。</li>
-        <li><code>sudo systemctl restart netsentinel</code>；如部署了入口 B 还要 <code>build.sh</code> + <code>rollout restart</code>。</li>
+        <li>在 <code>backend/vigil/ml/models/</code> 下写一个继承 <code>BaseDetectionModel</code> 的类，实现 <code>name</code>（唯一，会存进记录的 <code>model_name</code>）和 <code>predict()</code>；参考 <code>example_threshold.py</code>。需要模型文件就像 <code>AdsMLModel</code> 一样接收 <code>config_path</code>，在构造函数里加载一次。</li>
+        <li>检查接口：<code>../.venv/bin/python manage.py check_model --model vigil.ml.models.my_model.MyModel</code></li>
+        <li>代码走 PR 和 <code>release.sh -backend</code> 上线。</li>
+        <li>在线上 <code>.env</code> 里加：<code>VIGIL_MODELS=vigil.ml.models.ads_ml_model.AdsMLModel,vigil.ml.models.my_model.MyModel</code>，重启。</li>
       </ol>
-      <h3>注册一个新模型（并行运行）</h3>
-      <p><code>run_all</code> 会让每个注册的模型都跑一遍，每个模型各写一条记录，看板的 <b>Model Coverage</b> 会出现两行。参考 <code>ml/models/example_threshold.py</code>：</p>
-<pre><code><span class="c"># vigil/ml/models/my_model.py</span>
-from .base import BaseDetectionModel, DetectionInput, DetectionResult
-class MyModel(BaseDetectionModel):
-    @property
-    def name(self) -&gt; str: return "my_rule"
-    def predict(self, flow: DetectionInput) -&gt; DetectionResult:
-        hit = flow.syn_ratio &gt; 0.9 and flow.ack_count == 0
-        return DetectionResult(model_name=self.name, is_attack=hit,
-                               confidence=0.9 if hit else 0.0,
-                               attack_type="syn_flood" if hit else None,
-                               explanation="syn_ratio&gt;0.9 &amp; no ACK")
-
-<span class="c"># vigil/ml/models/registry.py 末尾</span>
-from .my_model import MyModel
-registry.register(MyModel())</code></pre>
-      <p>重启后端后 <code>/api/vigil/models/</code> 返回两个名字；<code>POST /api/vigil/detect/</code> 带 <code>"model": "my_rule"</code> 可单独测试。注意记录数会翻倍。</p>
+      <p>结果：<code>/api/vigil/models/</code> 返回两个名字，看板 Model Coverage 出现两行；每条流每个模型各写一条记录，记录数随模型数增加。只想换掉旧模型时，<code>VIGIL_MODELS</code> 里只留新类。<code>POST /api/vigil/detect/</code> 带 <code>"model": "名字"</code> 可以单独调用某个模型。</p>
     </section>
   </div>
 </template>

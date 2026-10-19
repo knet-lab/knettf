@@ -72,7 +72,7 @@ sudo systemctl restart netsentinel</code></pre></div></div>
         <tr><td>Frontend dependency</td><td><code>cd /home/NEWUSER/github/NetSentinel/frontend && pnpm add PACKAGE</code>, commit <code>package.json</code> and <code>pnpm-lock.yaml</code>, PR, then <code>/srv/netsentinel/release.sh -frontend</code></td></tr>
         <tr><td>Production <code>.env</code></td><td>Edit <code>/srv/netsentinel/prod/backend/backend/.env</code>, then <code>sudo systemctl restart netsentinel</code></td></tr>
         <tr><td>systemd unit file</td><td><code>sudo systemctl daemon-reload</code>, then restart the service</td></tr>
-        <tr><td>Model files</td><td>Copy into <code>/srv/netsentinel/prod/backend/vigil/ml/ads_ml/trained/</code> (keep the old files renamed), restart, check the log for <code>AdsMLModel loaded</code></td></tr>
+        <tr><td>Model files</td><td>Create a new version directory under <code>/srv/netsentinel/models/ads_ml/</code>, run <code>manage.py check_model --config &lt;dir&gt;/config.yaml</code>, point the <code>current</code> symlink at it, restart. Roll back by pointing <code>current</code> at the old version and restarting.</td></tr>
       </table></div>
     </section>
   </div>

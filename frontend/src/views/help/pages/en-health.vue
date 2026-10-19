@@ -12,7 +12,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/</code></pre></di
         <div class="res"><div>Two lines <code>active</code>, then <code>200</code>. <span class="bad">If not</span>: <code>sudo journalctl -u netsentinel -n 50</code>.</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>Model loaded, bridge reading Kafka</h4>
-        <div class="do"><div><pre><code>sudo journalctl -u netsentinel --since today | grep -E 'AdsMLModel (loaded|not loaded)' | tail -1
+        <div class="do"><div><pre><code>sudo journalctl -u netsentinel --since today | grep -E 'AdsMLModel loaded|not loaded' | tail -1
 sudo journalctl -u netsentinel --since '-10 min' | grep -E 'vigil.bridge|bridge error' | tail -3</code></pre></div></div>
         <div class="why"><div>The service can be running while detection has stopped: if the bridge thread loses Kafka it exits and <b>never reconnects</b>.</div></div>
         <div class="res"><div><code>AdsMLModel loaded</code>; recent <code>queue: … flows → … attack(s)</code> lines; no <code>bridge error</code>. <span class="bad">bridge error</span>: check step 5, then <code>sudo systemctl restart netsentinel</code>.</div></div>

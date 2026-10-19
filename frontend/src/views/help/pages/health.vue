@@ -16,7 +16,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/</code></pre></di
       </div>
 
       <div class="task"><h4><span class="n">2</span>模型已加载、bridge 在消费 Kafka</h4>
-        <div class="do"><div><pre><code>sudo journalctl -u netsentinel --since today | grep -E 'AdsMLModel (loaded|not loaded)' | tail -1
+        <div class="do"><div><pre><code>sudo journalctl -u netsentinel --since today | grep -E 'AdsMLModel loaded|not loaded' | tail -1
 sudo journalctl -u netsentinel --since '-10 min' | grep -E 'vigil.bridge|bridge error' | tail -3</code></pre></div></div>
         <div class="why"><div>服务“活着”不等于检测在工作。模型没加载就不会出检测结果；bridge 线程连不上 Kafka 会直接退出且<b>不会重连</b>，这时服务看起来正常，但数据已经停了。</div></div>
         <div class="res"><div>第一行是 <code>AdsMLModel loaded</code>；第二条有最近 10 分钟的 <code>queue: N flows → M attack(s)</code>（有流量时），没有 <code>bridge error</code>。<br><span class="bad">有 bridge error 或很久没有 bridge 日志</span>：先做第 5 步确认 Kafka 有数据，再 <code>sudo systemctl restart netsentinel</code>。</div></div>
