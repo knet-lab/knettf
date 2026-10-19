@@ -1,0 +1,14 @@
+[Unit]
+Description=Cloudflare Tunnel (knettf.com)
+After=network-online.target netsentinel.service
+Wants=network-online.target netsentinel.service
+
+[Service]
+User=netsentinel
+Group=netsentinel
+ExecStart=/usr/local/bin/cloudflared --no-autoupdate tunnel --config /etc/cloudflared/knettf/config.yml run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

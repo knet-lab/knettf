@@ -1,0 +1,2 @@
+# /etc/sudoers.d/netsentinel：netsentinel 组成员可免密码管理这两个服务
+%netsentinel ALL=(root) NOPASSWD: /usr/bin/systemctl restart netsentinel.service, /usr/bin/systemctl restart cloudflared-knettf.service, /usr/bin/systemctl status netsentinel.service, /usr/bin/systemctl status cloudflared-knettf.service, /usr/bin/journalctl -u netsentinel.service *, /usr/bin/journalctl -u cloudflared-knettf.service *

@@ -1,0 +1,8 @@
+# NetSentinel 前端/后端 — knettf.com
+tunnel: 491d938b-3187-4d93-84da-66df739753e6
+credentials-file: /etc/cloudflared/knettf/491d938b-3187-4d93-84da-66df739753e6.json
+
+ingress:
+  - hostname: knettf.com
+    service: http://localhost:8080
+  - service: http_status:404

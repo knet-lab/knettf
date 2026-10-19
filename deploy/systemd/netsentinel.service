@@ -1,0 +1,24 @@
+[Unit]
+Description=NetSentinel Django Backend
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=netsentinel
+Group=netsentinel
+UMask=0002
+WorkingDirectory=/srv/netsentinel/prod/backend
+Environment=DJANGO_SETTINGS_MODULE=backend.settings
+ExecStart=/srv/netsentinel/prod/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=3
+TimeoutStartSec=30
+TimeoutStopSec=8
+KillMode=mixed
+KillSignal=SIGTERM
+TasksMax=500
+MemoryMax=3G
+MemorySwapMax=0
+
+[Install]
+WantedBy=multi-user.target
