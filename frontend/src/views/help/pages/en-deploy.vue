@@ -3,6 +3,18 @@
     <h1>Deploying Changes</h1>
     <div class="meta">Always: edit in the development directory <code>~/github/NetSentinel</code>, then run <code>scripts/deploy.sh</code> there (your account must be in the <code>netsentinel</code> group). Commit on your personal branch, open a PR into <code>merge-dev</code>, then fast-forward <code>prod</code> to it (<code>git push origin origin/merge-dev:prod</code>). The script pulls GitHub <code>prod</code> into <code>/srv/netsentinel/prod</code>, builds and restarts.</div>
 
+    <section id="branches">
+      <h2>Branches and collaboration</h2>
+      <pre><code>personal branch ── PR (reviewed by the other person) ──▶ merge-dev ──fast-forward──▶ prod ──deploy.sh──▶ /srv/netsentinel/prod</code></pre>
+      <div class="table-wrap"><table>
+        <tr><th>Branch</th><th>Who changes it, how</th><th>Purpose</th></tr>
+        <tr><td>Personal (<code>soar009</code>, …)</td><td>Owner commits and pushes freely</td><td>Your own workspace, named after your Linux user</td></tr>
+        <tr><td><code>merge-dev</code></td><td>Only through reviewed PRs, never a direct push</td><td>Integration branch and GitHub default branch</td></tr>
+        <tr><td><code>prod</code></td><td>Only <code>git push origin origin/merge-dev:prod</code> — no commits, no PRs, no force push</td><td>The version running in production</td></tr>
+      </table></div>
+      <div class="note">Branch protection (Rulesets) is not enforced on this free private repository, so these rules are kept by agreement. Never use <code>git push -f</code>; without it, a non-fast-forward push to prod is rejected. Review happens once, on the PR into merge-dev (Reviewers → Files changed → Review changes → Approve). Check the PR says <b>into merge-dev</b>. Ignore GitHub's “Compare &amp; pull request” banner for prod. To roll back, <code>git revert</code> on your branch and go through the same flow.</div>
+    </section>
+
     <section id="code">
       <h2>Frontend and backend code</h2>
       <div class="task"><h4><span class="n">1</span>Test and commit</h4>
