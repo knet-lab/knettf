@@ -7,7 +7,7 @@
       <h2>8.1 安全问题（站点在公网，优先处理）</h2>
       <div class="table-wrap"><table>
         <tr><th>问题</th><th>位置</th><th>影响</th><th>建议</th></tr>
-        <tr><td>SECRET_KEY、数据库密码明文；<code>DEBUG=True</code>；<code>ALLOWED_HOSTS=*</code>；<code>CORS_ALLOW_ALL_ORIGINS</code></td><td><code>backend/settings.py</code></td><td>任何能读仓库的人可伪造 JWT；出错时公网可见源码与配置</td><td>全部移入 <code>backend/backend/.env</code>，生产关 DEBUG，限定 hosts 与 CORS</td></tr>
+        <tr><td>数据库密码默认值写在代码里；<code>CORS_ALLOW_ALL_ORIGINS</code>（SECRET_KEY / DEBUG / ALLOWED_HOSTS 已于 2026-10-19 改为从 .env 读，线上已关 DEBUG）</td><td><code>backend/settings.py</code></td><td>能读仓库的人知道 PostgreSQL 密码；任何站点可跨域调用 API</td><td>改 PostgreSQL 密码并只写进线上 .env（<code>VIGIL_DB_PASSWORD</code>）；限定 CORS 来源</td></tr>
         <tr><td>默认账号弱口令</td><td><code>kcore/management/commands/users_init.py</code></td><td>admin/admin123 公网可登录</td><td>立即改密码</td></tr>
         <tr><td>任何人可注册</td><td><code>UserList</code> POST 为 <code>AllowAny</code></td><td>陌生人可拿到普通账号，进而看全部检测数据</td><td>改为 <code>IsAdminUser</code></td></tr>
         <tr><td>Pod 日志 WebSocket 无鉴权</td><td><code>kcore/consumers.py PodLogConsumer</code></td><td>知道集群 ID 即可读任意 Pod 日志，且不检查 owner</td><td>从 query 取 token 校验，再 <code>check_owner</code></td></tr>

@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>账号与令牌</h1>
     <div class="meta">网页上只能新建和删除用户（见 <a href="/help/use#users">网页使用 · 用户管理</a>），其余操作都要用命令行。<br>
-      下面的命令都在后端目录里执行：<code>cd $N/backend; PY=../.venv/bin/python</code></div>
+      下面的命令都在后端目录里执行：<code>cd $P/backend; PY=../.venv/bin/python</code></div>
 
     <section id="users">
       <h2>用户</h2>
@@ -27,7 +27,7 @@ systemctl --user restart netsentinel</code></pre></div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>同步给入口 B（部署了才需要）</h4>
         <div class="do"><div><pre><code>kubectl -n netsentinel create secret generic detector-secret \
-  --from-literal=django-token="$(grep ^VIGIL_BRIDGE_TOKEN= $N/backend/backend/.env | cut -d= -f2-)" \
+  --from-literal=django-token="$(grep ^VIGIL_BRIDGE_TOKEN= $P/backend/backend/.env | cut -d= -f2-)" \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code></pre></div></div>
         <div class="why"><div>后端拿 Secret 里的值和自己的 token 做字符串全等比较，两边对不上，WebSocket 就会以 4401 拒绝连接。</div></div>

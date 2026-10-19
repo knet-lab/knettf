@@ -14,13 +14,15 @@ import time
 from collections import defaultdict
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
+from django.conf import settings
 
 logger = logging.getLogger("vigil.bridge")
 
 # ── Kafka config ───────────────────────────────────────────────────────────────
 KAFKA_BOOTSTRAP  = "192.168.100.200:9094,192.168.100.201:9094,192.168.100.202:9094,192.168.100.203:9094"
 KAFKA_TOPIC      = "ebpf-net-logs"
-KAFKA_GROUP_ID   = "vigil-bridge"
+# 开发环境在 .env 设 VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev，避免和生产抢分区
+KAFKA_GROUP_ID   = settings.VIGIL_KAFKA_GROUP_ID
 
 CONSUME_BATCH = 10000  # 每次从 Kafka 取的消息数，取完即聚合
 

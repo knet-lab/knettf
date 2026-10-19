@@ -7,8 +7,8 @@
       <h2>1. 两个数据库与路由</h2>
       <div class="table-wrap"><table>
         <tr><th>别名</th><th>引擎</th><th>位置</th><th>存放</th><th>连接方式</th></tr>
-        <tr><td><code>default</code></td><td>SQLite</td><td><code>backend/db.sqlite3</code></td><td>kcore、autotf、Django 内置（auth、admin、session、contenttypes、migrations）</td><td><code>sqlite3 backend/db.sqlite3</code></td></tr>
-        <tr><td><code>vigil</code></td><td>PostgreSQL</td><td>Docker 容器 <code>pg</code>，127.0.0.1:5432，库 <code>vigil</code>，用户 <code>vigil</code> / 密码 <code>vigil123</code></td><td>只有 <code>vigil_detectionrecord</code>（分区表）</td><td><code>docker exec -it pg psql -U vigil vigil</code></td></tr>
+        <tr><td><code>default</code></td><td>SQLite</td><td><code>backend/db.sqlite3</code>（线上 <code>$P/backend/</code>，开发 <code>$N/backend/</code>，互不相通）</td><td>kcore、autotf、Django 内置（auth、admin、session、contenttypes、migrations）</td><td><code>sqlite3 backend/db.sqlite3</code></td></tr>
+        <tr><td><code>vigil</code></td><td>PostgreSQL</td><td>Docker 容器 <code>pg</code>，127.0.0.1:5432，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>（2026-10-19 从线上复制），用户 <code>vigil</code> / 密码 <code>vigil123</code>；用哪个库由 .env 的 <code>VIGIL_DB_NAME</code> 决定</td><td>只有 <code>vigil_detectionrecord</code>（分区表）</td><td><code>docker exec -it pg psql -U vigil vigil</code></td></tr>
       </table></div>
       <p>路由规则（<code>backend/backend/db_router.py AppRouter</code>）：</p>
       <ul>
@@ -144,7 +144,7 @@
       <ul>
         <li>按 <code>created_at</code> 每天一个分区，表名 <code>vigil_detectionrecord_YYYY_MM_DD</code>，范围 [当天 00:00, 次日 00:00)。</li>
         <li>初次迁移预建「过去 89 天 + 今天 + 明天」共 91 个分区。</li>
-        <li>crontab 每天 00:00 执行 <code>rotate_partitions</code>：创建<b>明天</b>的分区；删除 90 天前那一天及再往前 6 天的分区。日志 <code>/tmp/rotate_partitions.log</code>。</li>
+        <li>crontab 每天 00:00 用<b>线上目录</b> <code>$P</code> 执行 <code>rotate_partitions</code>（开发目录默认连 vigil_dev，用错目录分区会建到开发库）：创建<b>明天</b>的分区；删除 90 天前那一天及再往前 6 天的分区。日志 <code>/tmp/rotate_partitions.log</code>。</li>
         <li><b>若 cron 停了超过 1 天</b>，到达没有分区的日期时插入会报错 <code>no partition of relation "vigil_detectionrecord" found for row</code>，所有检测写库失败。补救：手动执行 <code>rotate_partitions</code>（只建明天），或用下方 SQL 补建当天分区。</li>
         <li>删除只回扫 7 天，因此更早的分区不会被自动清理（当前最早分区为 2026_03_19）。</li>
       </ul>

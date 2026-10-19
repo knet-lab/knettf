@@ -170,6 +170,7 @@ SIMPLE_JWT = {
 }
 
 VIGIL_BRIDGE_TOKEN = env.str("VIGIL_BRIDGE_TOKEN", default=None)
+VIGIL_KAFKA_GROUP_ID = env.str("VIGIL_KAFKA_GROUP_ID", default="vigil-bridge")
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True

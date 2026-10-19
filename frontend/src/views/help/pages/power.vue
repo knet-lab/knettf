@@ -171,7 +171,7 @@ kubectl apply -f $K/cluster-setup/host-firewall-ccnp.yaml</code></pre>以普通�
 
       <h3 id="rebuild-db">重置 default 库（用户 / 集群 / Terraform）</h3>
 <pre><code>systemctl --user stop netsentinel
-cd $N/backend && cp db.sqlite3 db.sqlite3.bak_$(date +%F_%H%M)
+cd $P/backend && cp db.sqlite3 db.sqlite3.bak_$(date +%F_%H%M)
 <span class="c"># 方式一：只清业务数据</span>
 ../.venv/bin/python manage.py autotf_clear &amp;&amp; ../.venv/bin/python manage.py users_clear
 <span class="c"># 方式二：整库重建</span>
@@ -185,7 +185,7 @@ systemctl --user start netsentinel</code></pre>
 
       <h3 id="rebuild-vigil">重置 vigil 库（检测记录）</h3>
 <pre><code>systemctl --user stop netsentinel
-cd $N/backend
+cd $P/backend
 ../.venv/bin/python manage.py migrate vigil zero --database=vigil   # DROP TABLE ... CASCADE
 ../.venv/bin/python manage.py migrate vigil --database=vigil        # 重建父表 + 91 个分区
 systemctl --user start netsentinel</code></pre>
@@ -193,21 +193,20 @@ systemctl --user start netsentinel</code></pre>
 
       <h3 id="rebuild-env">重建运行环境</h3>
 <pre><code>systemctl --user stop netsentinel
-cd $N &amp;&amp; rm -rf .venv &amp;&amp; python3.12 -m venv .venv &amp;&amp; .venv/bin/pip install -r backend/requirements.txt
-rm -rf frontend/node_modules frontend/dist
-scripts/deploy.sh -all</code></pre>
-      <p>这两个目录都可以重新生成，不会丢数据。</p>
+cd $P &amp;&amp; rm -rf .venv frontend/node_modules frontend/dist &amp;&amp; uv sync --frozen
+cd $N &amp;&amp; scripts/deploy.sh -all       # 一定从 $N 跑</code></pre>
+      <p>这几个目录都可以重新生成，不会丢数据。开发目录 <code>$N</code> 的环境坏了同理：<code>cd $N &amp;&amp; rm -rf .venv &amp;&amp; uv sync --frozen</code>，不影响线上。</p>
     </section>
 
     <section id="backup">
       <h2>备份与恢复</h2>
       <div class="table-wrap"><table>
         <tr><th>对象</th><th>备份命令</th><th>恢复</th></tr>
-        <tr><td>default 库</td><td><code>sqlite3 $N/backend/db.sqlite3 ".backup '$N/backend/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"</code></td><td>停服务 → 覆盖 <code>db.sqlite3</code> → 启服务</td></tr>
+        <tr><td>default 库</td><td><code>sqlite3 $P/backend/db.sqlite3 ".backup '$P/backend/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"</code></td><td>停服务 → 覆盖 <code>db.sqlite3</code> → 启服务</td></tr>
         <tr><td>vigil 库</td><td><code>docker exec pg pg_dump -U vigil -Fc vigil &gt; ~/vigil_$(date +%F).dump</code></td><td>见下方</td></tr>
-        <tr><td>上传的 .tf 文件</td><td><code>tar czf tf_$(date +%F).tgz -C $N/backend terraform</code></td><td>解压回 <code>backend/</code></td></tr>
-        <tr><td>后端 .env</td><td><code>cp $N/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td><td>复制回去，重启后端</td></tr>
-        <tr><td>模型文件</td><td><code>tar czf ads_ml_$(date +%F).tgz -C $N/backend/vigil/ml ads_ml/trained ads_ml/config.yaml</code></td><td>解压回去，重启后端</td></tr>
+        <tr><td>上传的 .tf 文件</td><td><code>tar czf tf_$(date +%F).tgz -C $P/backend terraform</code></td><td>解压回 <code>backend/</code></td></tr>
+        <tr><td>后端 .env</td><td><code>cp $P/backend/backend/.env ~/netsentinel_env_$(date +%F)</code></td><td>复制回去，重启后端</td></tr>
+        <tr><td>模型文件</td><td><code>tar czf ads_ml_$(date +%F).tgz -C $P/backend/vigil/ml ads_ml/trained ads_ml/config.yaml</code></td><td>解压回去，重启后端</td></tr>
         <tr><td>knetsentinel 全部</td><td><code>tar czf ~/knetsentinel_$(date +%F).tgz -C ~ --exclude='knetsentinel/.venv' knetsentinel</code></td><td>解压，<code>uv sync</code></td></tr>
         <tr><td>kubeconfig</td><td><code>cp ~/.kube/config ~/kubeconfig_$(date +%F)</code></td><td>集群没重建时才有用</td></tr>
         <tr><td>systemd / cloudflared</td><td><code>tar czf sys_$(date +%F).tgz -C ~ .config/systemd/user .cloudflared</code></td><td>解压，<code>systemctl --user daemon-reload</code></td></tr>

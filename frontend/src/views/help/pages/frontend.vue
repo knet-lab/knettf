@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>前端代码</h1>
     <div class="meta">读完你能：在本机跑起前端开发环境，读懂每个页面的代码，知道一个按钮点下去调了哪个接口，会改页面、加页面、构建上线。<br>
-      代码根目录 <code>$N/frontend/</code>。前置知识：会一点 HTML / JavaScript；Vue 不熟也没关系，本章按需讲。</div>
+      代码根目录 <code>$N/frontend/</code>（开发目录；线上的 <code>$P/frontend/</code> 只由 <code>deploy.sh</code> 构建，见 <a href="/help/index#envs">开发与生产</a>）。前置知识：会一点 HTML / JavaScript；Vue 不熟也没关系，本章按需讲。</div>
 
     <section id="stack">
       <h2>2.1 技术栈与版本</h2>
@@ -25,7 +25,7 @@
 <pre><code>frontend/
 ├── package.json         脚本与依赖
 ├── pnpm-lock.yaml       锁定版本
-├── vite.config.ts       Vite 配置：插件、@ 别名、开发代理 /api /ws → 127.0.0.1:8080
+├── vite.config.ts       Vite 配置：插件、@ 别名、开发代理 /api /ws → 127.0.0.1:8090（开发后端；可用环境变量 DEV_BACKEND 覆盖）
 ├── .env · .env.production   VITE_API_BASE=/api、VITE_WS_BASE=（空）；.env 不在 Git 中
 ├── index.html           唯一的 HTML 壳，里面只有 &lt;div id="app"&gt;
 ├── tsconfig*.json       TypeScript 配置（app 与 node 两套）
@@ -60,10 +60,10 @@
       <p>这是前端最容易搞混的地方：<b>线上没有单独的前端服务器</b>。</p>
       <div class="table-wrap"><table>
         <tr><th></th><th>开发模式</th><th>生产模式（现在线上）</th></tr>
-        <tr><td>启动</td><td><code>cd $N/frontend &amp;&amp; pnpm dev</code></td><td><code>pnpm build</code> 生成 <code>dist/</code>，后端读取</td></tr>
+        <tr><td>启动</td><td><code>cd $N/frontend &amp;&amp; pnpm dev</code></td><td><code>scripts/deploy.sh -frontend</code> 在 <code>$P</code> 里 <code>pnpm build</code> 生成 <code>dist/</code>，然后重启后端</td></tr>
         <tr><td>访问</td><td><code>http://localhost:5173</code></td><td><code>http://localhost:8080</code> / <code>https://knettf.com</code></td></tr>
         <tr><td>页面从哪来</td><td>Vite 实时编译，改代码浏览器自动刷新（HMR）</td><td>Django 的 WhiteNoise 中间件直接返回 <code>dist/</code> 里的文件（<code>settings.WHITENOISE_ROOT</code>）</td></tr>
-        <tr><td><code>/api</code> 请求</td><td>Vite 代理到 <code>http://127.0.0.1:8080</code>（<code>vite.config.ts</code> 的 <code>server.proxy</code>）</td><td>同源，直接到后端</td></tr>
+        <tr><td><code>/api</code> 请求</td><td>Vite 代理到开发后端 <code>http://127.0.0.1:8090</code>（<code>vite.config.ts</code> 的 <code>server.proxy</code>）</td><td>同源，直接到后端</td></tr>
         <tr><td><code>/ws</code> WebSocket</td><td>同样代理（<code>ws: true</code>）</td><td>同源</td></tr>
         <tr><td><code>VITE_API_BASE</code></td><td>来自 <code>frontend/.env</code>（本机有，但被 .gitignore 忽略）</td><td><code>/api</code>（<code>.env.production</code> 覆盖 <code>.env</code>）</td></tr>
       </table></div>
@@ -73,13 +73,13 @@
       <h3>常用命令</h3>
 <pre><code>cd $N/frontend
 pnpm install        <span class="c"># 装依赖（第一次或 package.json 变了）</span>
-pnpm dev            <span class="c"># 开发服务器 :5173（需后端在 :8080 运行）</span>
-pnpm build          <span class="c"># = 并行执行 type-check（vue-tsc --build）和 build-only（vite build）</span>
+pnpm dev            <span class="c"># 开发服务器 :5173（需开发后端在 :8090：cd $N/backend &amp;&amp; ../.venv/bin/python manage.py runserver 8090）</span>
+pnpm build          <span class="c"># 本地只用来检查能否构建；线上构建交给 deploy.sh。= 并行执行 type-check（vue-tsc --build）和 build-only（vite build）</span>
 pnpm build-only     <span class="c"># 跳过类型检查，只打包（类型报错又急着上线时用）</span>
 pnpm preview        <span class="c"># 本地预览 dist/</span>
 pnpm lint           <span class="c"># oxlint --fix 然后 eslint --fix</span>
 pnpm format         <span class="c"># prettier 格式化 src/</span></code></pre>
-      <p>上线只需 <code>pnpm build</code>，<b>不用重启后端</b>（WhiteNoise 在 DEBUG 模式下每次请求都读磁盘）。浏览器 <span class="kbd">Ctrl</span>+<span class="kbd">F5</span> 强刷。</p>
+      <p>上线：提交后 <code>cd $N &amp;&amp; scripts/deploy.sh -frontend</code>。线上 <code>DEBUG=False</code>，WhiteNoise 只在进程启动时扫描 dist，所以脚本构建完会重启后端，否则新文件 404、页面白屏。浏览器 <span class="kbd">Ctrl</span>+<span class="kbd">F5</span> 强刷。</p>
     </section>
 
     <section id="boot">
@@ -275,9 +275,9 @@ onMounted(async () =&gt; {
         <div class="step"><div class="step-title">在 <code>NavComponent.vue</code> 的 <code>links</code> 数组加一项</div>
 <pre><code>{ to: '/status', label: 'Status', icon: Monitor },</code></pre></div>
         <div class="step"><div class="step-title">本地验证</div>
-          <p>确认有 <code>frontend/.env</code>，<code>pnpm dev</code>，打开 <code>http://localhost:5173/status</code>。</p></div>
+          <p>确认有 <code>frontend/.env</code>、开发后端在 8090 运行，<code>pnpm dev</code>，打开 <code>http://localhost:5173/status</code>。</p></div>
         <div class="step"><div class="step-title">上线</div>
-          <p><code>pnpm build</code>（类型检查必须通过）→ 浏览器强刷 <code>https://knettf.com/status</code>。不用重启后端，因为后端的 SPA 兜底会把 <code>/status</code> 交给前端路由。</p></div>
+          <p>本地 <code>pnpm build</code> 确认类型检查通过 → <code>git commit</code> → <code>cd $N &amp;&amp; scripts/deploy.sh -frontend</code> → 浏览器强刷 <code>https://knettf.com/status</code>。新路由不用改后端：后端的 SPA 兜底会把 <code>/status</code> 交给前端路由。</p></div>
       </div>
     </section>
   </div>

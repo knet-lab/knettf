@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>后端代码</h1>
     <div class="meta">读完你能：说出一个 HTTP 请求在后端经过的每一步，读懂三个应用的每个文件，会跑管理命令、加接口、改数据库结构。<br>
-      代码根目录 <code>$N/backend/</code>，所有 <code>manage.py</code> 命令都在这里用 <code>../.venv/bin/python manage.py ...</code> 执行。逐个接口的参数与响应示例见 <a href="/help/api">API 逐接口</a>，表字段见 <a href="/help/db">数据库与模型字段</a>。</div>
+      代码根目录 <code>$N/backend/</code>（开发），线上运行的是 <code>$P/backend/</code>（见 <a href="/help/index#envs">开发与生产</a>）。<code>manage.py</code> 命令在对应目录里用 <code>../.venv/bin/python manage.py ...</code> 执行：调试、生成迁移在 <code>$N</code>；操作线上数据（改密码、补分区）在 <code>$P</code>。逐个接口的参数与响应示例见 <a href="/help/api">API 逐接口</a>，表字段见 <a href="/help/db">数据库与模型字段</a>。</div>
 
     <section id="django">
       <h2>3.1 Django 五分钟入门（只讲本项目用到的）</h2>
@@ -24,15 +24,15 @@
     <section id="start">
       <h2>3.2 进程是怎么起来的</h2>
 <pre><code>systemd（~/.config/systemd/user/netsentinel.service）
-  WorkingDirectory=$N/backend
-  ExecStart=$N/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
+  WorkingDirectory=$P/backend
+  ExecStart=$P/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
   Restart=always  RestartSec=3  MemoryMax=3G  MemorySwapMax=0  TasksMax=500
       │
       ▼
 uvicorn 导入 backend/asgi.py
   ├─ os.environ DJANGO_SETTINGS_MODULE=backend.settings
   ├─ django.setup()
-  │    ├─ 读 settings.py（读 backend/backend/.env）
+  │    ├─ 读 settings.py（读 $P/backend/backend/.env：DEBUG=False、SECRET_KEY、VIGIL_DB_NAME=vigil …）
   │    ├─ 加载 INSTALLED_APPS，逐个调用 AppConfig.ready()
   │    │    └─ vigil/apps.py ready()：_should_start_bridge() 判断 argv[0] 含 uvicorn → True
   │    │         └─ bridge.start()：起两个守护线程 vigil-drainer、vigil-bridge（<a href="/help/detect">《检测链路与模型》</a>）
@@ -42,29 +42,30 @@ uvicorn 导入 backend/asgi.py
          "websocket": URLRouter(kcore.routing + vigil.routing)  → Channels consumer
      })</code></pre>
       <p>只有<b>一个</b> uvicorn 进程（没开 <code>--workers</code>），bridge 线程因此只有一份。如果将来加 workers，每个进程都会起一份 bridge，导致重复消费入库。</p>
-      <p><code>_should_start_bridge()</code> 规则：<code>migrate</code>、<code>shell</code>、<code>check</code>、<code>test</code> 等命令不启动；<code>runserver</code> 只在自动重载的子进程（<code>RUN_MAIN=true</code>）启动；<code>argv[0]</code> 含 daphne / uvicorn / gunicorn 时启动。所以你在命令行跑 <code>manage.py shell</code> 不会多出一个 Kafka 消费者，但 <b><code>manage.py runserver</code> 会</b>——调试时如果线上服务也在跑，会和它抢同一个 consumer group 的分区。</p>
+      <p><code>_should_start_bridge()</code> 规则：<code>migrate</code>、<code>shell</code>、<code>check</code>、<code>test</code> 等命令不启动；<code>runserver</code> 只在自动重载的子进程（<code>RUN_MAIN=true</code>）启动；<code>argv[0]</code> 含 daphne / uvicorn / gunicorn 时启动。所以你在命令行跑 <code>manage.py shell</code> 不会多出一个 Kafka 消费者，但 <b><code>manage.py runserver</code> 会</b>。开发目录的 <code>.env</code> 设了 <code>VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev</code>，开发 bridge 用自己的 consumer group，拿到一份完整的流量写进 <code>vigil_dev</code>，不影响线上。<b>新建开发环境时一定要设这个变量</b>：不设就默认 <code>vigil-bridge</code>，会和线上分走 Kafka 分区，线上漏收流量。</p>
     </section>
 
     <section id="settings">
       <h2>3.3 settings.py 逐项</h2>
       <div class="table-wrap"><table>
         <tr><th>设置</th><th>当前值</th><th>说明 / 风险</th></tr>
-        <tr><td><code>env.read_env(...)</code></td><td><code>backend/backend/.env</code></td><td>真正被读取的 .env。仓库根目录那个 <code>.env</code> 不会被读</td></tr>
-        <tr><td><code>SECRET_KEY</code></td><td>明文写死</td><td>JWT 签名也用它。泄露 = 任何人可伪造 token。应移入 .env</td></tr>
-        <tr><td><code>DEBUG</code></td><td><code>True</code></td><td>出错时返回带源码的调试页；公网暴露应关掉</td></tr>
-        <tr><td><code>ALLOWED_HOSTS</code></td><td><code>["*"]</code></td><td></td></tr>
+        <tr><td><code>env.read_env(...)</code></td><td><code>backend/backend/.env</code></td><td>真正被读取的 .env，开发和线上各一份，不进 Git。仓库根目录那个 <code>.env</code> 不会被读。下面标“env”的设置都从这里读，没写就用默认值（默认值 = 开发配置）</td></tr>
+        <tr><td><code>SECRET_KEY</code></td><td>env；默认是代码里那个 insecure key</td><td>JWT 签名也用它。线上 .env 里是单独生成的随机值；换掉它会让所有已登录用户的 token 失效</td></tr>
+        <tr><td><code>DEBUG</code></td><td>env；默认 <code>True</code>，线上 <code>False</code></td><td>开着时出错返回带源码的调试页。关掉后 WhiteNoise 只在启动时扫描 dist，所以前端构建后要重启（<code>deploy.sh</code> 会做）</td></tr>
+        <tr><td><code>ALLOWED_HOSTS</code></td><td>env；默认 <code>["*"]</code>，线上 <code>knettf.com,localhost,127.0.0.1,192.168.100.1</code></td><td>用别的域名 / IP 访问线上会返回 400，要加进 .env 并重启</td></tr>
         <tr><td><code>INSTALLED_APPS</code></td><td>channels、Django 内置、rest_framework、corsheaders、simplejwt、kcore、autotf、vigil</td><td><code>channels</code> 放第一位是 Channels 的要求</td></tr>
         <tr><td><code>MIDDLEWARE</code></td><td>Cors → Security → <b>WhiteNoise</b> → Session → Common → <b>DisableCSRFForAPI</b> → Auth → Messages → Clickjacking</td><td>WhiteNoise 提供前端文件；自定义中间件让 <code>/api/</code>、<code>/auth/</code> 免 CSRF</td></tr>
-        <tr><td><code>DATABASES</code></td><td><code>default</code>：SQLite <code>backend/db.sqlite3</code>；<code>vigil</code>：PostgreSQL <code>vigil/vigil123@127.0.0.1:5432/vigil</code></td><td>密码明文</td></tr>
+        <tr><td><code>DATABASES</code></td><td><code>default</code>：SQLite <code>backend/db.sqlite3</code>（各目录自己的）；<code>vigil</code>：PostgreSQL，env <code>VIGIL_DB_NAME</code> / <code>_USER</code> / <code>_PASSWORD</code> / <code>_HOST</code> / <code>_PORT</code>，默认 <code>vigil/vigil123@127.0.0.1:5432/vigil_dev</code></td><td>线上 .env 设 <code>VIGIL_DB_NAME=vigil</code>。<b>忘了设就会连到开发库</b></td></tr>
         <tr><td><code>DATABASE_ROUTERS</code></td><td><code>backend.db_router.AppRouter</code></td><td>见 3.6</td></tr>
         <tr><td><code>TIME_ZONE</code> / <code>USE_TZ</code></td><td><code>UTC</code> / <code>True</code></td><td>数据库与 API 一律 UTC，前端转本地时间</td></tr>
         <tr><td><code>WHITENOISE_ROOT</code></td><td><code>frontend/dist</code></td><td>该目录下的文件按原路径对外提供</td></tr>
         <tr><td><code>AUTH_USER_MODEL</code></td><td><code>kcore.User</code></td><td>自定义用户表 <code>kcore_user</code></td></tr>
         <tr><td><code>REST_FRAMEWORK</code></td><td>认证 JWT；默认权限 <code>IsAuthenticated</code>；异常处理 <code>common.exceptions.exception_handler</code></td><td>所以没特别声明的接口都要登录</td></tr>
         <tr><td><code>SIMPLE_JWT</code></td><td>access 2 小时，refresh 7 天，头 <code>Bearer</code></td><td></td></tr>
-        <tr><td><code>VIGIL_BRIDGE_TOKEN</code></td><td>从 .env 读</td><td>入口 B 检测器 WebSocket 的共享密钥</td></tr>
+        <tr><td><code>VIGIL_BRIDGE_TOKEN</code></td><td>env</td><td>入口 B 检测器 WebSocket 的共享密钥</td></tr>
+        <tr><td><code>VIGIL_KAFKA_GROUP_ID</code></td><td>env；默认 <code>vigil-bridge</code>，开发设 <code>vigil-bridge-dev</code></td><td>bridge 的 Kafka consumer group，见 3.2</td></tr>
         <tr><td><code>CORS_ALLOW_ALL_ORIGINS</code></td><td><code>True</code></td><td></td></tr>
-        <tr><td><code>CSRF_TRUSTED_ORIGINS</code></td><td>trycloudflare、localhost:8080</td><td>只影响 Django admin 这类 session 表单</td></tr>
+        <tr><td><code>CSRF_TRUSTED_ORIGINS</code></td><td>trycloudflare、localhost:8080，加上 env <code>CSRF_EXTRA_ORIGINS</code>（线上 <code>https://knettf.com</code>）</td><td>只影响 Django admin 这类 session 表单</td></tr>
         <tr><td><code>CHANNEL_LAYERS</code></td><td><code>InMemoryChannelLayer</code></td><td>进程内，不能跨进程广播；目前也没用到 group 广播</td></tr>
         <tr><td><code>TF_BIN</code></td><td><code>ENVIRONMENT=linux_development</code> → <code>/usr/bin/terraform</code>；<code>mac_os</code> → Mac 路径</td><td><code>.env</code> 里<b>必须</b>有 <code>ENVIRONMENT</code>，否则 settings 直接报错，服务起不来</td></tr>
       </table></div>
@@ -120,8 +121,8 @@ return self.success_response({'resources': [r.to_dict() for r in resources]})</c
       </table></div>
       <p>为什么拆两个库：检测记录量大、要按天分区和自动删除，适合 PostgreSQL；其余数据很少，SQLite 足够且免维护。代价是跨库没有外键（检测记录不关联用户）。</p>
       <p>常用的看库命令：</p>
-<pre><code>sqlite3 $N/backend/db.sqlite3 ".tables"
-sqlite3 $N/backend/db.sqlite3 "select id,username,is_staff,is_active from kcore_user;"
+<pre><code>sqlite3 $P/backend/db.sqlite3 ".tables"
+sqlite3 $P/backend/db.sqlite3 "select id,username,is_staff,is_active from kcore_user;"
 docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql，\d+ vigil_detectionrecord 看结构，\q 退出</span></code></pre>
     </section>
 
@@ -231,7 +232,7 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
 
     <section id="cmds">
       <h2>3.10 manage.py 命令速查</h2>
-<pre><code>cd $N/backend
+<pre><code>cd $N/backend      # 开发；操作线上数据时换成 $P/backend
 PY=../.venv/bin/python</code></pre>
       <div class="table-wrap"><table>
         <tr><th>命令</th><th>做什么</th></tr>
@@ -249,7 +250,7 @@ PY=../.venv/bin/python</code></pre>
         <tr><td><code>$PY manage.py generate_bridge_token [--username vigil-bridge] [--years 10] [--write-env]</code></td><td>生成长期 JWT 并写入 <code>backend/backend/.env</code>（需重启服务生效）</td></tr>
         <tr><td><code>$PY manage.py rotate_partitions [--database vigil] [--dry-run]</code></td><td>建明天分区、删 90 天前的分区（crontab 每天 0 点跑）</td></tr>
         <tr><td><code>$PY manage.py test kcore autotf</code></td><td>跑单元测试：145 个用例，约 5 分钟（2026-10-18 全部通过）。测试库为临时 SQLite，不影响线上数据</td></tr>
-        <tr><td><code>$PY manage.py runserver 0.0.0.0:8000</code></td><td>开发服务器。<b>会启动 bridge</b>，见 3.2</td></tr>
+        <tr><td><code>$PY manage.py runserver 8090</code></td><td>开发服务器（只在 <code>$N</code> 里跑；8000 被别的项目占用）。<b>会启动 bridge</b>，见 3.2</td></tr>
       </table></div>
     </section>
 
@@ -274,18 +275,19 @@ PY=../.venv/bin/python</code></pre>
 <pre><code>path("top-sources/", views.TopSourcesView.as_view(), name="vigil-top-sources"),</code></pre></div>
         <div class="step"><div class="step-title">检查并重启</div>
 <pre><code>cd $N/backend &amp;&amp; ../.venv/bin/python manage.py check
-systemctl --user restart netsentinel</code></pre></div>
+../.venv/bin/python manage.py runserver 8090      # runserver 改代码自动重载</code></pre></div>
         <div class="step"><div class="step-title">用 curl 验证</div>
-<pre><code>TOKEN=$(curl -s -X POST localhost:8080/api/auth/token/ -H 'Content-Type: application/json' \
+<pre><code>TOKEN=$(curl -s -X POST localhost:8090/api/auth/token/ -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"&lt;密码&gt;"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["access"])')
-curl -s "localhost:8080/api/vigil/top-sources/?limit=3" -H "Authorization: Bearer $TOKEN" | python3 -m json.tool</code></pre>
+curl -s "localhost:8090/api/vigil/top-sources/?limit=3" -H "Authorization: Bearer $TOKEN" | python3 -m json.tool</code></pre>
           <div class="expect">预期：<code>{"status":"success","code":0,"message":"Success","data":{"sources":[{"src_ip":"192.168.100.23","count":...}]}}</code></div></div>
         <div class="step"><div class="step-title">写测试（可选但推荐）</div><p>参照 <code>vigil/tests.py</code> 的写法加一个用例。</p></div>
+        <div class="step"><div class="step-title">提交并上线</div><pre><code>cd $N &amp;&amp; git add -A &amp;&amp; git commit -m "vigil: top-sources 接口" &amp;&amp; scripts/deploy.sh -backend</code></pre></div>
       </div>
       <h3>改数据库结构的流程</h3>
       <ul>
-        <li><b>kcore / autotf</b>（SQLite）：改 models.py → 备份 <code>db.sqlite3</code> → <code>makemigrations</code> → <code>sqlmigrate</code> 看 SQL → <code>migrate</code> → 重启。</li>
-        <li><b>vigil</b>（<code>managed=False</code>）：改 models.py <b>不会</b>生成迁移。要手写一个新迁移，用 <code>migrations.RunSQL("ALTER TABLE vigil_detectionrecord ADD COLUMN ...", reverse_sql=...)</code>；对父表的 ALTER 自动作用于所有分区。然后 <code>migrate --database=vigil</code>。</li>
+        <li><b>kcore / autotf</b>（SQLite）：在 <code>$N</code> 改 models.py → <code>makemigrations</code> → <code>sqlmigrate</code> 看 SQL → 在开发库 <code>migrate</code> 试 → 提交 → 备份线上 <code>$P/backend/db.sqlite3</code> → <code>deploy.sh -backend</code>（自动 migrate default）。</li>
+        <li><b>vigil</b>（<code>managed=False</code>）：改 models.py 只生成不执行 SQL 的状态迁移。真正改表要在迁移里加 <code>migrations.RunSQL("ALTER TABLE vigil_detectionrecord ADD COLUMN ...", reverse_sql=...)</code>；对父表的 ALTER 自动作用于所有分区。先在开发库（<code>vigil_dev</code>）<code>migrate --database=vigil</code> 试，部署后再在 <code>$P</code> 里对线上库执行。</li>
       </ul>
     </section>
   </div>

@@ -18,15 +18,16 @@
       <h3>属于 NetSentinel 的东西（全部在 soar009 名下）</h3>
       <div class="table-wrap"><table>
         <tr><th>资源</th><th>位置</th><th>说明</th></tr>
-        <tr><td>平台代码</td><td><code>/home/soar009/github/NetSentinel</code></td><td>GitHub <code>Wk-P/NetSentinel</code>（SSH 远程，分支 main）</td></tr>
+        <tr><td>平台代码（开发）</td><td><code>/home/soar009/github/NetSentinel</code></td><td>GitHub <code>Wk-P/NetSentinel</code>（SSH 远程，分支 main）；平时改代码、提交都在这里</td></tr>
+        <tr><td>平台代码（线上）</td><td><code>/home/soar009/netsentinel-prod</code></td><td>开发目录的 git clone（origin 指向开发目录），只由 <code>scripts/deploy.sh</code> 更新，不要在里面改代码</td></tr>
         <tr><td>集群/检测代码</td><td><code>/home/soar009/knetsentinel</code></td><td>GitHub <code>Wk-P/knetsentinel</code>（<b>HTTPS</b> 远程，分支 master）——是第二个独立仓库</td></tr>
-        <tr><td>Python 环境</td><td><code>NetSentinel/.venv</code>（uv 管理）</td><td>依赖见 <code>pyproject.toml</code> / <code>uv.lock</code></td></tr>
+        <tr><td>Python 环境</td><td>两个目录各有一个 <code>.venv</code>（uv 管理）</td><td>依赖见 <code>pyproject.toml</code> / <code>uv.lock</code></td></tr>
         <tr><td>Terraform 扫描工具</td><td><code>/home/soar009/terraform/.venv/bin/checkov</code></td><td>路径写死在 <code>backend/autotf/services.py:267</code> 和 <code>autotf_init.py:63-64</code></td></tr>
-        <tr><td>后端服务</td><td><code>~/.config/systemd/user/netsentinel.service</code></td><td>uvicorn 监听 8080，user 级服务，已开 linger</td></tr>
+        <tr><td>后端服务</td><td><code>~/.config/systemd/user/netsentinel.service</code></td><td>运行 <code>netsentinel-prod</code>，uvicorn 监听 8080，user 级服务，已开 linger</td></tr>
         <tr><td>隧道</td><td><code>cloudflared-knettf.service</code> + <code>~/.cloudflared/netsentinel.yml</code></td><td>knettf.com → localhost:8080</td></tr>
-        <tr><td>定时任务</td><td>soar009 的 crontab</td><td>每天 0 点 <code>manage.py rotate_partitions --database vigil</code></td></tr>
-        <tr><td>数据库</td><td>SQLite：<code>backend/db.sqlite3</code>、<code>vigil.sqlite3</code>、<code>autotf.sqlite3</code>；PostgreSQL：Docker 容器 <code>pg</code>（5432，库 vigil）</td><td>容器数据在 <code>/home/docker-data</code>，与 soar009 家目录无关</td></tr>
-        <tr><td>密钥/口令</td><td><code>backend/backend/.env</code>、<code>NetSentinel/.env</code>（VIGIL_BRIDGE_TOKEN）；PostgreSQL 密码写在 <code>backend/backend/settings.py</code></td><td>不在 Git 里的只有 .env</td></tr>
+        <tr><td>定时任务</td><td>soar009 的 crontab</td><td>每天 0 点用 <code>netsentinel-prod</code> 执行 <code>manage.py rotate_partitions --database vigil</code></td></tr>
+        <tr><td>数据库</td><td>SQLite：两个目录各自的 <code>backend/db.sqlite3</code>（线上以 <code>netsentinel-prod</code> 为准）；PostgreSQL：Docker 容器 <code>pg</code>（5432，线上库 <code>vigil</code>，开发库 <code>vigil_dev</code>）</td><td>容器数据在 <code>/home/docker-data</code>，与 soar009 家目录无关</td></tr>
+        <tr><td>密钥/口令</td><td>两个目录各自的 <code>backend/backend/.env</code>：线上那份有 <code>SECRET_KEY</code>、<code>DEBUG=False</code>、<code>VIGIL_BRIDGE_TOKEN</code>；PostgreSQL 密码目前是 <code>settings.py</code> 里的默认值</td><td>.env 不在 Git 里，权限 600</td></tr>
       </table></div>
 
       <h3>同一台机器上的其他项目——不要碰</h3>
@@ -36,7 +37,7 @@
           <li>Docker：<code>pnu-notice-*</code>（4 个容器）、<code>emotion-talk-backend-1</code></li>
           <li>端口 3306（MySQL）、8000、8081、8099 都不是 NetSentinel 的</li>
         </ul>
-        NetSentinel 只用 8080（后端）和 5432（容器 <code>pg</code>）。</div>
+        NetSentinel 只用 8080（线上后端）、5432（容器 <code>pg</code>），开发时另用 8090（开发后端）和 5173（Vite）。</div>
     </section>
 
     <section id="roadmap">
@@ -150,10 +151,9 @@ git remote set-url origin git@github.com:Wk-P/knetsentinel.git   # 原来是 HTT
       <pre><code>mkdir -p ~/github && cd ~/github
 git clone git@github.com:Wk-P/NetSentinel.git
 git clone git@github.com:Wk-P/knetsentinel.git ~/knetsentinel
-# 改完 push 后，部署到线上：
-sudo -iu soar009 git -C ~/github/NetSentinel pull     # 注意这里的 ~ 是 soar009 的
-sudo -iu soar009 systemctl --user restart netsentinel</code></pre>
-      <p>前端改动还要在线上目录 <code>frontend/</code> 下 <code>pnpm build</code>（node/pnpm 装在 soar009 的 nvm 里，也要 <code>sudo -iu soar009</code> 执行）。</p>
+# 改完 push 到 GitHub 后，部署到线上：
+sudo -iu soar009 bash -c 'cd ~/github/NetSentinel && git pull --ff-only && scripts/deploy.sh -all'   # 这里的 ~ 是 soar009 的</code></pre>
+      <p>链路是 你的 clone → GitHub → soar009 的开发目录 <code>~/github/NetSentinel</code> → <code>deploy.sh</code> 拉到线上目录 <code>~/netsentinel-prod</code> 并构建、重启。不要直接在 <code>netsentinel-prod</code> 里 pull GitHub，它的 origin 是开发目录。</p>
 
       <h3>第 5 步：试一次提交</h3>
       <pre><code>cd ~/github/NetSentinel          # 或 /srv/netsentinel/NetSentinel
@@ -211,7 +211,8 @@ exit</code></pre>
         <li>改掉网站默认账号 admin / alice / bob 的密码（<a href="/help/account">账号与令牌</a>）——它们写在代码里，等于公开。</li>
         <li>在网站管理后台 Users 里核对账号，删掉或停用陌生账号。</li>
         <li>读一遍 <a href="/help/trouble#dont">不要做的事</a> 和 <a href="/help/power">开关机与恢复</a>，知道宿主机重启后要做什么。</li>
-        <li>确认已经从原作者那里当面拿到：网页管理员账号、<code>.env</code> 里的 token、PostgreSQL 密码（见 3.2 第 5 条）。</li>
+        <li>确认已经从原作者那里当面拿到：网页管理员账号、线上 <code>.env</code> 里的 token、PostgreSQL 密码（见 3.2 第 5 条）。</li>
+        <li>读 <a href="/help/index#envs">开发与生产</a>：知道哪个目录是线上、怎么用 <code>deploy.sh</code> 上线。</li>
       </ol>
       <div class="learn">做到这里，你已经正式接手。阶段三不着急，等系统稳定、有停机窗口时再做。</div>
     </section>
@@ -220,6 +221,7 @@ exit</code></pre>
 
     <section id="migrate">
       <h2>3.1 迁出 soar009 家目录（可选，需停机）</h2>
+      <div class="note">下面的步骤写于开发 / 线上分离之前，只搬了一个 NetSentinel 目录。现在要搬<b>两个</b>：<code>~/github/NetSentinel</code>（开发）和 <code>~/netsentinel-prod</code>（线上）。额外要做：线上目录 <code>git remote set-url origin &lt;新的开发目录&gt;</code>；systemd 服务和 cron 指向<b>线上目录</b>；两个目录的 <code>.venv</code> 都重建；<code>scripts/deploy.sh</code> 里的 <code>ROOT</code>（或环境变量 <code>NETSENTINEL_PROD</code>）指向新的线上目录，<code>systemctl --user</code> 改成 <code>sudo systemctl</code>。</div>
       <p>目标：代码放 <code>/srv/netsentinel</code>（现在 <code>/srv</code> 是空的），用 <code>netsentinel</code> 组授权；服务、定时任务改成系统级。<b>只动 NetSentinel</b>，my-code 的服务和隧道保持原样。预计停机 15–30 分钟，knettf.com 期间不可用。</p>
 
       <h3>第 1 步：建组、建目录</h3>
@@ -327,7 +329,7 @@ sudo -iu soar009 systemctl --user is-active cloudflared-my-code        # 确认 
         <li>GitHub：两个仓库转到组织，或至少确认接手人已是协作者。</li>
         <li>Cloudflare：knettf.com 和两条隧道都在原作者的 Cloudflare 账号里，要把接手人加为成员（Manage Account → Members）。</li>
         <li>Tailscale：tailnet 是原作者的，要么邀请接手人，要么接手人用自己的账号重新登录（1.1）。</li>
-        <li>当面交接：网页管理员账号、<code>backend/backend/.env</code> 和 <code>NetSentinel/.env</code> 里的 VIGIL_BRIDGE_TOKEN、<code>settings.py</code> 里的 PostgreSQL 密码（vigil 用户）。</li>
+        <li>当面交接：网页管理员账号、<code>~/netsentinel-prod/backend/backend/.env</code>（SECRET_KEY、VIGIL_BRIDGE_TOKEN）、PostgreSQL 密码（vigil 用户，当前是 <code>settings.py</code> 里的默认值）。</li>
         <li><b>不能直接锁 soar009</b>：即使 NetSentinel 已迁移，my-code 的三个服务和 my-code 隧道仍是 soar009 的 user 服务，锁账户（或关 linger）会把它们一起停掉。先和 my-code 的负责人确认怎么处理，再执行：
           <pre><code>sudo usermod -L soar009              # 只锁密码；密钥登录要另外删 authorized_keys
 sudo gpasswd -d soar009 sudo</code></pre></li>

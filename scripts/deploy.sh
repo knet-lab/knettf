@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # NetSentinel 部署脚本
 # 用法: scripts/deploy.sh [-frontend] [-backend] [-all]
-#   -frontend  pnpm install + pnpm build（不用重启服务）
-#   -backend   uv sync → manage.py check → migrate(default) → 重启 netsentinel → 检查 8080
+#   -frontend  pnpm install + pnpm build → 重启 netsentinel（WhiteNoise 启动时才扫描 dist）
+#   -backend   uv sync → manage.py check → collectstatic → migrate(default) → 重启 netsentinel → 检查 8080
 #   -all       两者都做（先后端，再前端）
 # 生产目录是 ~/netsentinel-prod（本仓库的 clone），只部署已提交的 main：
 # 先在开发目录 git commit，脚本会在生产目录 git pull 后再构建/重启。
@@ -66,7 +66,11 @@ deploy_backend() {
     printf '\033[1;33m! vigil 库有未应用的迁移，请确认后手动执行:\n  cd %s/backend && %s manage.py migrate --database=vigil\033[0m\n' "$ROOT" "$PY"
   fi
 
-  log "后端：重启 $SERVICE"
+}
+
+# DEBUG=False 时 WhiteNoise 只在启动时扫描 dist，前端构建后也必须重启
+restart_service() {
+  log "重启 $SERVICE"
   systemctl --user restart "$SERVICE"
 
   for _ in $(seq 1 20); do
@@ -90,10 +94,11 @@ deploy_frontend() {
   cd "$ROOT/frontend"
   pnpm install --frozen-lockfile
   pnpm build
-  echo "✓ 前端已构建到 frontend/dist，浏览器强制刷新即可看到"
+  echo "✓ 前端已构建到 frontend/dist"
 }
 
 sync_code
 [ $DO_BACKEND -eq 1 ] && deploy_backend
 [ $DO_FRONTEND -eq 1 ] && deploy_frontend
+restart_service
 log "完成"
