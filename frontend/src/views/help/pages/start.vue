@@ -1,7 +1,7 @@
 <template>
   <div v-pre>
     <h1>先认识这个项目</h1>
-    <div class="meta">这一页只讲轮廓：系统是做什么的、由哪几块组成、东西放在哪、你要负责什么。不需要执行任何命令，读完大约 10 分钟。</div>
+    <div class="meta">这一页只讲轮廓：系统是做什么的、由哪几块组成、东西放在哪、日常要做哪些事。不需要执行任何命令，读完大约 10 分钟。</div>
 
     <section id="what">
       <h2>一句话说清楚</h2>
@@ -37,7 +37,7 @@
     </section>
 
     <section id="duty">
-      <h2>你要负责什么</h2>
+      <h2>日常要做的事</h2>
       <div class="table-wrap"><table>
         <tr><th>多久一次</th><th>做什么</th><th>在哪里看</th></tr>
         <tr><td>只做一次</td><td>拿到自己的服务器账户、权限和 GitHub 权限</td><td>本教程第 2 步</td></tr>

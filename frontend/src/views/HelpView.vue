@@ -16,7 +16,7 @@ type Book = { id: string; name: string; lang: 'zh' | 'en'; accent: string; tutor
 const BOOKS: Book[] = [
   { id: 'tutorial', name: '入门教程', lang: 'zh', accent: '#14b8a6', tutorial: true, groups: [
     { name: '按顺序做', pages: [
-      { key: 'start', title: '先认识这个项目', desc: '系统做什么、由哪几块组成、你要负责什么' },
+      { key: 'start', title: '先认识这个项目', desc: '系统做什么、由哪几块组成、日常要做的事' },
       { key: 'prepare', title: '账户、权限与 GitHub', desc: '服务器账户、组权限、仓库邀请、提交身份' },
       { key: 'account', title: '网站账号与令牌', desc: '改默认密码、加管理员、服务令牌' },
       { key: 'firstday', title: '接手第一天', desc: '第一天要做完的事，做完进入项目手册' },
