@@ -60,7 +60,7 @@ flowchart LR
 ```bash
 cd ~/github/knettf
 git switch dev/<名字>             # 自己的长期分支（第一次：git switch -c dev/<名字> origin/main && git push -u origin dev/<名字>）
-git pull origin main             # 开工前先合入最新 main
+git pull --ff-only origin main   # 开工前同步 main（上次合并后的合并提交）
 
 # …改代码、本地调试…
 
@@ -75,7 +75,13 @@ git push
 3. 合并按钮选 **Create a merge commit**（不要选 Squash / Rebase）→ **Merge pull request** → **Confirm merge**。
 4. **不要点 Delete branch**，个人分支下次接着用。
 
-合并后什么都不用做，看上线进度：`tail -f /srv/netsentinel/logs/auto-deploy.log`
+合并后把个人分支同步到 `main`，让两边提交号一致（GitHub 合并会在 `main` 上多出一个合并提交）：
+
+```bash
+git pull --ff-only origin main && git push
+```
+
+上线是自动的，看进度：`tail -f /srv/netsentinel/logs/auto-deploy.log`
 
 规则（GitHub 分支保护强制执行）：`main` 只能通过 PR 合入，检查不通过不能合并，禁止直接 push / force push。
 
