@@ -272,12 +272,12 @@ curl -s "localhost:8090/api/vigil/top-sources/?limit=3" -H "Authorization: Beare
           <div class="expect">预期：<code>{"status":"success","code":0,"message":"Success","data":{"sources":[{"src_ip":"192.168.100.23","count":...}]}}</code></div></div>
         <div class="step"><div class="step-title">写测试（可选但推荐）</div><p>参照 <code>vigil/tests.py</code> 的写法加一个用例。</p></div>
         <div class="step"><div class="step-title">提交并上线</div><pre class="on-both"><code>cd /home/NEWUSER/github/knettf &amp;&amp; git add -A &amp;&amp; git commit -m "vigil: top-sources 接口" &amp;&amp; git push
-<span class="c"># PR 合并到 merge-dev 后</span>
-/srv/netsentinel/release.sh -backend</code></pre></div>
+<span class="c"># PR 合并到 main 后</span>
+/srv/netsentinel/prod/ops/scripts/deploy.sh -backend</code></pre></div>
       </div>
       <h3>改数据库结构的流程</h3>
       <ul>
-        <li><b>kcore / autotf</b>（SQLite）：在 <code class="vn">/home/NEWUSER/github/knettf</code> 改 models.py → <code>makemigrations</code> → <code>sqlmigrate</code> 看 SQL → 在开发库 <code>migrate</code> 试 → 提交 → 备份线上 <code class="vp">/srv/netsentinel/prod/apps/backend/db.sqlite3</code> → PR 合并后 <code>/srv/netsentinel/release.sh -backend</code>（自动 migrate default）。</li>
+        <li><b>kcore / autotf</b>（SQLite）：在 <code class="vn">/home/NEWUSER/github/knettf</code> 改 models.py → <code>makemigrations</code> → <code>sqlmigrate</code> 看 SQL → 在开发库 <code>migrate</code> 试 → 提交 → 备份线上 <code class="vp">/srv/netsentinel/prod/apps/backend/db.sqlite3</code> → PR 合并后 <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -backend</code>（自动 migrate default）。</li>
         <li><b>vigil</b>（<code>managed=False</code>）：改 models.py 只生成不执行 SQL 的状态迁移。真正改表要在迁移里加 <code>migrations.RunSQL("ALTER TABLE vigil_detectionrecord ADD COLUMN ...", reverse_sql=...)</code>；对父表的 ALTER 自动作用于所有分区。先在开发库（<code>vigil_dev</code>）<code>migrate --database=vigil</code> 试，部署后再在 <code class="vp">/srv/netsentinel/prod</code> 里对线上库执行。</li>
       </ul>
     </section>

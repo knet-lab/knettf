@@ -27,7 +27,7 @@ tail /srv/netsentinel/logs/rotate_partitions.log</code></pre>
         <div class="step"><div class="step-title">从原作者那里当面拿到密码</div>
           <p>网站管理员账号、线上配置文件 <code>.env</code> 里的令牌、PostgreSQL 密码。不要通过聊天软件或截图传。</p></div>
         <div class="step"><div class="step-title">知道怎么上线</div>
-          <p>读 <a href="/help/index#envs">开发与生产</a> 和 <a href="/help/deploy">改动上线</a>：哪个目录是线上，改动怎么经 PR 和 <code>release.sh</code> 上线。</p></div>
+          <p>读 <a href="/help/index#envs">开发与生产</a> 和 <a href="/help/deploy">改动上线</a>：哪个目录是线上，改动怎么经 PR 和 <code>deploy.sh</code> 上线。</p></div>
       </div>
       <div class="ok">做到这里，你已经正式接手。以后的日常就是：每天健康检查，有任务时查项目手册。</div>
     </section>

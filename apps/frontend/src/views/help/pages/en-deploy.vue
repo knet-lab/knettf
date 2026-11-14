@@ -1,22 +1,20 @@
 <template>
   <div v-pre lang="en">
     <h1>Deploying Changes</h1>
-    <div class="meta">Always: edit and commit on your personal branch in <code>/home/NEWUSER/github/knettf</code>, push, open a PR into <code>merge-dev</code> and have the other person review it. After the merge run <code>/srv/netsentinel/release.sh -frontend</code> (or <code>-backend</code> / <code>-all</code>): it fast-forwards <code>prod</code> to <code>merge-dev</code> and runs <code>ops/scripts/deploy.sh</code>, which pulls GitHub <code>prod</code> into <code>/srv/netsentinel/prod</code>, builds and restarts. Your account must be in the <code>netsentinel</code> group.</div>
+    <div class="meta">Always: in <code>/home/NEWUSER/github/knettf</code> create a task branch from the latest <code>main</code>, commit, merge the latest <code>main</code> into it and run <code>ops/scripts/check.sh</code>, push, then open and merge a PR into <code>main</code> on the GitHub website and delete the branch. To go live run <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend</code> (or <code>-backend</code> / <code>-all</code>): it pulls <code>main</code> into <code>/srv/netsentinel/prod</code>, builds and restarts. Your account must be in the <code>netsentinel</code> group.</div>
 
     <section id="branches">
-      <h2>Branches and collaboration</h2>
+      <h2>Branches</h2>
       <pre class="uml">flowchart LR
-  A["Personal branch"] -->|"PR, reviewed by the other person"| B["merge-dev"]
-  B -->|"fast-forward (release.sh)"| C["prod"]
-  C -->|"deploy.sh"| D["/srv/netsentinel/prod"]</pre>
+  A["Task branch feat/…"] -->|"PR on GitHub"| B["main"]
+  B -->|"deploy.sh"| D["/srv/netsentinel/prod"]</pre>
       <div class="table-wrap"><table>
         <tr><th>Branch</th><th>Who changes it, how</th><th>Purpose</th></tr>
-        <tr><td>Personal (<code>NEWUSER</code>, …)</td><td>Owner commits and pushes freely</td><td>Your own workspace, named after your Linux user</td></tr>
-        <tr><td><code>merge-dev</code></td><td>Only through reviewed PRs, never a direct push</td><td>Integration branch and GitHub default branch</td></tr>
-        <tr><td><code>prod</code></td><td>Only <code>git push origin origin/merge-dev:prod</code> — no commits, no PRs, no force push</td><td>The version running in production</td></tr>
+        <tr><td><code>main</code></td><td>Only through PRs merged on the GitHub website; never a direct or force push. Your local <code>main</code> is only ever pulled, never committed or merged into</td><td>The only long-lived branch; GitHub default branch; what production runs</td></tr>
+        <tr><td>Task branches (<code>feat/…</code>, <code>fix/…</code>, <code>docs/…</code>)</td><td>Owner commits and pushes freely</td><td>One per task, created from the latest <code>main</code>, deleted (remote and local) after the PR is merged</td></tr>
       </table></div>
-      <div class="note">Branch protection (Rulesets) is not enforced on this free private repository, so these rules are kept by agreement. Never use <code>git push -f</code>; without it, a non-fast-forward push to prod is rejected. Review happens once, on the PR into merge-dev (Reviewers → Files changed → Review changes → Approve). Check the PR says <b>into merge-dev</b>. Ignore GitHub's “Compare &amp; pull request” banner for prod. To publish after a PR is merged, run <code>/srv/netsentinel/release.sh -frontend</code> (or <code>-backend</code> / <code>-all</code>; no argument = fast-forward only): it lists the commits, asks for <code>y</code>, fast-forwards prod and runs <code>deploy.sh</code>. The script lives only on the server and is git-ignored. To roll back, <code>git revert</code> on your branch and go through the same flow.</div>
-      <div class="note">The lab (<code>lab/</code>) lives in the same repository and follows the same PR flow. After merging into <code>merge-dev</code>, update the run directory from your own checkout: <code>git switch merge-dev &amp;&amp; git pull --ff-only</code>, then <code>bash lab/sync-to-srv.sh -n</code> (preview) and <code>bash lab/sync-to-srv.sh</code>. Only Git-tracked files are copied; data in <code>/srv/netsentinel/lab</code> (<code>*.csv</code>, <code>logs/</code>, <code>.env</code>, <code>.venv</code>) is never overwritten or deleted. Never edit code in <code>/srv/netsentinel/lab</code>.</div>
+      <div class="note">Branch protection (Rulesets) is not enforced on this free private repository, so these rules are kept by agreement. Never use <code>git push -f</code>. Run <code>git status</code> before working and make sure it does not say <code>On branch main</code>. If a PR has conflicts, merge <code>main</code> into your task branch, resolve, re-run <code>check.sh</code> and push. To roll back, create a task branch, <code>git revert</code> the commit, PR, deploy.</div>
+      <div class="note">The lab (<code>lab/</code>) lives in the same repository and follows the same PR flow. After merging into <code>main</code>, update the run directory from your own checkout: <code>git switch main &amp;&amp; git pull --ff-only</code>, then <code>bash lab/sync-to-srv.sh -n</code> (preview) and <code>bash lab/sync-to-srv.sh</code>. Only Git-tracked files are copied; data in <code>/srv/netsentinel/lab</code> (<code>*.csv</code>, <code>logs/</code>, <code>.env</code>, <code>.venv</code>) is never overwritten or deleted. Never edit code in <code>/srv/netsentinel/lab</code>.</div>
     </section>
 
     <section id="code">
@@ -30,10 +28,10 @@ git commit -m "what changed"</code></pre></div></div>
         <div class="res"><div>Only your changes are committed (never <code>dist/</code>, <code>.venv/</code>, <code>node_modules/</code>, <code>db.sqlite3</code>, <code>.env</code>).</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>Push, PR, release</h4>
-        <div class="do"><div><pre class="on-prod"><code># after the PR into merge-dev is merged
-/srv/netsentinel/release.sh -frontend     # frontend only
-/srv/netsentinel/release.sh -backend      # backend only
-/srv/netsentinel/release.sh -all          # both</code></pre></div></div>
+        <div class="do"><div><pre class="on-prod"><code># after the PR into main is merged
+/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend     # frontend only
+/srv/netsentinel/prod/ops/scripts/deploy.sh -backend      # backend only
+/srv/netsentinel/prod/ops/scripts/deploy.sh -all          # both</code></pre></div></div>
         <div class="why"><div>Frontend: install exact dependencies, build, restart. Backend: install dependencies, <code>manage.py check</code>, collect static files, migrate the <code>default</code> database, restart, wait for HTTP 200.</div></div>
         <div class="res"><div><code>✓ netsentinel active, HTTP 200</code>. Press Ctrl+F5 in the browser. A failed build leaves the old site running — fix the reported file and line.</div></div>
       </div>
@@ -56,7 +54,7 @@ docker exec pg pg_dump -U vigil -Fc vigil > /srv/netsentinel/backups/vigil_$(dat
         <div class="res"><div>Run it on the development databases first, then commit the migration file.</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>Apply in production</h4>
-        <div class="do"><div><pre class="on-prod"><code>/srv/netsentinel/release.sh -backend
+        <div class="do"><div><pre class="on-prod"><code>/srv/netsentinel/prod/ops/scripts/deploy.sh -backend
 cd /srv/netsentinel/prod/apps/backend && ../.venv/bin/python manage.py migrate --database=vigil
 sudo systemctl restart netsentinel</code></pre></div></div>
         <div class="why"><div>The <code>vigil</code> database is never migrated automatically: altering its large table locks writes. Do it when no experiment is running.</div></div>
@@ -68,8 +66,8 @@ sudo systemctl restart netsentinel</code></pre></div></div>
       <h2>Other changes</h2>
       <div class="table-wrap"><table>
         <tr><th>Changed</th><th>Do</th></tr>
-        <tr><td>Python dependency</td><td><code>cd /home/NEWUSER/github/knettf && uv add PACKAGE</code>, commit, PR, then <code>/srv/netsentinel/release.sh -backend</code></td></tr>
-        <tr><td>Frontend dependency</td><td><code>cd /home/NEWUSER/github/knettf/frontend && pnpm add PACKAGE</code>, commit <code>package.json</code> and <code>pnpm-lock.yaml</code>, PR, then <code>/srv/netsentinel/release.sh -frontend</code></td></tr>
+        <tr><td>Python dependency</td><td><code>cd /home/NEWUSER/github/knettf && uv add PACKAGE</code>, commit, PR, then <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -backend</code></td></tr>
+        <tr><td>Frontend dependency</td><td><code>cd /home/NEWUSER/github/knettf/frontend && pnpm add PACKAGE</code>, commit <code>package.json</code> and <code>pnpm-lock.yaml</code>, PR, then <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend</code></td></tr>
         <tr><td>Production <code>.env</code></td><td>Edit <code>/srv/netsentinel/prod/apps/backend/backend/.env</code>, then <code>sudo systemctl restart netsentinel</code></td></tr>
         <tr><td>systemd unit file</td><td><code>sudo systemctl daemon-reload</code>, then restart the service</td></tr>
         <tr><td>Model files</td><td>Create a new version directory under <code>/srv/netsentinel/models/ads_ml/</code>, run <code>manage.py check_model --config &lt;dir&gt;/config.yaml</code>, point the <code>current</code> symlink at it, restart. Roll back by pointing <code>current</code> at the old version and restarting.</td></tr>

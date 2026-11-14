@@ -54,23 +54,21 @@ sudo journalctl -u netsentinel -f</code></pre>
 
     <section id="github">
       <h2>GitHub access</h2>
-      <p>Each Linux account on the server maps to one GitHub account and uses its own key and its own commit identity. The Linux user name is also your personal branch name. The original author is Linux <code>soar009</code> = GitHub <code>Wk-P</code>.</p>
+      <p>Each Linux account on the server maps to one GitHub account and uses its own key and its own commit identity. The original author is Linux <code>soar009</code> = GitHub <code>Wk-P</code>.</p>
       <pre class="uml">flowchart LR
-  A["Dev directory<br>branch NEWUSER"] -->|"1 PR + review"| B["merge-dev"]
-  B -->|"2 release.sh"| C["prod"]
-  C -->|"3 deploy.sh"| D["Production"]
+  A["Dev directory<br>task branch feat/…"] -->|"1 PR on GitHub"| B["main"]
+  B -->|"2 deploy.sh"| D["Production"]
   classDef dev fill:#f0fff4,stroke:#38a169,color:#1a202c
   classDef gh fill:#f8fafc,stroke:#1a202c,color:#1a202c
   classDef prod fill:#fff5f5,stroke:#e53e3e,color:#1a202c
   class A dev
-  class B,C gh
+  class B gh
   class D prod</pre>
       <ol>
-        <li><b>PR + review</b>: commit and push on branch <code>NEWUSER</code> in <code>/home/NEWUSER/github/knettf</code>, open a PR into <code>merge-dev</code>; the other person reviews and approves, then it is merged.</li>
-        <li><b>release.sh</b>: <code>/srv/netsentinel/release.sh -frontend | -backend | -all</code> fast-forwards <code>prod</code> to <code>merge-dev</code>.</li>
-        <li><b>deploy.sh</b>: <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the runner's own GitHub key, build, restart.</li>
+        <li><b>PR on GitHub</b>: create a task branch from the latest <code>main</code>, commit, merge the latest <code>main</code> in and run <code>ops/scripts/check.sh</code>, push, open and merge a PR into <code>main</code> on the website (ask another member to approve when there is one), delete the branch.</li>
+        <li><b>deploy.sh</b>: <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend | -backend | -all</code> pulls <code>main</code> into <code>/srv/netsentinel/prod</code> with the runner's own GitHub key, builds and restarts.</li>
       </ol>
-      <p>The lab (<code>lab/</code>, formerly knetsentinel) is in the same repository and goes through the same PR; after merging, run <code>bash lab/sync-to-srv.sh</code> from your checkout to update <code>/srv/netsentinel/lab</code> (see Deploying Changes). Review happens only on the PR. So, in order: your GitHub key → clone and create your branch → commit identity → test commit.</p>
+      <p>The lab (<code>lab/</code>, formerly knetsentinel) is in the same repository and goes through the same PR; after merging, run <code>bash lab/sync-to-srv.sh</code> from your checkout to update <code>/srv/netsentinel/lab</code> (see Deploying Changes). Review happens only on the PR. So, in order: your GitHub key → clone → commit identity → test commit.</p>
       <div class="task"><h4><span class="n">1</span>Join knet-lab and give the server your GitHub key</h4>
         <div class="do"><div>Any Owner invites your GitHub username at <code>https://github.com/orgs/knet-lab/people</code>; accept at <code>https://github.com/orgs/knet-lab/invitation</code>. Then, logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -N "" -C "your-github-email" -f /home/NEWUSER/.ssh/github_ssh_key
 printf 'Host github.com\n    HostName github.com\n    User git\n    IdentityFile /home/NEWUSER/.ssh/github_ssh_key\n    IdentitiesOnly yes\n' &gt;&gt; /home/NEWUSER/.ssh/config
@@ -80,13 +78,11 @@ ssh -T git@github.com</code></pre>The key gets its own name instead of the defau
         <div class="why"><div>This key is for GitHub only, not for logging in to the server. Never borrow someone else's key.</div></div>
         <div class="res"><div><code>Hi your-name!</code>.</div></div>
       </div>
-      <div class="task"><h4><span class="n">2</span>Clone into your development directory and create your branch</h4>
+      <div class="task"><h4><span class="n">2</span>Clone into your development directory</h4>
         <div class="do"><div><pre><code>mkdir -p /home/NEWUSER/github
-git clone git@github.com:knet-lab/knettf.git /home/NEWUSER/github/knettf
-git -C /home/NEWUSER/github/knettf switch -c NEWUSER origin/merge-dev
-git -C /home/NEWUSER/github/knettf push -u origin NEWUSER</code></pre></div></div>
-        <div class="why"><div>Code is only edited here, never in <code>/srv/netsentinel/prod</code> or <code>/srv/netsentinel/lab</code>. The <code>netsentinel</code> group (log in again afterwards) lets you release into <code>/srv</code>.</div></div>
-        <div class="res"><div>Repository cloned; your branch exists on GitHub.</div></div>
+git clone git@github.com:knet-lab/knettf.git /home/NEWUSER/github/knettf</code></pre></div></div>
+        <div class="why"><div>Code is only edited here, never in <code>/srv/netsentinel/prod</code> or <code>/srv/netsentinel/lab</code>. The <code>netsentinel</code> group (log in again afterwards) lets you deploy into <code>/srv</code>. There is no long-lived personal branch: create a task branch from <code>main</code> for each piece of work (see Deploying Changes).</div></div>
+        <div class="res"><div>Repository cloned.</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>Set your commit identity</h4>
         <div class="do"><div><pre><code>git -C /home/NEWUSER/github/knettf  config user.name  "your-github-username"
@@ -95,12 +91,11 @@ git -C /home/NEWUSER/github/knettf  config --local --get-regexp user</code></pre
         <div class="why"><div>The identity is set in your own development repository only, so it affects nothing else in your account. Never set one in the shared directories under <code>/srv/netsentinel</code>: they are run directories, never committed in.</div></div>
         <div class="res"><div>The last two commands print your name and email. A test commit pushed on a temporary branch shows you as the author on GitHub.</div></div>
       </div>
-      <div class="task"><h4><span class="n">4</span>Check that you can release (push prod, pull production)</h4>
-        <div class="do"><div><p>Both scripts talk to GitHub from <code>/srv/netsentinel/prod</code> with the key of <b>whoever runs them</b> (you: <code>/home/NEWUSER/.ssh/github_ssh_key</code>): <code>release.sh</code> runs <code>git push origin origin/merge-dev:prod</code>, <code>deploy.sh</code> runs <code>git pull</code>. Check both directions:</p>
-<pre><code>git -C /srv/netsentinel/prod fetch origin
-git -C /srv/netsentinel/prod push --dry-run origin origin/prod:prod     # dry run only</code></pre></div></div>
+      <div class="task"><h4><span class="n">4</span>Check that you can deploy (pull into production)</h4>
+        <div class="do"><div><p><code>deploy.sh</code> runs <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the key of <b>whoever runs it</b> (you: <code>/home/NEWUSER/.ssh/github_ssh_key</code>). Check it:</p>
+<pre><code>git -C /srv/netsentinel/prod fetch origin</code></pre></div></div>
         <div class="why"><div><code>Permission denied (publickey)</code> → step 1. <code>insufficient permission</code> / <code>dubious ownership</code> → not yet in group <code>netsentinel</code> or not logged in again.</div></div>
-        <div class="res"><div>The fetch succeeds; the dry-run push prints <code>Everything up-to-date</code>.</div></div>
+        <div class="res"><div>The fetch succeeds without errors.</div></div>
       </div>
     </section>
 

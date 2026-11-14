@@ -366,7 +366,7 @@ sudo NETSENTINEL_TOKEN=<JWT> bash simulation/run.sh [1|2|3]
 
 代码在 knettf 仓库的 `lab/` 下，用 Git 管理；运行时的数据只放在运行目录 `/srv/netsentinel/lab`，不进仓库。
 
-- 改代码：在自己的仓库检出里改 `lab/`，提交、合并到 `merge-dev`
+- 改代码：在自己的仓库检出里改 `lab/`，提交、合并到 `main`
 - 更新运行目录：`bash lab/sync-to-srv.sh`（rsync，不会覆盖或删除运行目录里的数据、`.env`、`.venv`）
 - `lab/.gitignore` 排除：`*.csv`、`*.log`、`*.pid`、`*.done`、`logs/`、`.env`、`.venv/`、`replay/record_send_uuid.txt`、`simulation/monitor/monitor_report_*.txt`
 
