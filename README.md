@@ -31,16 +31,49 @@ Python 环境有两套，都用 uv 管理：根目录 `pyproject.toml` 是后端
 ## 协作约定
 
 - **GitHub 仓库只放共用的代码和文档**：数据集、CSV、日志、`.env`、模型文件、运行产物都不进仓库（见 `.gitignore`、`lab/.gitignore`）。
-- **每人用自己的 Linux 账户和 Git 身份**，在自己的 home 目录里克隆、建个人分支：
+- **每人用自己的 Linux 账户和 Git 身份**，在自己的 home 目录里克隆：
   ```bash
   git clone git@github.com:knet-lab/knettf.git ~/github/knettf
   cd ~/github/knettf
-  git switch -c <你的分支> origin/merge-dev
   git config user.name  "<GitHub 用户名>"
   git config user.email "<GitHub 已验证邮箱>"
   ```
 - **不要在 `/srv/netsentinel/prod` 或 `/srv/netsentinel/lab` 里改代码**，它们只是运行目录。
-- 分支：个人分支 → PR 到 `merge-dev`（默认分支）→ `prod`（只快进，用于发布）。
+
+## 分支规则
+
+| 分支 | 规则 |
+|------|------|
+| `main` | 唯一的长期分支，也是 GitHub 默认分支，线上运行的就是它。**只通过 GitHub 网页 PR 合入**，不直接 push、不 force push。本地 `main` 只用来 `git pull`，不在上面 commit 或 merge |
+| 任务分支 `feat/…`、`fix/…`、`docs/…` | 一件事一个分支，从最新 `main` 建；PR 合并后删除（远端 + 本地） |
+
+仓库是免费组织的私有仓库，GitHub 分支保护不生效，以上规则靠大家遵守。
+
+## 日常流程
+
+```bash
+# 1. 从最新 main 建任务分支
+git switch main && git pull origin main
+git switch -c feat/简短说明
+
+# 2. 改代码、提交
+git add -A && git commit -m "模块：说明"
+
+# 3. 把最新 main 合进任务分支并本地检查（冲突在这里解决）
+git switch main && git pull origin main
+git switch feat/简短说明 && git merge main
+ops/scripts/check.sh
+
+# 4. 推送，然后到 GitHub 网页：Compare & pull request → base: main ← compare: feat/简短说明
+#    → Able to merge → Create pull request →（有人时请对方 Approve）→ Merge pull request → Delete branch
+git push -u origin feat/简短说明
+
+# 5. 同步本地、删除任务分支
+git switch main && git pull origin main
+git branch -d feat/简短说明 && git fetch --prune
+```
+
+动手前先 `git status`，确认不是 `On branch main`。
 
 ## 本地检查
 
@@ -53,9 +86,10 @@ ops/scripts/check.sh backend lab  # 只查部分：backend / frontend / lab / de
 
 内容：后端 `uv sync`、`manage.py check`、未生成的迁移、Django 测试；前端 `pnpm build`；`lab/`、`detector/`、`ops/` 的 Python 和 Shell 语法。不连 Kafka、不发包、不改数据库。
 
-## 发布
+## 上线
 
-- **平台**：PR 合并到 `merge-dev` 后运行服务器上的 `/srv/netsentinel/release.sh -frontend | -backend | -all`，它把 `prod` 快进到 `merge-dev`，再执行 `/srv/netsentinel/prod/ops/scripts/deploy.sh`。
-- **实验环境**：在自己的检出里更新到 `merge-dev` 后运行 `bash lab/sync-to-srv.sh`（`-n` 先预览），只同步 Git 跟踪的文件，运行目录里的数据不会被覆盖或删除。
+- **平台**：PR 合入 `main` 后，在服务器运行 `/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend | -backend | -all`。它把 `/srv/netsentinel/prod` `git pull` 到最新 `main`，构建、迁移、重启并检查 HTTP 200。线上当前版本：`git -C /srv/netsentinel/prod log --oneline -1`。
+- **实验环境**：本地 `main` 更新后运行 `bash lab/sync-to-srv.sh`（`-n` 先预览），只同步 Git 跟踪的文件，运行目录里的数据不会被覆盖或删除。
+- **回退**：新建任务分支 `git revert <提交>` → PR → 部署。
 
 详细步骤见站内手册（`/help`）。

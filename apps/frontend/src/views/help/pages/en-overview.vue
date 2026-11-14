@@ -44,7 +44,7 @@
       <h2>Development vs. production</h2>
       <div class="env-cards">
         <div class="env-card dev"><h4>Development · /home/NEWUSER/github/knettf</h4><ul><li>Edit and commit code here</li><li>Run with <code>runserver 8090</code> + <code>pnpm dev</code></li><li>Uses database <code>vigil_dev</code></li></ul></div>
-        <div class="env-card prod"><h4>Production · /srv/netsentinel/prod</h4><ul><li>What knettf.com serves</li><li>Owned by account <code>netsentinel</code>; updated only by <code>ops/scripts/deploy.sh</code> from GitHub <code>prod</code></li><li>Never edit or commit here</li></ul></div>
+        <div class="env-card prod"><h4>Production · /srv/netsentinel/prod</h4><ul><li>What knettf.com serves</li><li>Owned by account <code>netsentinel</code>; updated only by <code>ops/scripts/deploy.sh</code> from GitHub <code>main</code></li><li>Never edit or commit here</li></ul></div>
       </div>
     </section>
   </div>

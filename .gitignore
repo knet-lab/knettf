@@ -83,5 +83,5 @@ ads_ml/
 Linux Host Info.md
 
 chat.md
-# 一键发布脚本只放在服务器 /srv/netsentinel/release.sh，不进仓库
+# 旧的一键发布脚本（已停用），不进仓库
 release.sh

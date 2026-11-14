@@ -67,7 +67,7 @@
       <p>这是前端最容易搞混的地方：<b>线上没有单独的前端服务器</b>。</p>
       <div class="table-wrap"><table>
         <tr><th></th><th>开发模式</th><th>生产模式（现在线上）</th></tr>
-        <tr><td>启动</td><td><code class="vn">cd /home/NEWUSER/github/knettf/frontend &amp;&amp; pnpm dev</code></td><td><code>release.sh -frontend</code> 调用 <code>deploy.sh</code> 在 <code class="vp">/srv/netsentinel/prod</code> 里 <code>pnpm build</code> 生成 <code>dist/</code>，然后重启后端</td></tr>
+        <tr><td>启动</td><td><code class="vn">cd /home/NEWUSER/github/knettf/frontend &amp;&amp; pnpm dev</code></td><td><code>deploy.sh -frontend</code> 调用 <code>deploy.sh</code> 在 <code class="vp">/srv/netsentinel/prod</code> 里 <code>pnpm build</code> 生成 <code>dist/</code>，然后重启后端</td></tr>
         <tr><td>访问</td><td><code>http://localhost:5173</code></td><td><code>http://localhost:8080</code> / <code>https://knettf.com</code></td></tr>
         <tr><td>页面从哪来</td><td>Vite 实时编译，改代码浏览器自动刷新（HMR）</td><td>Django 的 WhiteNoise 中间件直接返回 <code>dist/</code> 里的文件（<code>settings.WHITENOISE_ROOT</code>）</td></tr>
         <tr><td><code>/api</code> 请求</td><td>Vite 代理到开发后端 <code>http://127.0.0.1:8090</code>（<code>vite.config.ts</code> 的 <code>server.proxy</code>）</td><td>同源，直接到后端</td></tr>
@@ -86,7 +86,7 @@ pnpm build-only     <span class="c"># 跳过类型检查，只打包（类型报
 pnpm preview        <span class="c"># 本地预览 dist/</span>
 pnpm lint           <span class="c"># oxlint --fix 然后 eslint --fix</span>
 pnpm format         <span class="c"># prettier 格式化 src/</span></code></pre>
-      <p>上线：提交后 push、PR 合并到 merge-dev 后 <code>/srv/netsentinel/release.sh -frontend</code>。线上 <code>DEBUG=False</code>，WhiteNoise 只在进程启动时扫描 dist，所以脚本构建完会重启后端，否则新文件 404、页面白屏。浏览器 <span class="kbd">Ctrl</span>+<span class="kbd">F5</span> 强刷。</p>
+      <p>上线：提交后 push、PR 合并到 main 后 <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend</code>。线上 <code>DEBUG=False</code>，WhiteNoise 只在进程启动时扫描 dist，所以脚本构建完会重启后端，否则新文件 404、页面白屏。浏览器 <span class="kbd">Ctrl</span>+<span class="kbd">F5</span> 强刷。</p>
     </section>
 
     <section id="boot">
@@ -284,7 +284,7 @@ onMounted(async () =&gt; {
         <div class="step"><div class="step-title">本地验证</div>
           <p>确认有 <code>frontend/.env</code>、开发后端在 8090 运行，<code>pnpm dev</code>，打开 <code>http://localhost:5173/status</code>。</p></div>
         <div class="step"><div class="step-title">上线</div>
-          <p>本地 <code>pnpm build</code> 确认类型检查通过 → <code>git commit</code> → push、PR 合并到 merge-dev 后 <code>/srv/netsentinel/release.sh -frontend</code> → 浏览器强刷 <code>https://knettf.com/status</code>。新路由不用改后端：后端的 SPA 兜底会把 <code>/status</code> 交给前端路由。</p></div>
+          <p>本地 <code>pnpm build</code> 确认类型检查通过 → <code>git commit</code> → push、PR 合并到 main 后 <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend</code> → 浏览器强刷 <code>https://knettf.com/status</code>。新路由不用改后端：后端的 SPA 兜底会把 <code>/status</code> 交给前端路由。</p></div>
       </div>
     </section>
   </div>

@@ -96,7 +96,7 @@
         <tr><td>人类账户</td><td><code>cis</code>（uid 1000，装机时的第一个账户，实验室共用，<b>不得用于接手</b>）、<code>soar009</code>（原作者）</td></tr>
         <tr><td>集群虚拟机</td><td>libvirt 系统级：<code>k8s-master</code> 192.168.100.10，<code>k8s-node1~4</code> 192.168.100.11~14</td></tr>
       </table></div>
-      <p>结构分两半：<b>线上</b>全部放在 <code>/srv/netsentinel</code>，由没有登录权限的系统账户 <code>netsentinel</code> 运行；<b>开发</b>在每个人自己的 <code>/home/NEWUSER/github</code> 里。这样线上不依赖任何个人账户，谁离开、谁的账户被锁都不影响 knettf.com；每人改代码互不干扰，只有经过 PR 和 <code>release.sh</code> 的提交才会进入线上。</p>
+      <p>结构分两半：<b>线上</b>全部放在 <code>/srv/netsentinel</code>，由没有登录权限的系统账户 <code>netsentinel</code> 运行；<b>开发</b>在每个人自己的 <code>/home/NEWUSER/github</code> 里。这样线上不依赖任何个人账户，谁离开、谁的账户被锁都不影响 knettf.com；每人改代码互不干扰，只有经过 PR 和 <code>deploy.sh</code> 的提交才会进入线上。</p>
       <p>服务、隧道、定时任务、sudo 规则的配置文件都在仓库的 <code>deploy/</code> 目录里，改了要提交，重装时照下表复制，机器上的配置因此始终能从 Git 恢复：</p>
       <div class="table-wrap"><table>
         <tr><th>仓库文件</th><th>装到</th></tr>
@@ -155,7 +155,7 @@
 
     <section id="envs">
       <h2>1.6 开发与生产</h2>
-      <p>同一台宿主机上有两份 NetSentinel：<code class="vn">/home/NEWUSER/github/knettf</code> 是开发目录（平时改代码的地方），<code class="vp">/srv/netsentinel/prod</code> 是线上目录（归 <code>netsentinel</code> 账户和组，GitHub knet-lab/knettf 的 clone，停在 prod 分支，只放 GitHub 上 prod 的代码）。两边的数据库、<code>.env</code>、<code>.venv</code>、<code>dist</code> 完全分开。</p>
+      <p>同一台宿主机上有两份 NetSentinel：<code class="vn">/home/NEWUSER/github/knettf</code> 是开发目录（平时改代码的地方），<code class="vp">/srv/netsentinel/prod</code> 是线上目录（归 <code>netsentinel</code> 账户和组，GitHub knet-lab/knettf 的 clone，停在 main 分支，只放 GitHub 上 main 的代码）。两边的数据库、<code>.env</code>、<code>.venv</code>、<code>dist</code> 完全分开。</p>
       <div class="table-wrap"><table>
         <tr><th></th><th>开发 <code class="vn">/home/NEWUSER/github/knettf</code></th><th>线上 <code class="vp">/srv/netsentinel/prod</code></th></tr>
         <tr><td>后端</td><td><code class="vn">cd /home/NEWUSER/github/knettf/backend &amp;&amp; ../.venv/bin/python manage.py runserver 8090</code></td><td>systemd <code>netsentinel</code>，uvicorn :8080</td></tr>
@@ -166,7 +166,7 @@
         <tr><td>Kafka consumer group</td><td><code>vigil-bridge-dev</code>（开发 <code>.env</code> 设置）</td><td><code>vigil-bridge</code>（默认值）</td></tr>
         <tr><td>定时任务</td><td>无</td><td><code>/etc/cron.d/netsentinel</code> 每天 0 点 <code>rotate_partitions</code></td></tr>
       </table></div>
-      <p>上线流程：在 <code class="vn">/home/NEWUSER/github/knettf</code> 的个人分支上改代码、<code>git commit</code>、<code>git push</code> → GitHub 上开 PR 合并到 <code>merge-dev</code>（对方审核）→ <code>/srv/netsentinel/release.sh -all</code>（或 <code>-frontend</code> / <code>-backend</code>）把 <code>prod</code> 快进到 <code>merge-dev</code> 并部署。部署脚本在 <code class="vp">/srv/netsentinel/prod</code> 里从 GitHub <code>git pull</code> prod、<code>uv sync</code>、构建、迁移、重启，流程图见 <a href="/help/deploy#branches">改动上线</a>。没合并进 merge-dev 并发布到 prod 的改动不会上线。运行 <code>deploy.sh</code> 的账户必须在 <code>netsentinel</code> 组里（加组后要重新登录）。</p>
+      <p>上线流程：在 <code class="vn">/home/NEWUSER/github/knettf</code> 从最新 <code>main</code> 建任务分支改代码、<code>git commit</code>、本地 <code>ops/scripts/check.sh</code>、<code>git push</code> → GitHub 网页开 PR 合入 <code>main</code> → <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -all</code>（或 <code>-frontend</code> / <code>-backend</code>）。部署脚本在 <code class="vp">/srv/netsentinel/prod</code> 里从 GitHub <code>git pull</code> main、<code>uv sync</code>、构建、迁移、重启，详见 <a href="/help/deploy#branches">改动上线</a>。没合并进 main 并部署的改动不会上线。运行 <code>deploy.sh</code> 的账户必须在 <code>netsentinel</code> 组里（加组后要重新登录）。</p>
       <div class="note"><b>规则</b>：不要在 <code class="vp">/srv/netsentinel/prod</code> 里改代码或 commit（下次部署 <code>git pull --ff-only</code> 会失败）；查线上数据、日志、模型结果、跑运维命令（改密码、补分区等）用 <code class="vp">/srv/netsentinel/prod</code>；开发调试只用 <code class="vn">/home/NEWUSER/github/knettf</code>。开发后端一定要带 <code>vigil-bridge-dev</code> 这个 group，否则会和线上分走 Kafka 分区，线上漏收流量。</div>
     </section>
 

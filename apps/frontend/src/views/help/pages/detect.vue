@@ -290,7 +290,7 @@ sudo journalctl -u netsentinel --since '-1 min' | grep 'AdsMLModel loaded from'<
       <ol>
         <li>在 <code>apps/backend/vigil/ml/models/</code> 下写一个继承 <code>BaseDetectionModel</code> 的类，实现 <code>name</code>（唯一，会存进记录的 <code>model_name</code>）和 <code>predict()</code>；参考 <code>example_threshold.py</code>。需要模型文件就像 <code>AdsMLModel</code> 一样接收 <code>config_path</code>，在构造函数里加载一次。</li>
         <li>检查接口：<code>../.venv/bin/python manage.py check_model --model vigil.ml.models.my_model.MyModel</code></li>
-        <li>代码走 PR 和 <code>release.sh -backend</code> 上线。</li>
+        <li>代码走 PR 和 <code>deploy.sh -backend</code> 上线。</li>
         <li>在线上 <code>.env</code> 里加：<code>VIGIL_MODELS=vigil.ml.models.ads_ml_model.AdsMLModel,vigil.ml.models.my_model.MyModel</code>，重启。</li>
       </ol>
       <p>结果：<code>/api/vigil/models/</code> 返回两个名字，看板 Model Coverage 出现两行；每条流每个模型各写一条记录，记录数随模型数增加。只想换掉旧模型时，<code>VIGIL_MODELS</code> 里只留新类。<code>POST /api/vigil/detect/</code> 带 <code>"model": "名字"</code> 可以单独调用某个模型。</p>
