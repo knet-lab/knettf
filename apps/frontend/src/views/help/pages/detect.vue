@@ -146,7 +146,7 @@ def detect_batch(flows, model_name=None):
         <div class="step"><div class="step-title">零样本学习 <code>zero_shot_learning(X_pca, prediction, prototypes)</code></div>
           <p>正常样本：<code>Normal</code>，相似度 0。攻击样本：与每个攻击类别的每个原型算余弦相似度，取最高的；≥ <code>SEEN_SIM_THRESHOLD=0.50</code> 则为该类（<code>Seen_Attack</code>），否则 <code>Unknown_Attack</code>。</p>
           <p>当前原型里的类别名就是前端日志页写死的 9 个：<code>Dos-TCP SYN flood</code>、<code>ddos-TCP SYN flood</code>、<code>DoS Get</code>、<code>TCP sequence prediction</code>、<code>Slowloris</code>、<code>Slow-body</code>、<code>Slow-read</code>、<code>Slow-range</code>、<code>Credentials hijacking</code>。查看实际名字：</p>
-<pre class="on-prod"><code>cd <span class="vp">/srv/netsentinel/prod</span>/backend &amp;&amp; ../.venv/bin/python -c "import joblib;print(list(joblib.load('vigil/ml/ads_ml/trained/multi_attack_semantic_prototypes_kmeans.joblib')))"</code></pre></div>
+<pre class="on-prod"><code>cd <span class="vp">/srv/netsentinel/prod</span>/apps/backend &amp;&amp; ../../.venv/bin/python -c "import joblib;print(list(joblib.load('vigil/ml/ads_ml/trained/multi_attack_semantic_prototypes_kmeans.joblib')))"</code></pre></div>
       </div>
       <h3>模型怎么接入后端</h3>
       <p>后端不直接认识 ads_ml，只认接口 <code>BaseDetectionModel</code>：一个模型就是一个实现了 <code>name</code> 和 <code>predict()</code> 的类。启动时注册表按 <code>.env</code> 的 <code>VIGIL_MODELS</code>（类的完整路径，逗号分隔，默认只有 <code>AdsMLModel</code>）逐个实例化；服务层对每条流调用全部已注册模型，每个模型的结果各写一条记录。这样换模型、加模型都不用改 bridge、服务层和数据库。</p>
@@ -251,7 +251,7 @@ docker exec pg psql -U vigil vigil -c "create table if not exists vigil_detectio
 <pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/detector &amp;&amp; bash build.sh
 kubectl create ns netsentinel --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n netsentinel create secret generic detector-secret \
-  --from-literal=django-token="$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env | cut -d= -f2-)" \
+  --from-literal=django-token="$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">/srv/netsentinel/prod</span>/apps/backend/backend/.env | cut -d= -f2-)" \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f detector/k8s/detector-deployment.yaml
 kubectl -n netsentinel logs deploy/netsentinel-detector -f     <span class="c"># 应看到 connected to Django</span></code></pre>
@@ -262,7 +262,7 @@ kubectl -n netsentinel logs deploy/netsentinel-detector -f     <span class="c">#
       <h2>4.10 入口 C：宿主机脚本 <span class="tag tag-k">K</span> <code>lab/collect/vigil_bridge.py</code></h2>
       <p>按 5 元组维护 <code>FlowState</code>，一条流超过 <code>--window</code>（默认 5 秒）没有新包就结束，凑够 <code>--batch-size</code>（默认 20）条就 <code>POST {backend}/api/vigil/detect/batch/</code>。切流方式与训练数据一致，适合做对比实验。</p>
 <pre class="on-prod"><code>cd /srv/netsentinel/lab
-TOKEN=$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env | cut -d= -f2-)   <span class="c"># 10 年有效的 JWT</span>
+TOKEN=$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">/srv/netsentinel/prod</span>/apps/backend/backend/.env | cut -d= -f2-)   <span class="c"># 10 年有效的 JWT</span>
 uv run python lab/collect/vigil_bridge.py --backend http://localhost:8080 --token "$TOKEN" --window 5 --batch-size 20</code></pre>
       <p>同样要先关入口 A。</p>
     </section>
@@ -275,7 +275,7 @@ uv run python lab/collect/vigil_bridge.py --backend http://localhost:8080 --toke
 mkdir -p v2-20261101/trained                                   <span class="c"># 版本名自定，建议 v序号-日期</span>
 cp 新的文件 v2-20261101/trained/                                <span class="c"># ebpf_ocsvm_pipeline.joblib、*_prototypes_*.joblib、训练集 CSV</span>
 cp current/config.yaml v2-20261101/                              <span class="c"># 文件名变了就改这份 config.yaml</span>
-cd /srv/netsentinel/prod/apps/backend &amp;&amp; ../.venv/bin/python manage.py check_model --config /srv/netsentinel/models/ads_ml/v2-20261101/config.yaml
+cd /srv/netsentinel/prod/apps/backend &amp;&amp; ../../.venv/bin/python manage.py check_model --config /srv/netsentinel/models/ads_ml/v2-20261101/config.yaml
 ln -sfn v2-20261101 /srv/netsentinel/models/ads_ml/current
 sudo systemctl restart netsentinel
 sudo journalctl -u netsentinel --since '-1 min' | grep 'AdsMLModel loaded from'</code></pre>
@@ -289,7 +289,7 @@ sudo journalctl -u netsentinel --since '-1 min' | grep 'AdsMLModel loaded from'<
       <h3>新增一个模型（与现有模型并行）</h3>
       <ol>
         <li>在 <code>apps/backend/vigil/ml/models/</code> 下写一个继承 <code>BaseDetectionModel</code> 的类，实现 <code>name</code>（唯一，会存进记录的 <code>model_name</code>）和 <code>predict()</code>；参考 <code>example_threshold.py</code>。需要模型文件就像 <code>AdsMLModel</code> 一样接收 <code>config_path</code>，在构造函数里加载一次。</li>
-        <li>检查接口：<code>../.venv/bin/python manage.py check_model --model vigil.ml.models.my_model.MyModel</code></li>
+        <li>检查接口：<code>../../.venv/bin/python manage.py check_model --model vigil.ml.models.my_model.MyModel</code></li>
         <li>代码走 PR 和 <code>deploy.sh -backend</code> 上线。</li>
         <li>在线上 <code>.env</code> 里加：<code>VIGIL_MODELS=vigil.ml.models.ads_ml_model.AdsMLModel,vigil.ml.models.my_model.MyModel</code>，重启。</li>
       </ol>

@@ -83,7 +83,7 @@
         <tr><td><b>C</b>（宿主机脚本）</td><td><span class="tag tag-k">K</span> <code>lab/collect/vigil_bridge.py</code></td><td>按 5 元组聚合 30 个特征</td><td><code>POST /api/vigil/detect/batch/</code>（JWT），由后端推理写库</td></tr>
       </table></div>
       <div class="note"><b>不要同时开两条以上入口</b>：A、B、C 各自独立消费 Kafka 并写库，同一条流会被重复记录。入口 A 无开关，只要后端以 uvicorn 启动就会运行（判断逻辑见 <code>vigil/apps.py</code> 的 <code>_should_start_bridge()</code>）。</div>
-      <p>离线评估另有一条旁路：<code>K simulation/simulate_4.py</code> 直接 <code>django.setup()</code> 导入 <code>N backend</code> 的 <code>vigil.services</code>，把 CSV 中的流特征批量送入模型。这是两个项目之间唯一的代码级耦合，路径写死为 <code>../../github/knettf/backend</code>。</p>
+      <p>离线评估另有一条旁路：<code>K simulation/simulate_4.py</code> 直接 <code>django.setup()</code> 导入 <code>N backend</code> 的 <code>vigil.services</code>，把 CSV 中的流特征批量送入模型。这是两个项目之间唯一的代码级耦合，路径写死为 <code>../../github/knettf/apps/backend</code>。</p>
     </section>
 
     <section id="machine">
@@ -123,12 +123,12 @@
         <tr><th>东西</th><th>位置</th><th>说明</th></tr>
         <tr><td>网页（公网）</td><td><code>https://knettf.com</code></td><td>cloudflared 隧道 → 本机 <code>localhost:8080</code></td></tr>
         <tr><td>网页（本机 / 内网）</td><td><code>http://localhost:8080</code>、<code>http://&lt;宿主机 IP&gt;:8080</code></td><td>同一个后端进程，既提供 API 也提供前端页面</td></tr>
-        <tr><td>后端源码</td><td><code class="vn">/home/NEWUSER/github/knettf/backend/</code></td><td>Django 项目，<code>manage.py</code> 在这里；线上运行的是 <code class="vp">/srv/netsentinel/prod/apps/backend/</code> 里同一份代码的已提交版本</td></tr>
-        <tr><td>前端源码</td><td><code class="vn">/home/NEWUSER/github/knettf/frontend/src/</code></td><td>Vue 3 + TypeScript + Element Plus</td></tr>
+        <tr><td>后端源码</td><td><code class="vn">/home/NEWUSER/github/knettf/apps/backend/</code></td><td>Django 项目，<code>manage.py</code> 在这里；线上运行的是 <code class="vp">/srv/netsentinel/prod/apps/backend/</code> 里同一份代码的已提交版本</td></tr>
+        <tr><td>前端源码</td><td><code class="vn">/home/NEWUSER/github/knettf/apps/frontend/src/</code></td><td>Vue 3 + TypeScript + Element Plus</td></tr>
         <tr><td>前端构建产物</td><td><code class="vp">/srv/netsentinel/prod/apps/frontend/dist/</code></td><td><code>deploy.sh -frontend</code> 在 <code class="vp">/srv/netsentinel/prod</code> 里构建；后端直接从这里提供页面</td></tr>
-        <tr><td>手册源文件</td><td><code class="vn">/home/NEWUSER/github/knettf/frontend/src/views/help/pages/</code></td><td>每页一个 Vue 组件，由 <code>HelpView.vue</code> 按 <code>/help/&lt;页&gt;</code> 加载</td></tr>
+        <tr><td>手册源文件</td><td><code class="vn">/home/NEWUSER/github/knettf/apps/frontend/src/views/help/pages/</code></td><td>每页一个 Vue 组件，由 <code>HelpView.vue</code> 按 <code>/help/&lt;页&gt;</code> 加载</td></tr>
         <tr><td>Python 环境</td><td><code class="vn">/home/NEWUSER/github/knettf/.venv/</code>（开发）、<code class="vp">/srv/netsentinel/prod/.venv/</code>（线上）</td><td>都用 <code>uv sync</code> 按 <code>uv.lock</code> 生成，Python 3.12</td></tr>
-        <tr><td>default 数据库</td><td><code class="vp">/srv/netsentinel/prod/apps/backend/db.sqlite3</code>（开发用 <code class="vn">/home/NEWUSER/github/knettf/backend/db.sqlite3</code>）</td><td>SQLite：用户、集群、Terraform 配置、扫描报告</td></tr>
+        <tr><td>default 数据库</td><td><code class="vp">/srv/netsentinel/prod/apps/backend/db.sqlite3</code>（开发用 <code class="vn">/home/NEWUSER/github/knettf/apps/backend/db.sqlite3</code>）</td><td>SQLite：用户、集群、Terraform 配置、扫描报告</td></tr>
         <tr><td>vigil 数据库</td><td>Docker 容器 <code>pg</code>，<code>127.0.0.1:5432</code>，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>，用户 <code>vigil</code></td><td>PostgreSQL：检测记录（按天分区）</td></tr>
         <tr><td>模型文件</td><td><code class="vp">/srv/netsentinel/models/ads_ml/current</code>（指向当前版本目录）</td><td>OCSVM 流水线、攻击原型、训练数据</td></tr>
         <tr><td>后端服务定义</td><td><code>deploy/systemd/netsentinel.service</code></td><td>装到 <code>/etc/systemd/system/</code> 的系统服务，以 <code>netsentinel</code> 账户运行</td></tr>
@@ -158,10 +158,10 @@
       <p>同一台宿主机上有两份 NetSentinel：<code class="vn">/home/NEWUSER/github/knettf</code> 是开发目录（平时改代码的地方），<code class="vp">/srv/netsentinel/prod</code> 是线上目录（归 <code>netsentinel</code> 账户和组，GitHub knet-lab/knettf 的 clone，停在 main 分支，只放 GitHub 上 main 的代码）。两边的数据库、<code>.env</code>、<code>.venv</code>、<code>dist</code> 完全分开。</p>
       <div class="table-wrap"><table>
         <tr><th></th><th>开发 <code class="vn">/home/NEWUSER/github/knettf</code></th><th>线上 <code class="vp">/srv/netsentinel/prod</code></th></tr>
-        <tr><td>后端</td><td><code class="vn">cd /home/NEWUSER/github/knettf/backend &amp;&amp; ../.venv/bin/python manage.py runserver 8090</code></td><td>systemd <code>netsentinel</code>，uvicorn :8080</td></tr>
-        <tr><td>前端</td><td><code class="vn">cd /home/NEWUSER/github/knettf/frontend &amp;&amp; pnpm dev</code> → <code>http://localhost:5173</code>（代理到 :8090）</td><td><code class="vp">/srv/netsentinel/prod/apps/frontend/dist</code>，<code>https://knettf.com</code></td></tr>
+        <tr><td>后端</td><td><code class="vn">cd /home/NEWUSER/github/knettf/apps/backend &amp;&amp; ../../.venv/bin/python manage.py runserver 8090</code></td><td>systemd <code>netsentinel</code>，uvicorn :8080</td></tr>
+        <tr><td>前端</td><td><code class="vn">cd /home/NEWUSER/github/knettf/apps/frontend &amp;&amp; pnpm dev</code> → <code>http://localhost:5173</code>（代理到 :8090）</td><td><code class="vp">/srv/netsentinel/prod/apps/frontend/dist</code>，<code>https://knettf.com</code></td></tr>
         <tr><td>DEBUG</td><td>开（默认值）</td><td>关（<code class="vp">/srv/netsentinel/prod/apps/backend/backend/.env</code> 里 <code>DEBUG=False</code>）</td></tr>
-        <tr><td>default 库</td><td><code class="vn">/home/NEWUSER/github/knettf/backend/db.sqlite3</code></td><td><code class="vp">/srv/netsentinel/prod/apps/backend/db.sqlite3</code></td></tr>
+        <tr><td>default 库</td><td><code class="vn">/home/NEWUSER/github/knettf/apps/backend/db.sqlite3</code></td><td><code class="vp">/srv/netsentinel/prod/apps/backend/db.sqlite3</code></td></tr>
         <tr><td>vigil 库</td><td><code>vigil_dev</code>（默认值）</td><td><code>vigil</code>（<code>.env</code> 里 <code>VIGIL_DB_NAME=vigil</code>）</td></tr>
         <tr><td>Kafka consumer group</td><td><code>vigil-bridge-dev</code>（开发 <code>.env</code> 设置）</td><td><code>vigil-bridge</code>（默认值）</td></tr>
         <tr><td>定时任务</td><td>无</td><td><code>/etc/cron.d/netsentinel</code> 每天 0 点 <code>rotate_partitions</code></td></tr>

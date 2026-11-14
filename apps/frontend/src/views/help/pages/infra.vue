@@ -165,7 +165,7 @@ ingress:
       <h3>PostgreSQL：Docker 容器 <code>pg</code></h3>
       <p>镜像 <code>postgres</code>（当前 18.4），<code>--restart unless-stopped</code>，端口 <code>5432:5432</code>，数据卷挂在 <code>/var/lib/postgresql</code>。库 / 用户 / 密码 <code>vigil / vigil / vigil123</code>。注意 <code>unless-stopped</code>：你手动 <code>docker stop pg</code> 后，开机<b>不会</b>自动启动它。</p>
       <h3>定时任务：<code>/etc/cron.d/netsentinel</code>（源文件 <code>deploy/cron.netsentinel</code>）</h3>
-<pre class="on-prod"><code>0 0 * * * netsentinel <span class="vp">/srv/netsentinel/prod</span>/.venv/bin/python <span class="vp">/srv/netsentinel/prod</span>/backend/manage.py rotate_partitions --database vigil &gt;&gt; /srv/netsentinel/logs/rotate_partitions.log 2&gt;&amp;1</code></pre>
+<pre class="on-prod"><code>0 0 * * * netsentinel <span class="vp">/srv/netsentinel/prod</span>/.venv/bin/python <span class="vp">/srv/netsentinel/prod</span>/apps/backend/manage.py rotate_partitions --database vigil &gt;&gt; /srv/netsentinel/logs/rotate_partitions.log 2&gt;&amp;1</code></pre>
       <p>必须用 <code class="vp">/srv/netsentinel/prod</code>：开发目录 <code class="vn">/home/NEWUSER/github/knettf</code> 的默认库是 <code>vigil_dev</code>，用它跑分区会建错库。按宿主机本地时间 0 点执行，而分区边界是 UTC。只要每天都跑，明天的分区总会提前建好。</p>
     </section>
 
@@ -189,9 +189,9 @@ docker exec pg psql -U vigil -c "CREATE DATABASE vigil_dev"      <span class="c"
 <span class="c"># —— N：开发目录 <span class="vn">/home/NEWUSER/github/knettf</span> ——</span>
 git clone git@github.com:knet-lab/knettf.git <span class="vn">/home/NEWUSER/github/knettf</span>
 cd <span class="vn">/home/NEWUSER/github/knettf</span> &amp;&amp; uv sync
-printf 'ENVIRONMENT=linux_development\nVIGIL_KAFKA_GROUP_ID=vigil-bridge-dev\n' &gt; <span class="vn">/home/NEWUSER/github/knettf</span>/backend/backend/.env
-printf 'VITE_API_BASE=/api\nVITE_WS_BASE=\n' &gt; <span class="vn">/home/NEWUSER/github/knettf</span>/frontend/.env
-cd <span class="vn">/home/NEWUSER/github/knettf</span>/backend &amp;&amp; ../.venv/bin/python manage.py migrate &amp;&amp; ../.venv/bin/python manage.py migrate --database=vigil
+printf 'ENVIRONMENT=linux_development\nVIGIL_KAFKA_GROUP_ID=vigil-bridge-dev\n' &gt; <span class="vn">/home/NEWUSER/github/knettf</span>/apps/backend/backend/.env
+printf 'VITE_API_BASE=/api\nVITE_WS_BASE=\n' &gt; <span class="vn">/home/NEWUSER/github/knettf</span>/apps/frontend/.env
+cd <span class="vn">/home/NEWUSER/github/knettf</span>/apps/backend &amp;&amp; ../../.venv/bin/python manage.py migrate &amp;&amp; ../../.venv/bin/python manage.py migrate --database=vigil
 
 <span class="c"># —— N：线上目录 <span class="vp">/srv/netsentinel/prod</span> ——</span>
 sudo groupadd --system netsentinel &amp;&amp; sudo useradd --system -g netsentinel -d /srv/netsentinel -s /usr/sbin/nologin netsentinel
@@ -201,20 +201,20 @@ git clone git@github.com:knet-lab/knettf.git <span class="vp">/srv/netsentinel/p
 sudo chown -R netsentinel:netsentinel <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; sudo chmod -R g+rwX <span class="vp">/srv/netsentinel/prod</span>
 git -C <span class="vp">/srv/netsentinel/prod</span> config core.sharedRepository group
 cd <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; uv sync --frozen
-cp -a <span class="vn">/home/NEWUSER/github/knettf</span>/backend/vigil/ml/ads_ml <span class="vp">/srv/netsentinel/prod</span>/backend/vigil/ml/   <span class="c"># 模型不在 Git 里</span>
-cp <span class="vn">/home/NEWUSER/github/knettf</span>/frontend/.env <span class="vp">/srv/netsentinel/prod</span>/frontend/.env
+cp -a <span class="vn">/home/NEWUSER/github/knettf</span>/apps/backend/vigil/ml/ads_ml <span class="vp">/srv/netsentinel/prod</span>/apps/backend/vigil/ml/   <span class="c"># 模型不在 Git 里</span>
+cp <span class="vn">/home/NEWUSER/github/knettf</span>/apps/frontend/.env <span class="vp">/srv/netsentinel/prod</span>/apps/frontend/.env
 <span class="c"># 线上 .env：ENVIRONMENT=linux_development、DEBUG=False、SECRET_KEY=&lt;随机&gt;、</span>
 <span class="c"># ALLOWED_HOSTS=knettf.com,localhost,127.0.0.1,192.168.100.1、CSRF_EXTRA_ORIGINS=https://knettf.com、VIGIL_DB_NAME=vigil</span>
 python3 -c "import secrets;print('SECRET_KEY='+secrets.token_urlsafe(50))"   <span class="c"># 生成 SECRET_KEY</span>
-vi <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env &amp;&amp; chmod 600 <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env
-cd <span class="vp">/srv/netsentinel/prod</span>/backend
-../.venv/bin/python manage.py migrate
-../.venv/bin/python manage.py migrate --database=vigil
-../.venv/bin/python manage.py users_init
-../.venv/bin/python manage.py autotf_init
-../.venv/bin/python manage.py generate_bridge_token --write-env
-../.venv/bin/python manage.py collectstatic --noinput
-cd <span class="vp">/srv/netsentinel/prod</span>/frontend &amp;&amp; pnpm install --frozen-lockfile &amp;&amp; pnpm build
+vi <span class="vp">/srv/netsentinel/prod</span>/apps/backend/backend/.env &amp;&amp; chmod 600 <span class="vp">/srv/netsentinel/prod</span>/apps/backend/backend/.env
+cd <span class="vp">/srv/netsentinel/prod</span>/apps/backend
+../../.venv/bin/python manage.py migrate
+../../.venv/bin/python manage.py migrate --database=vigil
+../../.venv/bin/python manage.py users_init
+../../.venv/bin/python manage.py autotf_init
+../../.venv/bin/python manage.py generate_bridge_token --write-env
+../../.venv/bin/python manage.py collectstatic --noinput
+cd <span class="vp">/srv/netsentinel/prod</span>/apps/frontend &amp;&amp; pnpm install --frozen-lockfile &amp;&amp; pnpm build
 
 <span class="c"># —— N：服务 ——</span>
 <span class="c"># cloudflared 凭证 JSON 放到 /etc/cloudflared/knettf/（属主 netsentinel，权限 400）</span>

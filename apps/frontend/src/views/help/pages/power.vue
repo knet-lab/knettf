@@ -170,29 +170,29 @@ kubectl apply -f /srv/netsentinel/lab/cluster/host-firewall-ccnp.yaml</code></pr
 
       <h3 id="rebuild-db">重置 default 库（用户 / 集群 / Terraform）</h3>
 <pre class="on-prod"><code>sudo systemctl stop netsentinel
-cd <span class="vp">/srv/netsentinel/prod</span>/backend && cp db.sqlite3 db.sqlite3.bak_$(date +%F_%H%M)
+cd <span class="vp">/srv/netsentinel/prod</span>/apps/backend && cp db.sqlite3 db.sqlite3.bak_$(date +%F_%H%M)
 <span class="c"># 方式一：只清业务数据</span>
-../.venv/bin/python manage.py autotf_clear &amp;&amp; ../.venv/bin/python manage.py users_clear
+../../.venv/bin/python manage.py autotf_clear &amp;&amp; ../../.venv/bin/python manage.py users_clear
 <span class="c"># 方式二：整库重建</span>
-rm db.sqlite3 &amp;&amp; ../.venv/bin/python manage.py migrate
+rm db.sqlite3 &amp;&amp; ../../.venv/bin/python manage.py migrate
 <span class="c"># 初始化</span>
-../.venv/bin/python manage.py users_init           # admin / alice / bob
-../.venv/bin/python manage.py autotf_init          # 注册 5 个扫描工具
-../.venv/bin/python manage.py generate_bridge_token --write-env
+../../.venv/bin/python manage.py users_init           # admin / alice / bob
+../../.venv/bin/python manage.py autotf_init          # 注册 5 个扫描工具
+../../.venv/bin/python manage.py generate_bridge_token --write-env
 sudo systemctl start netsentinel</code></pre>
       <p><b>为什么要重新生成 token</b>：vigil-bridge 服务账号也跟着删掉了。<b>结果</b>：<code>autotf_clear</code> 会删除整个 <code>apps/backend/terraform/</code> 目录；部署了入口 B 的话，要同步更新 Secret <code>detector-secret</code>。</p>
 
       <h3 id="rebuild-vigil">重置 vigil 库（检测记录）</h3>
 <pre class="on-prod"><code>sudo systemctl stop netsentinel
-cd <span class="vp">/srv/netsentinel/prod</span>/backend
-../.venv/bin/python manage.py migrate vigil zero --database=vigil   # DROP TABLE ... CASCADE
-../.venv/bin/python manage.py migrate vigil --database=vigil        # 重建父表 + 91 个分区
+cd <span class="vp">/srv/netsentinel/prod</span>/apps/backend
+../../.venv/bin/python manage.py migrate vigil zero --database=vigil   # DROP TABLE ... CASCADE
+../../.venv/bin/python manage.py migrate vigil --database=vigil        # 重建父表 + 91 个分区
 sudo systemctl start netsentinel</code></pre>
       <p>只想清数据、不动表结构：<code>docker exec pg psql -U vigil vigil -c "TRUNCATE vigil_detectionrecord;"</code>。</p>
 
       <h3 id="rebuild-env">重建运行环境</h3>
 <pre class="on-both"><code>sudo systemctl stop netsentinel
-cd <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; rm -rf .venv frontend/node_modules apps/frontend/dist &amp;&amp; uv sync --frozen
+cd <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; rm -rf .venv apps/frontend/node_modules apps/frontend/dist &amp;&amp; uv sync --frozen
 /srv/netsentinel/prod/ops/scripts/deploy.sh -all       # 重新部署当前 prod，不发布新提交</code></pre>
       <p>这几个目录都可以重新生成，不会丢数据。开发目录 <code class="vn">/home/NEWUSER/github/knettf</code> 的环境坏了同理：<code class="vn">cd /home/NEWUSER/github/knettf &amp;&amp; rm -rf .venv &amp;&amp; uv sync --frozen</code>，不影响线上。</p>
     </section>
