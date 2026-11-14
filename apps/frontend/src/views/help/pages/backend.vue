@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>3 后端代码</h1>
     <div class="meta">读完你能：说出一个 HTTP 请求在后端经过的每一步，读懂三个应用的每个文件，会跑管理命令、加接口、改数据库结构。<br>
-      代码根目录 <code class="vn">/home/NEWUSER/github/knettf/backend/</code>（开发），线上运行的是 <code class="vp">/srv/netsentinel/prod/apps/backend/</code>（见 <a href="/help/index#envs">开发与生产</a>）。<code>manage.py</code> 命令在对应目录里用 <code>../.venv/bin/python manage.py ...</code> 执行：调试、生成迁移在 <code class="vn">/home/NEWUSER/github/knettf</code>；操作线上数据（改密码、补分区）在 <code class="vp">/srv/netsentinel/prod</code>。逐个接口的参数与响应示例见 <a href="/help/api">API 逐接口</a>，表字段见 <a href="/help/db">数据库与模型字段</a>。</div>
+      代码根目录 <code class="vn">/home/NEWUSER/github/knettf/apps/backend/</code>（开发），线上运行的是 <code class="vp">/srv/netsentinel/prod/apps/backend/</code>（见 <a href="/help/index#envs">开发与生产</a>）。<code>manage.py</code> 命令在对应目录里用 <code>../../.venv/bin/python manage.py ...</code> 执行：调试、生成迁移在 <code class="vn">/home/NEWUSER/github/knettf</code>；操作线上数据（改密码、补分区）在 <code class="vp">/srv/netsentinel/prod</code>。逐个接口的参数与响应示例见 <a href="/help/api">API 逐接口</a>，表字段见 <a href="/help/db">数据库与模型字段</a>。</div>
 
     <section id="django">
       <h2>3.1 Django 五分钟入门（只讲本项目用到的）</h2>
@@ -111,8 +111,8 @@ return self.success_response({'resources': [r.to_dict() for r in resources]})</c
       </table></div>
       <p>为什么拆两个库：检测记录量大、要按天分区和自动删除，适合 PostgreSQL；其余数据很少，SQLite 足够且免维护。代价是跨库没有外键（检测记录不关联用户）。</p>
       <p>常用的看库命令：</p>
-<pre class="on-prod"><code>sqlite3 <span class="vp">/srv/netsentinel/prod</span>/backend/db.sqlite3 ".tables"
-sqlite3 <span class="vp">/srv/netsentinel/prod</span>/backend/db.sqlite3 "select id,username,is_staff,is_active from kcore_user;"
+<pre class="on-prod"><code>sqlite3 <span class="vp">/srv/netsentinel/prod</span>/apps/backend/db.sqlite3 ".tables"
+sqlite3 <span class="vp">/srv/netsentinel/prod</span>/apps/backend/db.sqlite3 "select id,username,is_staff,is_active from kcore_user;"
 docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql，\d+ vigil_detectionrecord 看结构，\q 退出</span></code></pre>
     </section>
 
@@ -222,24 +222,24 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
 
     <section id="cmds">
       <h2>3.10 manage.py 命令速查</h2>
-<pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/backend      # 开发；操作线上数据时换成 <span class="vp">/srv/netsentinel/prod</span>/backend</code></pre>
+<pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/apps/backend      # 开发；操作线上数据时换成 <span class="vp">/srv/netsentinel/prod</span>/apps/backend</code></pre>
       <div class="table-wrap"><table>
         <tr><th>命令</th><th>做什么</th></tr>
-        <tr><td><code>../.venv/bin/python manage.py check</code></td><td>检查配置和代码能否加载，改完代码先跑它</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py showmigrations</code></td><td>看哪些迁移已执行</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py makemigrations [app]</code></td><td>根据 models 变化生成迁移文件</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py sqlmigrate &lt;app&gt; &lt;编号&gt;</code></td><td>看迁移会执行的 SQL</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py migrate</code> / <code>--database=vigil</code></td><td>执行迁移（两个库要分别执行）</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py shell</code></td><td>Django 交互环境（不会启动 bridge）</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py shell -c "..."</code></td><td>执行一行 Python</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py dbshell --database=vigil</code></td><td>直接进 psql（需本机有 psql 客户端；没有就用 <code>docker exec -it pg psql -U vigil vigil</code>）</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py createsuperuser</code> / <code>changepassword &lt;u&gt;</code></td><td>建超级用户 / 改密码</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py users_init</code> / <code>users_clear</code></td><td>初始化 / 清空用户</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py autotf_init</code> / <code>autotf_clear</code></td><td>初始化 / 清空 Terraform 数据</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py generate_bridge_token [--username vigil-bridge] [--years 10] [--write-env]</code></td><td>生成长期 JWT 并写入 <code>apps/backend/backend/.env</code>（需重启服务生效）</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py rotate_partitions [--database vigil] [--dry-run]</code></td><td>建明天分区、删 90 天前的分区（<code>/etc/cron.d/netsentinel</code> 每天 0 点以 netsentinel 账户跑）</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py test kcore autotf</code></td><td>跑单元测试：145 个用例，约 5 分钟（2026-10-18 全部通过）。测试库为临时 SQLite，不影响线上数据</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py runserver 8090</code></td><td>开发服务器（只在 <code class="vn">/home/NEWUSER/github/knettf</code> 里跑；8000 被别的项目占用）。<b>会启动 bridge</b>，见 <a href="#start">进程是怎么起来的</a></td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py check</code></td><td>检查配置和代码能否加载，改完代码先跑它</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py showmigrations</code></td><td>看哪些迁移已执行</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py makemigrations [app]</code></td><td>根据 models 变化生成迁移文件</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py sqlmigrate &lt;app&gt; &lt;编号&gt;</code></td><td>看迁移会执行的 SQL</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py migrate</code> / <code>--database=vigil</code></td><td>执行迁移（两个库要分别执行）</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py shell</code></td><td>Django 交互环境（不会启动 bridge）</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py shell -c "..."</code></td><td>执行一行 Python</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py dbshell --database=vigil</code></td><td>直接进 psql（需本机有 psql 客户端；没有就用 <code>docker exec -it pg psql -U vigil vigil</code>）</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py createsuperuser</code> / <code>changepassword &lt;u&gt;</code></td><td>建超级用户 / 改密码</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py users_init</code> / <code>users_clear</code></td><td>初始化 / 清空用户</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py autotf_init</code> / <code>autotf_clear</code></td><td>初始化 / 清空 Terraform 数据</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py generate_bridge_token [--username vigil-bridge] [--years 10] [--write-env]</code></td><td>生成长期 JWT 并写入 <code>apps/backend/backend/.env</code>（需重启服务生效）</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py rotate_partitions [--database vigil] [--dry-run]</code></td><td>建明天分区、删 90 天前的分区（<code>/etc/cron.d/netsentinel</code> 每天 0 点以 netsentinel 账户跑）</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py test kcore autotf</code></td><td>跑单元测试：145 个用例，约 5 分钟（2026-10-18 全部通过）。测试库为临时 SQLite，不影响线上数据</td></tr>
+        <tr><td><code>../../.venv/bin/python manage.py runserver 8090</code></td><td>开发服务器（只在 <code class="vn">/home/NEWUSER/github/knettf</code> 里跑；8000 被别的项目占用）。<b>会启动 bridge</b>，见 <a href="#start">进程是怎么起来的</a></td></tr>
       </table></div>
     </section>
 
@@ -263,8 +263,8 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
         <div class="step"><div class="step-title">url：<code>vigil/urls.py</code> 加</div>
 <pre><code>path("top-sources/", views.TopSourcesView.as_view(), name="vigil-top-sources"),</code></pre></div>
         <div class="step"><div class="step-title">检查并重启</div>
-<pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/backend &amp;&amp; ../.venv/bin/python manage.py check
-../.venv/bin/python manage.py runserver 8090      # runserver 改代码自动重载</code></pre></div>
+<pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/apps/backend &amp;&amp; ../../.venv/bin/python manage.py check
+../../.venv/bin/python manage.py runserver 8090      # runserver 改代码自动重载</code></pre></div>
         <div class="step"><div class="step-title">用 curl 验证</div>
 <pre><code>TOKEN=$(curl -s -X POST localhost:8090/api/auth/token/ -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"&lt;密码&gt;"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["access"])')

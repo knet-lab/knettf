@@ -83,7 +83,7 @@ tail -f send.log read.log</code></pre>
         <tr><td><code>simulate_1.py</code></td><td>正常流量 90 秒：源 .50-.59，50 个并发 worker，用 curl / nc 访问靶机 http-api .210:8080、mysql .211:3306、ftp .212:21、udp .213:9999、dns .214:53</td></tr>
         <tr><td><code>simulate_2.py</code></td><td>混合 90 秒：正常 30 并发（.50-.59）+ 攻击 20 并发（.170-.184）</td></tr>
         <tr><td><code>simulate_3.py</code></td><td>全攻击 90 秒：9 种攻击——DoS SYN、DoS GET、DDoS SYN、TCP 序列预测、Slowloris、Slow-body、Slow-read、Slow-range、凭证劫持（暴力 POST）</td></tr>
-        <tr><td><code>simulate_4.py</code></td><td><b>离线</b>：读 <code>simulate4.csv</code>（预聚合的特征），每 200 条调用一次 <code>vigil.services.detect_batch()</code>，不经过 Kafka。它通过 <code>sys.path</code> 导入 <span class="tag tag-n">N</span> 后端代码，路径写死 <code>../../github/knettf/backend</code></td></tr>
+        <tr><td><code>simulate_4.py</code></td><td><b>离线</b>：读 <code>simulate4.csv</code>（预聚合的特征），每 200 条调用一次 <code>vigil.services.detect_batch()</code>，不经过 Kafka。它通过 <code>sys.path</code> 导入 <span class="tag tag-n">N</span> 后端代码，路径写死 <code>../../github/knettf/apps/backend</code></td></tr>
         <tr><td><code>gen_simulate4_csv.py</code></td><td>生成 <code>simulate4.csv</code></td></tr>
         <tr><td><code>run.sh 1|2|3</code></td><td>先后台启动 <code>monitor/monitor.py --mode N</code>，2 秒后跑 <code>simulate_N.py</code>（输出到 <code>monitor/send.log</code>），等 monitor 生成报告</td></tr>
         <tr><td><code>monitor/monitor.py</code></td><td>连 <code>ws://localhost:8080/ws/vigil/</code> 收检测结果，与 send.log 对比，输出 <code>monitor_report_N.txt</code>、<code>monitor_detail_N.csv</code></td></tr>

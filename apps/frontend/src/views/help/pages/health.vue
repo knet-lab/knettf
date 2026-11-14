@@ -27,7 +27,7 @@ sudo journalctl -u netsentinel --since '-10 min' | grep -E 'vigil.bridge|bridge 
 docker exec pg psql -U vigil vigil -Atc "select to_regclass('vigil_detectionrecord_'||to_char(now()+interval '1 day','YYYY_MM_DD'));"
 tail -1 /srv/netsentinel/logs/rotate_partitions.log</code></pre></div></div>
         <div class="why"><div>检测记录按天分区存放。明天的分区如果不存在，过了零点所有写入都会失败（日志里是 <code>drainer failed</code>）。分区由 <code>/etc/cron.d/netsentinel</code> 里的 <code>rotate_partitions</code> 每天 0 点创建。</div></div>
-        <div class="res"><div>第一行是几分钟内的时间（有实验时）；第二行输出一个表名，不是空行；第三行含 <code>rotate_partitions done</code>。<br><span class="bad">第二行为空</span>：<code class="vp">cd /srv/netsentinel/prod/apps/backend && ../.venv/bin/python manage.py rotate_partitions --database vigil</code>，再用 <code>cat /etc/cron.d/netsentinel</code> 查定时任务还在不在。</div></div>
+        <div class="res"><div>第一行是几分钟内的时间（有实验时）；第二行输出一个表名，不是空行；第三行含 <code>rotate_partitions done</code>。<br><span class="bad">第二行为空</span>：<code class="vp">cd /srv/netsentinel/prod/apps/backend && ../../.venv/bin/python manage.py rotate_partitions --database vigil</code>，再用 <code>cat /etc/cron.d/netsentinel</code> 查定时任务还在不在。</div></div>
       </div>
 
       <div class="task"><h4><span class="n">4</span>集群正常</h4>
@@ -47,7 +47,7 @@ kubectl get pods -A | grep -vE 'Running|Completed'</code></pre></div></div>
 
       <div class="task"><h4><span class="n">6</span>磁盘空间</h4>
         <div class="do"><div><pre class="on-prod"><code>df -h / /home /home/vm-images /home/docker-data | sort -u
-du -sh <span class="vp">/srv/netsentinel/prod</span>/backend/vigil/ml/ads_ml/results</code></pre></div></div>
+du -sh <span class="vp">/srv/netsentinel/prod</span>/apps/backend/vigil/ml/ads_ml/results</code></pre></div></div>
         <div class="why"><div>pg 数据、Kafka、VM 磁盘都在本机。磁盘满会让数据库和集群同时出问题。<code>results/</code> 下的推理报告每条推理追加一行，会持续变大。</div></div>
         <div class="res"><div>使用率低于 85%。<br><span class="bad">超过</span>：先清 <code>/tmp</code>、旧日志、<code>results/</code> 下的 CSV。</div></div>
       </div>

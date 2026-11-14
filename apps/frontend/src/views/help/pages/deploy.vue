@@ -90,21 +90,21 @@ bash /srv/netsentinel/lab/sync-to-srv.sh</code></pre>运行目录是一个只检
     <section id="models">
       <h2>数据库结构（models.py）</h2>
       <div class="task"><h4><span class="n">1</span>先备份</h4>
-        <div class="do"><div><pre class="on-prod"><code>sqlite3 <span class="vp">/srv/netsentinel/prod</span>/backend/db.sqlite3 ".backup '/srv/netsentinel/backups/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"
+        <div class="do"><div><pre class="on-prod"><code>sqlite3 <span class="vp">/srv/netsentinel/prod</span>/apps/backend/db.sqlite3 ".backup '/srv/netsentinel/backups/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"
 docker exec pg pg_dump -U vigil -Fc vigil &gt; /srv/netsentinel/backups/vigil_$(date +%F).dump     # 改 vigil 表时</code></pre></div></div>
         <div class="why"><div>迁移中途失败可能让表处于改了一半的状态，有备份才能退回去。</div></div>
         <div class="res"><div>生成备份文件，大小不为 0。</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>在开发目录生成迁移并检查 SQL</h4>
-        <div class="do"><div><pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/backend
-../.venv/bin/python manage.py makemigrations
-../.venv/bin/python manage.py sqlmigrate &lt;app&gt; &lt;编号&gt;</code></pre></div></div>
+        <div class="do"><div><pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/apps/backend
+../../.venv/bin/python manage.py makemigrations
+../../.venv/bin/python manage.py sqlmigrate &lt;app&gt; &lt;编号&gt;</code></pre></div></div>
         <div class="why"><div>执行之前先看清楚会跑什么 SQL，尤其是删列、改类型这类不可逆的操作。vigil 的 <code>DetectionRecord</code> 是 <code>managed=False</code>，改字段只会生成<b>不执行 SQL</b> 的状态迁移（<code>sqlmigrate</code> 显示 <code>(no-op)</code>），真正改表要在同一个迁移里手写 <code>RunSQL</code>（<code>ALTER TABLE vigil_detectionrecord ...</code> 会自动作用于所有分区）。</div></div>
         <div class="res"><div>新的迁移文件出现在 <code>&lt;app&gt;/migrations/</code>，SQL 符合预期。先在开发库执行（<code>migrate</code>、<code>migrate --database=vigil</code>，开发的 vigil 库是 <code>vigil_dev</code>）确认没问题，再提交迁移文件。</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>执行并重启</h4>
         <div class="do"><div><pre class="on-both"><code>/srv/netsentinel/prod/ops/scripts/deploy.sh -backend      # PR 合并后；default 库会自动 migrate
-cd <span class="vp">/srv/netsentinel/prod</span>/backend && ../.venv/bin/python manage.py migrate --database=vigil   # 只在改了 vigil 时
+cd <span class="vp">/srv/netsentinel/prod</span>/apps/backend && ../../.venv/bin/python manage.py migrate --database=vigil   # 只在改了 vigil 时
 sudo systemctl restart netsentinel</code></pre></div></div>
         <div class="why"><div>vigil 是大表，ALTER 期间会锁表、阻塞写入，所以单独执行，并挑没有实验的时候做。</div></div>
         <div class="res"><div><code>showmigrations</code> 全部是 <code>[X]</code>，服务返回 200。</div></div>
@@ -121,7 +121,7 @@ sudo systemctl start netsentinel</code></pre></div></div>
         <div class="res"><div>服务 active，返回 200。</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>前端依赖</h4>
-        <div class="do"><div><pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/frontend && pnpm add &lt;包&gt;     # 提交、push、PR 合并后：
+        <div class="do"><div><pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/apps/frontend && pnpm add &lt;包&gt;     # 提交、push、PR 合并后：
 /srv/netsentinel/prod/ops/scripts/deploy.sh -frontend</code></pre></div></div>
         <div class="why"><div><code>pnpm add</code> 会同时修改 <code>package.json</code> 和 <code>pnpm-lock.yaml</code>，两个文件都要提交，否则下一个人用 frozen-lockfile 安装时会报错。</div></div>
         <div class="res"><div>构建成功，<code>git status</code> 里能看到两个文件都有改动。</div></div>

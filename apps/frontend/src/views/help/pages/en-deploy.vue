@@ -47,15 +47,15 @@ docker exec pg pg_dump -U vigil -Fc vigil > /srv/netsentinel/backups/vigil_$(dat
         <div class="res"><div>Backup files exist and are not empty.</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>Create and inspect the migration</h4>
-        <div class="do"><div><pre class="on-dev"><code>cd /home/NEWUSER/github/knettf/backend
-../.venv/bin/python manage.py makemigrations
-../.venv/bin/python manage.py sqlmigrate APP NUMBER</code></pre></div></div>
+        <div class="do"><div><pre class="on-dev"><code>cd /home/NEWUSER/github/knettf/apps/backend
+../../.venv/bin/python manage.py makemigrations
+../../.venv/bin/python manage.py sqlmigrate APP NUMBER</code></pre></div></div>
         <div class="why"><div>Read the SQL before running it, especially column drops or type changes.</div></div>
         <div class="res"><div>Run it on the development databases first, then commit the migration file.</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>Apply in production</h4>
         <div class="do"><div><pre class="on-prod"><code>/srv/netsentinel/prod/ops/scripts/deploy.sh -backend
-cd /srv/netsentinel/prod/apps/backend && ../.venv/bin/python manage.py migrate --database=vigil
+cd /srv/netsentinel/prod/apps/backend && ../../.venv/bin/python manage.py migrate --database=vigil
 sudo systemctl restart netsentinel</code></pre></div></div>
         <div class="why"><div>The <code>vigil</code> database is never migrated automatically: altering its large table locks writes. Do it when no experiment is running.</div></div>
         <div class="res"><div><code>manage.py showmigrations</code> shows all <code>[X]</code>; the site returns 200.</div></div>
@@ -67,7 +67,7 @@ sudo systemctl restart netsentinel</code></pre></div></div>
       <div class="table-wrap"><table>
         <tr><th>Changed</th><th>Do</th></tr>
         <tr><td>Python dependency</td><td><code>cd /home/NEWUSER/github/knettf && uv add PACKAGE</code>, commit, PR, then <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -backend</code></td></tr>
-        <tr><td>Frontend dependency</td><td><code>cd /home/NEWUSER/github/knettf/frontend && pnpm add PACKAGE</code>, commit <code>package.json</code> and <code>pnpm-lock.yaml</code>, PR, then <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend</code></td></tr>
+        <tr><td>Frontend dependency</td><td><code>cd /home/NEWUSER/github/knettf/apps/frontend && pnpm add PACKAGE</code>, commit <code>package.json</code> and <code>pnpm-lock.yaml</code>, PR, then <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend</code></td></tr>
         <tr><td>Production <code>.env</code></td><td>Edit <code>/srv/netsentinel/prod/apps/backend/backend/.env</code>, then <code>sudo systemctl restart netsentinel</code></td></tr>
         <tr><td>systemd unit file</td><td><code>sudo systemctl daemon-reload</code>, then restart the service</td></tr>
         <tr><td>Model files</td><td>Create a new version directory under <code>/srv/netsentinel/models/ads_ml/</code>, run <code>manage.py check_model --config &lt;dir&gt;/config.yaml</code>, point the <code>current</code> symlink at it, restart. Roll back by pointing <code>current</code> at the old version and restarting.</td></tr>
