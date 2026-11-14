@@ -1,12 +1,12 @@
 """
-Vigil service layer — orchestrates ML inference, Cilium feedback, and DB persistence.
+vigil 服务层：检测 → 处置策略 → 存库。bridge、REST API、lab 的 simulate_4 都从这里进入。
 """
 
 import time
 from dataclasses import asdict
 
-from .ml.models import flow_from_dict, run_all, run_one, registry
-from .ml.cilium import policy_for_result, apply_action
+from .detection import flow_from_dict, registry, run_all, run_one
+from .response import apply_action, policy_for_result
 from .models import DetectionRecord
 
 

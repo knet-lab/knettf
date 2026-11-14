@@ -41,5 +41,5 @@ class VigilConfig(AppConfig):
         if not _should_start_bridge():
             return
 
-        from vigil import bridge
+        from vigil.ingest import bridge
         bridge.start()

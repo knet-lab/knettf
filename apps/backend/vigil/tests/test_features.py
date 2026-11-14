@@ -1,0 +1,72 @@
+"""ingest.features：Hubble 事件 → 流特征。不依赖数据库和模型文件。"""
+
+from django.test import SimpleTestCase
+
+from vigil.detection import DetectionInput, flow_from_dict
+from vigil.ingest.features import compute_flow, flow_key, hubble_to_packet, should_skip
+
+
+def _event(ts, src="192.168.100.20", dst="192.168.100.210", sport=50000, dport=80,
+           flags=None, direction="INGRESS", verdict="FORWARDED", reply=False):
+    return {
+        "time": ts,
+        "IP": {"source": src, "destination": dst},
+        "l4": {"TCP": {"source_port": sport, "destination_port": dport, "flags": flags or {}}},
+        "traffic_direction": direction,
+        "verdict": verdict,
+        "is_reply": reply,
+    }
+
+
+class HubbleToPacketTests(SimpleTestCase):
+    def test_fields_and_label(self):
+        p = hubble_to_packet(_event("2026-01-01T00:00:00Z", flags={"SYN": True}))
+        self.assertEqual((p["src_ip"], p["dst_port"], p["protocol"]), ("192.168.100.20", 80, "TCP"))
+        self.assertEqual(p["label"], "1")          # .20–.29 为攻击源
+        self.assertEqual(p["flags"], {"SYN": True})
+        self.assertEqual(hubble_to_packet(_event("2026-01-01T00:00:00Z", src="192.168.100.55"))["label"], "0")
+
+    def test_flow_key(self):
+        self.assertEqual(flow_key(_event("x")), ("192.168.100.20", "192.168.100.210", 50000, 80, "TCP"))
+
+
+class ShouldSkipTests(SimpleTestCase):
+    def test_skip_rules(self):
+        self.assertFalse(should_skip(_event("x")))
+        self.assertTrue(should_skip(_event("x", src="10.0.0.1", dst="192.168.100.10")))   # 两端都是基础设施
+        self.assertTrue(should_skip(_event("x", dport=9094)))                             # Kafka 自身流量
+        self.assertTrue(should_skip({"IP": {"source": "", "destination": "1.1.1.1"}}))   # 缺 IP
+
+
+class ComputeFlowTests(SimpleTestCase):
+    def setUp(self):
+        events = [
+            _event("2026-01-01T00:00:00Z", flags={"SYN": True}),
+            _event("2026-01-01T00:00:01Z", flags={"SYN": True, "ACK": True}, direction="EGRESS", reply=True),
+            _event("2026-01-01T00:00:03Z", flags={"ACK": True}, verdict="DROPPED"),
+        ]
+        self.flow = compute_flow([hubble_to_packet(e) for e in events])
+
+    def test_counts_and_ratios(self):
+        f = self.flow
+        self.assertEqual((f["total_packets"], f["fwd_packets"], f["bwd_packets"]), (3, 2, 1))
+        self.assertEqual(f["flow_duration"], 3.0)
+        self.assertEqual(f["packets_per_second"], 1.0)
+        self.assertEqual((f["iat_min"], f["iat_max"], f["iat_mean"]), (1.0, 2.0, 1.5))
+        self.assertEqual((f["syn_count"], f["ack_count"]), (2, 2))
+        self.assertEqual(f["syn_ratio"], 0.6667)
+        self.assertEqual((f["reply_count"], f["drop_count"], f["forwarded_count"]), (1, 1, 2))
+        self.assertEqual((f["is_bidirectional"], f["is_tcp"], f["is_well_known_port"]), (1, 1, 1))
+        self.assertEqual(f["label"], "1")
+
+    def test_matches_detection_input(self):
+        """聚合结果的字段必须正好能构造 DetectionInput（新增 / 删减特征时两边要同步）。"""
+        self.assertIsInstance(flow_from_dict(self.flow), DetectionInput)
+        self.assertEqual(set(self.flow), set(DetectionInput.__dataclass_fields__))
+
+
+class FlowFromDictTests(SimpleTestCase):
+    def test_type_coercion(self):
+        d = flow_from_dict({"src_ip": "a", "dst_ip": "b", "protocol": "TCP",
+                            "total_packets": "5", "iat_mean": "", "model": "ads_ml"})
+        self.assertEqual((d.total_packets, d.iat_mean), (5, 0.0))

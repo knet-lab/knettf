@@ -78,10 +78,15 @@ terraform/
 .cloudflared/
 
 
-ads_ml/
+# 模型文件、训练数据、日志只在服务器上（/srv/netsentinel/models/），不进仓库
+*.joblib
+*.pkl
 
 Linux Host Info.md
 
 chat.md
 # 旧的一键发布脚本（已停用），不进仓库
 release.sh
+# 旧的模型目录（已迁到 vigil/detection/ads_ml + /srv/netsentinel/models），本地残留不进仓库
+apps/backend/vigil/ml/
+detector/ads_ml/

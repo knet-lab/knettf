@@ -12,7 +12,7 @@ import logging
 from django.conf import settings
 from django.utils.module_loading import import_string
 
-from .base import BaseDetectionModel
+from .base import BaseDetectionModel, DetectionInput, DetectionResult
 
 logger = logging.getLogger("vigil.registry")
 
@@ -48,3 +48,12 @@ for _path in settings.VIGIL_MODELS:
     except Exception as e:
         # 单个模型加载失败不影响后端启动，只是没有它的检测结果
         logger.warning("model %s not loaded: %s", _path, e)
+
+
+def run_all(flow: DetectionInput) -> list[DetectionResult]:
+    """用所有已加载的模型检测一条流。"""
+    return [registry.get(name).predict(flow) for name in registry.list_models()]
+
+
+def run_one(model_name: str, flow: DetectionInput) -> DetectionResult:
+    return registry.get(model_name).predict(flow)

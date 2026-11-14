@@ -3,15 +3,15 @@
 只检查接口，不评判检测结果好坏；不写数据库、不影响正在运行的服务。
 
   python manage.py check_model                                        # settings.VIGIL_MODELS 里的全部模型
-  python manage.py check_model --model vigil.ml.models.ads_ml_model.AdsMLModel \\
+  python manage.py check_model --model vigil.detection.ads_ml.AdsMLModel \\
       --config /srv/netsentinel/models/ads_ml/<版本>/config.yaml       # 指定类和模型目录（新版本切换前）
 """
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from vigil.ml.models.base import BaseDetectionModel, DetectionInput, DetectionResult
-from vigil.ml.models.registry import load_model
+from vigil.detection.base import BaseDetectionModel, DetectionInput, DetectionResult
+from vigil.detection.registry import load_model
 
 SAMPLE = DetectionInput(src_ip="192.168.100.20", dst_ip="192.168.100.210", protocol="TCP",
                         src_port=50000, dst_port=80, total_packets=10, fwd_packets=10, is_tcp=1)
