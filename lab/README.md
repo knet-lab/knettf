@@ -40,7 +40,7 @@ flowchart LR
     GEN -- "伪造源 IP 发包<br/>virbr-k8s 192.168.100.0/24" --> SVC
     KAF -- "kubectl exec<br/>kafka-console-consumer" --> COL
     KAF -- "kubectl exec<br/>kafka-console-consumer" --> BRG
-    KAF -- "外部 listener :9094<br/>vigil/bridge.py" --> NS
+    KAF -- "外部 listener :9094<br/>vigil/ingest/bridge.py" --> NS
     BRG -- "POST /api/vigil/detect/batch/" --> NS
     DET -- "ws/detector/push/" --> NS
     NS -- "GET /api/vigil/records/" --> MON
@@ -339,9 +339,9 @@ sudo NETSENTINEL_TOKEN=<JWT> bash simulation/run.sh [1|2|3]
 
 后端相关配置（`apps/backend/backend/settings.py`，可用环境变量覆盖）：
 
-- `VIGIL_MODELS`：要加载的模型类列表，默认 `vigil.ml.models.ads_ml_model.AdsMLModel`
-- `VIGIL_ADS_ML_CONFIG`：AdsMLModel 的配置文件，默认 `vigil/ml/ads_ml/config.yaml`；模型目录在启动时解析软链接，切换版本需重启后端
-- `VIGIL_KAFKA_GROUP_ID`：后端自带的 Kafka 消费桥（`vigil/bridge.py`，随后端启动）使用的 consumer group，默认 `vigil-bridge`
+- `VIGIL_MODELS`：要加载的模型类列表，默认 `vigil.detection.ads_ml.AdsMLModel`
+- `VIGIL_ADS_ML_CONFIG`：AdsMLModel 的配置文件，默认 `/srv/netsentinel/models/ads_ml/current/config.yaml`；模型目录在启动时解析软链接，切换版本需重启后端
+- `VIGIL_KAFKA_GROUP_ID`：后端自带的 Kafka 消费桥（`vigil/ingest/bridge.py`，随后端启动）使用的 consumer group，默认 `vigil-bridge`
 - `VIGIL_BRIDGE_TOKEN`：`ws/detector/push/` 的认证 token
 
 ---

@@ -39,7 +39,7 @@ kubectl get pods -A | grep -vE 'Running|Completed'</code></pre></div></div>
       <div class="task"><h4><span class="n">6</span>Disk space</h4>
         <div class="do"><div><pre><code>df -h / /home /home/docker-data</code></pre></div></div>
         <div class="why"><div>The database, Kafka and VM disks all live here; a full disk breaks everything at once.</div></div>
-        <div class="res"><div>Below 85%. Above: clear <code>/tmp</code>, old logs and CSVs under <code>/srv/netsentinel/prod/apps/backend/vigil/ml/ads_ml/results/</code>.</div></div>
+        <div class="res"><div>Below 85%. Above: clear <code>/tmp</code> and old logs under <code>/srv/netsentinel/logs/</code>.</div></div>
       </div>
     </section>
 

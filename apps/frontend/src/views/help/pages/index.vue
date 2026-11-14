@@ -48,7 +48,7 @@
         <li><b>发包</b>：<span class="tag tag-k">K</span> <code>traffic/</code> 脚本把伪造源 IP（<code>.20-.29</code> 攻击、<code>.50-.64</code> 正常）临时挂到网桥 <code>virbr-k8s</code>（192.168.100.1/24）上发包。网桥和 5 台 VM（<code>k8s-master</code> .10、<code>k8s-node1~4</code> .11~.14）由 <code>01-setup-vms.sh</code> 建，Kubernetes v1.28 + Cilium + Hubble + MetalLB 由 <code>02-setup-cluster.sh</code> 装。</li>
         <li><b>Cilium + Hubble</b>：每个节点的 Cilium 用 eBPF 看到这个包，Hubble 把它变成一条 JSON 格式的 flow 事件。</li>
         <li><b>Vector → Kafka</b>：每个节点一个 Vector Pod，执行 <code>hubble observe --follow --output=json</code>，写入 Kafka topic <code>ebpf-net-logs</code>（<code>03-deploy-5nodes.sh</code> 部署）。宿主机通过 MetalLB 分配的外部地址 <code>192.168.100.200-203:9094</code> 读取。</li>
-        <li><b>bridge</b>：<span class="tag tag-n">N</span> 后端（systemd 服务 <code>netsentinel</code>，uvicorn :8080）里的 <code>vigil/bridge.py</code> 线程消费 Kafka，按 5 元组把包聚成“流”，算出 35 个特征。</li>
+        <li><b>bridge</b>：<span class="tag tag-n">N</span> 后端（systemd 服务 <code>netsentinel</code>，uvicorn :8080）里的 <code>vigil/ingest/bridge.py</code> 线程消费 Kafka，按 5 元组把包聚成“流”，算出 35 个特征。</li>
         <li><b>drainer + 模型</b>：drainer 线程调 <code>services.detect_batch()</code>：ads_ml 模型做预处理 → PCA → One-Class SVM 判异常 → 零样本学习猜攻击类型；<code>cilium/policy.py</code> 给出建议动作（目前只记日志）；结果写入 PostgreSQL 表 <code>vigil_detectionrecord</code>（按天分区）。</li>
         <li><b>浏览器</b>：前端 <code>/vigil</code> 每 30 秒、<code>/vigil/log</code> 每 15 秒调 REST 接口读取并显示。</li>
       </ol>
@@ -78,7 +78,7 @@
   classDef u fill:#fffbea,stroke:#d69e2e,color:#1a202c</pre>
       <div class="table-wrap"><table>
         <tr><th>入口</th><th>代码</th><th>怎么消费 Kafka</th><th>在哪推理、怎么写库</th></tr>
-        <tr><td><b>A</b>（默认，随后端自动启动）</td><td><span class="tag tag-n">N</span> <code>apps/backend/vigil/bridge.py</code></td><td>外部地址 <code>.200-.203:9094</code>，group <code>vigil-bridge</code>，offset latest</td><td>线程内聚合 → <code>flow_queue</code> → drainer → <code>services.detect_batch()</code></td></tr>
+        <tr><td><b>A</b>（默认，随后端自动启动）</td><td><span class="tag tag-n">N</span> <code>apps/backend/vigil/ingest/bridge.py</code></td><td>外部地址 <code>.200-.203:9094</code>，group <code>vigil-bridge</code>，offset latest</td><td>线程内聚合 → <code>flow_queue</code> → drainer → <code>services.detect_batch()</code></td></tr>
         <tr><td><b>B</b>（集群内 Pod）</td><td><span class="tag tag-n">N</span> <code>detector/detector.py</code>，镜像 <code>soar009/netsentinel-detector</code></td><td>group <code>vigil-detector</code></td><td>Pod 内自己推理，经 WebSocket <code>ws/detector/push/</code>（Bearer <code>VIGIL_BRIDGE_TOKEN</code>）交给后端写库</td></tr>
         <tr><td><b>C</b>（宿主机脚本）</td><td><span class="tag tag-k">K</span> <code>lab/collect/vigil_bridge.py</code></td><td>按 5 元组聚合 30 个特征</td><td><code>POST /api/vigil/detect/batch/</code>（JWT），由后端推理写库</td></tr>
       </table></div>
@@ -197,15 +197,15 @@
       <h2>1.8 跨项目契约（改一端必须查另一端）</h2>
       <div class="table-wrap"><table>
         <tr><th>契约</th><th>knetsentinel 侧</th><th>NetSentinel 侧</th><th>改动时注意</th></tr>
-        <tr><td>Kafka topic 名与地址</td><td><code>lab/manifests/vector-5nodes.yaml</code>（sink topic）、<code>.env</code></td><td><code>vigil/bridge.py</code> 常量 <code>KAFKA_BOOTSTRAP</code>、<code>KAFKA_TOPIC</code>（写死）；<code>detector.py</code> 环境变量</td><td>MetalLB 分配的 .200-.203 若变化，入口 A 必须改代码并重启</td></tr>
-        <tr><td>Hubble 流事件 JSON 结构</td><td>Vector <code>exec hubble observe --output=json</code></td><td><code>bridge.py</code> 读取 <code>flow.IP / l4 / traffic_direction / verdict / is_reply / time</code></td><td>升级 Hubble 版本后需验证字段</td></tr>
-        <tr><td>35 个流特征</td><td><code>dataset/aggregate_flows.py</code>、<code>lab/collect/vigil_bridge.py</code>、<code>docs/features.md</code></td><td><code>vigil/serializers.py FlowInputSerializer</code>、<code>ml/models/base.py DetectionInput</code>、<code>runner.py flow_from_dict</code>、<code>bridge.py compute_flow</code></td><td>五处必须同名同义；见 <a href="/help/db#features">特征表</a></td></tr>
-        <tr><td>标签规则</td><td>攻击源 .20-.29 → 1、正常源 .50-.64 → 0</td><td><code>bridge.py _hubble_to_packet()</code> 同样规则</td><td><code>simulation/</code> 用的 .170-.184 不在规则内，label 为空</td></tr>
+        <tr><td>Kafka topic 名与地址</td><td><code>lab/manifests/vector-5nodes.yaml</code>（sink topic）、<code>.env</code></td><td><code>.env</code> 的 <code>VIGIL_KAFKA_BOOTSTRAP</code>、<code>VIGIL_KAFKA_TOPIC</code>；<code>detector.py</code> 环境变量</td><td>MetalLB 分配的 .200-.203 若变化，入口 A 改 <code>.env</code> 并重启</td></tr>
+        <tr><td>Hubble 流事件 JSON 结构</td><td>Vector <code>exec hubble observe --output=json</code></td><td><code>ingest/features.py</code> 读取 <code>flow.IP / l4 / traffic_direction / verdict / is_reply / time</code></td><td>升级 Hubble 版本后需验证字段</td></tr>
+        <tr><td>35 个流特征</td><td><code>dataset/aggregate_flows.py</code>、<code>lab/collect/vigil_bridge.py</code>、<code>docs/features.md</code></td><td><code>vigil/serializers.py FlowInputSerializer</code>、<code>detection/base.py DetectionInput</code>、<code>detection/base.py flow_from_dict</code>、<code>ingest/features.py compute_flow</code></td><td>五处必须同名同义；见 <a href="/help/db#features">特征表</a></td></tr>
+        <tr><td>标签规则</td><td>攻击源 .20-.29 → 1、正常源 .50-.64 → 0</td><td><code>ingest/features.py hubble_to_packet()</code> 同样规则</td><td><code>simulation/</code> 用的 .170-.184 不在规则内，label 为空</td></tr>
         <tr><td>检测器推送</td><td>Secret <code>detector-secret</code>（key <code>django-token</code>）→ 环境变量 <code>DJANGO_TOKEN</code></td><td><code>DetectorPushConsumer._auth()</code> 与 <code>settings.VIGIL_BRIDGE_TOKEN</code> 做<b>字符串全等</b>比较</td><td>两边必须是同一个字符串；不是校验 JWT 签名</td></tr>
         <tr><td>REST 批量检测</td><td><code>lab/collect/vigil_bridge.py --token &lt;JWT&gt;</code></td><td><code>POST /api/vigil/detect/batch/</code></td><td>JWT access 默认 2 小时过期；长期运行用 <code>generate_bridge_token</code> 生成 10 年 token</td></tr>
         <tr><td>评估监听 WebSocket</td><td><code>simulation/monitor/monitor.py</code> 连接 <code>ws://localhost:8080/ws/vigil/</code></td><td><b>后端没有这个路由</b>（只有 <code>ws/detector/push/</code> 和 Pod 日志）</td><td>monitor 目前连不上；需在 <code>vigil/routing.py</code> 补广播 consumer 或改 monitor 轮询 REST</td></tr>
         <tr><td>离线导入</td><td><code>simulation/simulate_4.py</code></td><td><code>vigil.services.detect_batch(flows, model_name)</code></td><td>移动目录或改函数签名都会破坏</td></tr>
-        <tr><td>模型文件</td><td>—</td><td><code>apps/backend/vigil/ml/ads_ml/</code> → <code>detector/build.sh</code> rsync 到 <code>detector/ads_ml/</code></td><td>改模型后入口 A 重启后端，入口 B 重新 build + rollout</td></tr>
+        <tr><td>模型文件</td><td>—</td><td><code>/srv/netsentinel/models/ads_ml/current</code> → <code>detector/build.sh</code> rsync 到 <code>detector/ads_ml/</code></td><td>改模型后入口 A 重启后端，入口 B 重新 build + rollout</td></tr>
       </table></div>
     </section>
 
@@ -250,17 +250,15 @@
 </ul></li>
 <li><code class="dir">vigil/</code><span>流量检测</span><ul>
 <li><code>apps.py</code><span>ready() 中启动 bridge 线程</span></li>
-<li><code>bridge.py</code><span>入口 A：Kafka 消费 → 聚合 → flow_queue → drainer</span></li>
 <li><code>services.py</code><span>detect_flow / detect_batch / get_stats / list_models</span></li>
 <li><code>consumers.py · routing.py</code><span>入口 B：ws/detector/push/</span></li>
 <li><code>views.py · serializers.py · urls.py · models.py（DetectionRecord, managed=False）</code></li>
 <li><code>migrations/0001_initial.py</code><span>手写 SQL：分区表 + 91 个日分区</span></li>
 <li><code>management/commands/ generate_bridge_token.py · rotate_partitions.py</code></li>
-<li><code class="dir">ml/</code><ul>
-<li><code class="dir">models/</code><span>base.py（DetectionInput / DetectionResult）· registry.py · runner.py；ads_ml_model.py（ads_ml_ocsvm）· example_threshold.py（未注册）</span></li>
-<li><code>cilium/policy.py 检测结果 → drop / rate_limit / alert / ignore（apply_action 是 stub）</code></li>
-<li><code class="dir">ads_ml/</code><span>★ main.py · config.yaml · trained/（模型文件）· utils/ · results/</span></li>
-</ul></li>
+<li><code class="dir">detection/</code><span>base.py（DetectionInput / DetectionResult）· registry.py · ads_ml/（ads_ml_ocsvm）· example_threshold.py（未注册）</span></li>
+<li><code class="dir">ingest/</code><span>bridge.py（入口 A：Kafka 消费 → 聚合 → flow_queue → drainer）· features.py（35 个特征）</span></li>
+<li><code class="dir">response/</code><span>cilium.py：检测结果 → drop / rate_limit / alert / ignore（apply_action 是 stub）</span></li>
+<li><code class="dir">tests/</code><span>test_api · test_features</span></li>
 </ul></li>
 <li><code>db.sqlite3</code><span>★ default 库：用户、集群、Terraform 配置与报告、Django 内置表</span></li>
 <li><code>autotf.sqlite3 · vigil.sqlite3</code><span>旧库文件，当前配置未使用</span></li>

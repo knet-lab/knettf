@@ -28,7 +28,7 @@
       <p>把 Kafka 里的事件变成检测记录有三种方式，<b>同一时间只能开一种</b>，否则同一条流会被记录多次。</p>
       <div class="table-wrap"><table>
         <tr><th></th><th>入口 A（默认，在用）</th><th>入口 B（可选）</th><th>入口 C（可选）</th></tr>
-        <tr><td>代码</td><td><span class="tag tag-n">N</span> <code>apps/backend/vigil/bridge.py</code></td><td><span class="tag tag-n">N</span> <code>detector/detector.py</code>（镜像 <code>soar009/netsentinel-detector</code>）</td><td><span class="tag tag-k">K</span> <code>lab/collect/vigil_bridge.py</code></td></tr>
+        <tr><td>代码</td><td><span class="tag tag-n">N</span> <code>apps/backend/vigil/ingest/bridge.py</code></td><td><span class="tag tag-n">N</span> <code>detector/detector.py</code>（镜像 <code>soar009/netsentinel-detector</code>）</td><td><span class="tag tag-k">K</span> <code>lab/collect/vigil_bridge.py</code></td></tr>
         <tr><td>在哪运行</td><td>后端进程内的两个线程</td><td>集群内 Pod（命名空间 <code>netsentinel</code>）</td><td>宿主机上手动运行的脚本</td></tr>
         <tr><td>Kafka group</td><td><code>vigil-bridge</code>，从 latest 开始</td><td><code>vigil-detector</code></td><td>脚本参数</td></tr>
         <tr><td>聚合方式</td><td>每次 poll 到的一批消息立即聚合</td><td>累计 <code>PKT_BATCH_SIZE</code>（默认 1 万）个包后聚合</td><td>按 5 元组维护状态，<code>--window</code> 秒无新包则结束这条流</td></tr>
@@ -99,7 +99,7 @@ _HOST_GW     = 192.168.100.1</code></pre>
         <tr><td>—</td><td><code>label</code></td><td>"0"/"1"/""</td><td>包标签的众数，<b>不送进模型</b>，只存库用于评估</td></tr>
       </table></div>
       <div class="danger"><b>五处必须同步</b>：这 35 个名字和含义在以下位置各写了一遍，改任何一处都要改其他四处：<br>
-        ① <code>bridge.py compute_flow()</code> ② <code>ml/models/base.py DetectionInput</code> ③ <code>ml/models/runner.py flow_from_dict()</code>（int / float 字段集合）④ <code>serializers.py FlowInputSerializer</code> ⑤ <code>ml/ads_ml/main.py main()</code> 的参数表。<br>
+        ① <code>ingest/features.py compute_flow()</code> ② <code>detection/base.py DetectionInput</code> ③ <code>detection/base.py flow_from_dict()</code>（int / float 字段集合）④ <code>serializers.py FlowInputSerializer</code> ⑤ 模型 pipeline 里的 <code>ebpf_35_features</code>（<code>detection/ads_ml/preprocessing.py</code> 读取）。<br>
         还有 <span class="tag tag-k">K</span> 侧的 <code>dataset/aggregate_flows.py</code>、<code>lab/collect/vigil_bridge.py</code> 和 <code>detector/detector.py</code>，以及训练流水线里的 <code>ebpf_35_features</code>。</div>
     </section>
 
@@ -127,7 +127,7 @@ def detect_batch(flows, model_name=None):
     <section id="model">
       <h2>4.6 模型：ads_ml（OCSVM + 余弦复核 + 零样本学习）</h2>
       <h3>文件</h3>
-      <p>代码（<code>main.py</code>、<code>utils/</code>）在 <code>apps/backend/vigil/ml/ads_ml/</code>；线上用的模型文件在版本目录 <code class="vp">/srv/netsentinel/models/ads_ml/current</code>（见 <a href="#newmodel">4.11</a>），表里的 <code>trained/</code> 指那里的文件。</p>
+      <p>代码在 <code>apps/backend/vigil/detection/ads_ml/</code>；线上用的模型文件在版本目录 <code class="vp">/srv/netsentinel/models/ads_ml/current</code>（见 <a href="#newmodel">4.11</a>），表里的 <code>trained/</code> 指那里的文件。</p>
       <div class="table-wrap"><table>
         <tr><th>文件</th><th>内容</th></tr>
         <tr><td><code>config.yaml</code></td><td>三个模型文件的路径（相对 config.yaml 所在目录）</td></tr>
@@ -146,7 +146,7 @@ def detect_batch(flows, model_name=None):
         <div class="step"><div class="step-title">零样本学习 <code>zero_shot_learning(X_pca, prediction, prototypes)</code></div>
           <p>正常样本：<code>Normal</code>，相似度 0。攻击样本：与每个攻击类别的每个原型算余弦相似度，取最高的；≥ <code>SEEN_SIM_THRESHOLD=0.50</code> 则为该类（<code>Seen_Attack</code>），否则 <code>Unknown_Attack</code>。</p>
           <p>当前原型里的类别名就是前端日志页写死的 9 个：<code>Dos-TCP SYN flood</code>、<code>ddos-TCP SYN flood</code>、<code>DoS Get</code>、<code>TCP sequence prediction</code>、<code>Slowloris</code>、<code>Slow-body</code>、<code>Slow-read</code>、<code>Slow-range</code>、<code>Credentials hijacking</code>。查看实际名字：</p>
-<pre class="on-prod"><code>cd <span class="vp">/srv/netsentinel/prod</span>/apps/backend &amp;&amp; ../../.venv/bin/python -c "import joblib;print(list(joblib.load('vigil/ml/ads_ml/trained/multi_attack_semantic_prototypes_kmeans.joblib')))"</code></pre></div>
+<pre class="on-prod"><code>cd <span class="vp">/srv/netsentinel/prod</span>/apps/backend &amp;&amp; ../../.venv/bin/python -c "import joblib;print(list(joblib.load('/srv/netsentinel/models/ads_ml/current/trained/multi_attack_semantic_prototypes_kmeans.joblib')))"</code></pre></div>
       </div>
       <h3>模型怎么接入后端</h3>
       <p>后端不直接认识 ads_ml，只认接口 <code>BaseDetectionModel</code>：一个模型就是一个实现了 <code>name</code> 和 <code>predict()</code> 的类。启动时注册表按 <code>.env</code> 的 <code>VIGIL_MODELS</code>（类的完整路径，逗号分隔，默认只有 <code>AdsMLModel</code>）逐个实例化；服务层对每条流调用全部已注册模型，每个模型的结果各写一条记录。这样换模型、加模型都不用改 bridge、服务层和数据库。</p>
@@ -194,7 +194,7 @@ def detect_batch(flows, model_name=None):
   BaseDetectionModel ..> DetectionInput : 输入
   BaseDetectionModel ..> DetectionResult : 输出</pre>
 <ol>
-        <li><b>启动时</b>：导入 <code>vigil/ml/models/registry.py</code>，按 <code>VIGIL_MODELS</code> 逐个 <code>import_string(类路径)()</code>。</li>
+        <li><b>启动时</b>：导入 <code>vigil/detection/registry.py</code>，按 <code>VIGIL_MODELS</code> 逐个 <code>import_string(类路径)()</code>。</li>
         <li><b>AdsMLModel 构造</b>：把 <code>VIGIL_ADS_ML_CONFIG</code>（<code>/srv/netsentinel/models/ads_ml/current/config.yaml</code>）解析成实际版本目录，读 <code>config.yaml</code> 和 <code>trained/</code> 下三个文件，留在内存里。失败只记 <code>model ... not loaded</code>，后端照常启动。</li>
         <li><b>每批流</b>：drainer 调 <code>services.detect_batch()</code> → 对每条流 <code>run_all()</code>，每个已注册模型 <code>predict()</code> 一次，返回 <code>DetectionResult</code>。</li>
         <li><b>写库</b>：<code>policy_for_result()</code> 给出建议动作，每个模型的结果各 INSERT 一条到 <code>vigil_detectionrecord</code>。</li>
@@ -207,7 +207,7 @@ def detect_batch(flows, model_name=None):
     </section>
 
     <section id="policy">
-      <h2>4.7 Cilium 反馈：<code>ml/cilium/policy.py</code></h2>
+      <h2>4.7 Cilium 反馈：<code>response/cilium.py</code></h2>
 <pre><code>if not result.is_attack or result.confidence &lt; 0.6:  action = "ignore"
 else: action = _ATTACK_TYPE_POLICY.get(attack_type or "anomaly", "alert")
 _ATTACK_TYPE_POLICY = {"syn_flood": "drop", "flood": "rate_limit", "port_scan": "alert", "anomaly": "alert"}</code></pre>
@@ -234,7 +234,7 @@ docker exec pg psql -U vigil vigil -c "create table if not exists vigil_detectio
       <h2>4.9 入口 B：集群内检测器</h2>
       <h3>构建：<code>detector/build.sh</code></h3>
       <ol>
-        <li><code>rsync -a --delete</code> 把 <code>apps/backend/vigil/ml/ads_ml/</code>（排除 <code>__pycache__</code>、<code>results/</code>）同步到 <code>detector/ads_ml/</code>。</li>
+        <li>把 <code class="vp">/srv/netsentinel/models/ads_ml/current</code> 的 <code>trained/</code> 和 <code>config.yaml</code> 同步到 <code>detector/ads_ml/</code>。</li>
         <li><code>docker build -t soar009/netsentinel-detector:latest</code>：基于 <code>python:3.12-slim</code>，用 uv 装 <code>requirements.txt</code>，复制 <code>config.yaml</code>、<code>trained/</code>、<code>utils/</code>、<code>detector.py</code>。</li>
         <li><code>docker push</code> 到 Docker Hub（需已 <code>docker login</code>）。</li>
       </ol>
@@ -282,16 +282,16 @@ sudo journalctl -u netsentinel --since '-1 min' | grep 'AdsMLModel loaded from'<
       <ul>
         <li><code>check_model</code> 只检查接口：能否加载、<code>predict</code> 返回的字段和类型是否正确。检测效果由训练模型的人负责。</li>
         <li>scikit-learn 要与训练时版本一致（当前锁定 1.7.2，见 <code>pyproject.toml</code>），否则加载失败。</li>
-        <li>攻击类别名变了：前端 <code>VigilLogView.vue</code> 的 <code>ATTACK_TYPES</code> 和 <code>ml/cilium/policy.py</code> 的映射要同步改，走正常的 PR 和发布流程。</li>
+        <li>攻击类别名变了：前端 <code>VigilLogView.vue</code> 的 <code>ATTACK_TYPES</code> 和 <code>response/cilium.py</code> 的映射要同步改，走正常的 PR 和发布流程。</li>
         <li>回滚：<code>ln -sfn 旧版本目录名 /srv/netsentinel/models/ads_ml/current</code>，再重启。旧版本目录确认不再需要之前不要删。</li>
         <li>入口 B 部署时：<code>detector/build.sh</code> 默认从 <code>current</code> 取模型文件打进镜像，之后 <code>kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code>。</li>
       </ul>
       <h3>新增一个模型（与现有模型并行）</h3>
       <ol>
-        <li>在 <code>apps/backend/vigil/ml/models/</code> 下写一个继承 <code>BaseDetectionModel</code> 的类，实现 <code>name</code>（唯一，会存进记录的 <code>model_name</code>）和 <code>predict()</code>；参考 <code>example_threshold.py</code>。需要模型文件就像 <code>AdsMLModel</code> 一样接收 <code>config_path</code>，在构造函数里加载一次。</li>
-        <li>检查接口：<code>../../.venv/bin/python manage.py check_model --model vigil.ml.models.my_model.MyModel</code></li>
+        <li>在 <code>apps/backend/vigil/detection/</code> 下写一个继承 <code>BaseDetectionModel</code> 的类，实现 <code>name</code>（唯一，会存进记录的 <code>model_name</code>）和 <code>predict()</code>；参考 <code>example_threshold.py</code>。需要模型文件就像 <code>AdsMLModel</code> 一样接收 <code>config_path</code>，在构造函数里加载一次。</li>
+        <li>检查接口：<code>../../.venv/bin/python manage.py check_model --model vigil.detection.my_model.MyModel</code></li>
         <li>代码走 PR 和 <code>deploy.sh -backend</code> 上线。</li>
-        <li>在线上 <code>.env</code> 里加：<code>VIGIL_MODELS=vigil.ml.models.ads_ml_model.AdsMLModel,vigil.ml.models.my_model.MyModel</code>，重启。</li>
+        <li>在线上 <code>.env</code> 里加：<code>VIGIL_MODELS=vigil.detection.ads_ml.AdsMLModel,vigil.detection.my_model.MyModel</code>，重启。</li>
       </ol>
       <p>结果：<code>/api/vigil/models/</code> 返回两个名字，看板 Model Coverage 出现两行；每条流每个模型各写一条记录，记录数随模型数增加。只想换掉旧模型时，<code>VIGIL_MODELS</code> 里只留新类。<code>POST /api/vigil/detect/</code> 带 <code>"model": "名字"</code> 可以单独调用某个模型。</p>
     </section>
