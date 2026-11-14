@@ -1,0 +1,34 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.venv312/
+
+# 编辑器 / 本地工具
+.vscode/
+.claude
+
+.env
+
+# 数据与运行产物（不进仓库）
+dataset/
+logs/
+docs/
+*.csv
+*.log
+*.pid
+*.done
+traffic_request/record_send_uuid.txt
+
+# cluster-setup：只纳入在用的 targets.yaml、host-firewall-ccnp.yaml；minikube 旧脚本不纳入
+cluster-setup/*
+!cluster-setup/targets.yaml
+!cluster-setup/host-firewall-ccnp.yaml
+traffic_scripts
+simulation/monitor/monitor_report_*.txt
