@@ -21,7 +21,7 @@
       <h2>9.2 可靠性问题</h2>
       <div class="table-wrap"><table>
         <tr><th>问题</th><th>位置</th><th>影响</th><th>建议</th></tr>
-        <tr><td>bridge 出错后线程退出、不重连</td><td><code>vigil/bridge.py run_bridge()</code></td><td>集群重启 / Kafka 抖动后检测停止，必须人工重启后端</td><td>外层加 while True + 退避重试</td></tr>
+        <tr><td>bridge 出错后线程退出、不重连</td><td><code>vigil/ingest/bridge.py run_bridge()</code></td><td>集群重启 / Kafka 抖动后检测停止，必须人工重启后端</td><td>外层加 while True + 退避重试</td></tr>
         <tr><td>每条推理都覆盖写报告 CSV</td><td><code>utils/cloud_reporting.py</code></td><td>额外磁盘 IO，且只留最后一条</td><td>在线推理时不写</td></tr>
         <tr><td><code>detect_batch</code> 的事务在 default 库</td><td><code>vigil/services.py</code></td><td>以为整批原子，实际 vigil 库逐条提交</td><td><code>transaction.atomic(using="vigil")</code>，并用 <code>bulk_create</code></td></tr>
         <tr><td>Kafka 地址写死</td><td><code>bridge.py KAFKA_BOOTSTRAP</code></td><td>MetalLB 地址变化要改代码</td><td>从 .env 读</td></tr>

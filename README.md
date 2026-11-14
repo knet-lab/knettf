@@ -18,7 +18,7 @@ flowchart LR
     DET["detector/<br/>集群内检测器（可选）"]
     BE["apps/backend<br/>Django · vigil / kcore / autotf"]
     FE["apps/frontend<br/>Vue · 站内手册 /help"]
-    KAF -- "vigil/bridge.py" --> BE
+    KAF -- "vigil/ingest/bridge.py" --> BE
     KAF --> DET -- "ws/detector/push/" --> BE
     FE -- "REST / WebSocket" --> BE
 ```
@@ -104,7 +104,7 @@ git config user.email "<GitHub 上已验证的邮箱>"
 |------|------|
 | `apps/backend/backend/.env` | `ENVIRONMENT=linux_development`、`VIGIL_BRIDGE_TOKEN`、`VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev` |
 | `apps/frontend/.env` | `VITE_API_BASE`、`VITE_WS_BASE` |
-| `apps/backend/vigil/ml/ads_ml/` | 模型文件（从 `/srv/netsentinel/models/ads_ml/` 复制） |
+| `/srv/netsentinel/models/ads_ml/current` | 模型文件（不进 Git，由 `.env` 的 `VIGIL_ADS_ML_CONFIG` 指向） |
 
 ### 启动
 

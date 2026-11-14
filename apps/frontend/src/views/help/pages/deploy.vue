@@ -141,7 +141,7 @@ sudo systemctl start netsentinel</code></pre></div></div>
         <tr><td>线上 <code class="vp">/srv/netsentinel/prod/apps/backend/backend/.env</code></td><td>直接编辑（不进 Git）→ <code>sudo systemctl restart netsentinel</code></td><td>环境变量只在进程启动时读一次；重启后用 <a href="/help/health">健康检查</a> 第 1 步确认</td></tr>
         <tr><td>systemd unit 文件</td><td><code>sudo systemctl daemon-reload</code> → restart</td><td>不 reload 的话 systemd 还在用旧定义；<code>systemctl cat netsentinel</code> 可确认</td></tr>
         <tr><td>cloudflared 配置</td><td><code>sudo systemctl restart cloudflared-knettf</code></td><td>公网会中断几秒</td></tr>
-        <tr><td>Kafka 地址变了</td><td>改 <code>vigil/bridge.py</code> 的 <code>KAFKA_BOOTSTRAP</code>（入口 B 改 ConfigMap）→ PR → <code>deploy.sh -backend</code></td><td>地址是写死在代码里的；成功后日志有 <code>bridge starting</code> 且没有 <code>bridge error</code></td></tr>
+        <tr><td>Kafka 地址变了</td><td>改线上 <code>.env</code> 的 <code>VIGIL_KAFKA_BOOTSTRAP</code>（入口 B 改 ConfigMap）→ 重启后端</td><td>成功后日志有 <code>bridge starting</code> 且没有 <code>bridge error</code></td></tr>
         <tr><td>Vector 配置</td><td><code>kubectl apply -f /srv/netsentinel/lab/manifests/vector-5nodes.yaml</code> → <code>kubectl -n kube-system rollout restart ds/vector</code></td><td>重启期间的 Hubble 事件丢失，不会补发</td></tr>
         <tr><td>单个 Kafka broker</td><td><code>kubectl delete pod kafka-broker-N</code>，等它 Running 了再处理下一个</td><td>min.insync.replicas=2，同时停两个以上会导致写入失败；数据在 PVC 上，不会丢</td></tr>
         <tr><td>Kafka controller</td><td><b>不要删</b></td><td>它是裸 Pod + emptyDir，删了不会重建，元数据丢失，只能 <a href="/help/power#rebuild-kafka">重建 Kafka</a></td></tr>

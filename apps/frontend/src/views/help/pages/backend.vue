@@ -28,7 +28,7 @@
         <li><b>uvicorn 导入 <code>apps/backend/asgi.py</code></b>：设置 <code>DJANGO_SETTINGS_MODULE=backend.settings</code>，调用 <code>django.setup()</code>。</li>
         <li><b>读配置</b>：<code>settings.py</code> 读取 <code class="vp">/srv/netsentinel/prod</code><code>/backend/backend/.env</code>（<code>DEBUG=False</code>、<code>SECRET_KEY</code>、<code>VIGIL_DB_NAME=vigil</code>、<code>VIGIL_ADS_ML_CONFIG</code> …）。</li>
         <li><b>启动 bridge</b>：加载 INSTALLED_APPS 时调用 <code>vigil/apps.py</code> 的 <code>ready()</code>；<code>_should_start_bridge()</code> 看到进程是 uvicorn，就 <code>bridge.start()</code> 起两个守护线程 vigil-bridge、vigil-drainer（见 <a href="/help/detect">4 检测链路与模型</a>）。</li>
-        <li><b>加载模型</b>：导入 <code>vigil/ml/models/registry.py</code> 时按 <code>VIGIL_MODELS</code> 实例化模型，日志 <code>AdsMLModel loaded from ...</code>。</li>
+        <li><b>加载模型</b>：导入 <code>vigil/detection/registry.py</code> 时按 <code>VIGIL_MODELS</code> 实例化模型，日志 <code>AdsMLModel loaded from ...</code>。</li>
         <li><b>开始处理请求</b>：<code>ProtocolTypeRouter</code> 把 <code>http</code> 交给 Django，把 <code>websocket</code> 交给 <code>kcore.routing</code> + <code>vigil.routing</code> 的 Channels consumer。</li>
       </ol>
       <p>只有<b>一个</b> uvicorn 进程（没开 <code>--workers</code>），bridge 线程因此只有一份。如果将来加 workers，每个进程都会起一份 bridge，导致重复消费入库。</p>
@@ -212,10 +212,10 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
         <tr><td><code>models.py</code></td><td><code>DetectionRecord</code>，<code>managed = False</code>（表由手写 SQL 建）</td></tr>
         <tr><td><code>migrations/0001_initial.py</code></td><td>RunSQL：建分区父表 + 3 个索引 + 91 个日分区</td></tr>
         <tr><td><code>consumers.py</code> / <code>routing.py</code></td><td>入口 B：<code>ws/detector/push/</code>，Bearer 共享密钥</td></tr>
-        <tr><td><code>ml/models/</code></td><td><code>base.py</code>（输入输出数据类、抽象基类）、<code>registry.py</code>（注册表）、<code>runner.py</code>（<code>run_all</code> / <code>run_one</code> / <code>flow_from_dict</code>）、<code>ads_ml_model.py</code>、<code>example_threshold.py</code>（示例，未注册）</td></tr>
-        <tr><td><code>ml/ads_ml/</code></td><td>模型本体：<code>main.py</code>、<code>config.yaml</code>、<code>trained/</code>、<code>utils/</code>、<code>results/</code></td></tr>
-        <tr><td><code>ml/cilium/policy.py</code></td><td>检测结果 → 建议动作（<code>apply_action</code> 是 stub）</td></tr>
-        <tr><td><code>management/commands/</code></td><td><code>generate_bridge_token</code>、<code>rotate_partitions</code></td></tr>
+        <tr><td><code>detection/</code></td><td><code>base.py</code>（输入输出数据类、抽象基类、<code>flow_from_dict</code>）、<code>registry.py</code>（注册表、<code>run_all</code> / <code>run_one</code>）、<code>ads_ml/</code>（AdsMLModel）、<code>example_threshold.py</code>（示例，未注册）</td></tr>
+        <tr><td><code>ingest/</code></td><td><code>bridge.py</code>（Kafka 消费线程）、<code>features.py</code>（五元组聚合、35 个特征）</td></tr>
+        <tr><td><code>response/</code></td><td><code>cilium.py</code>（生成 Cilium 封禁策略）</td></tr>
+                <tr><td><code>management/commands/</code></td><td><code>generate_bridge_token</code>、<code>rotate_partitions</code></td></tr>
         <tr><td><code>tests.py</code></td><td>单元测试</td></tr>
       </table></div>
     </section>

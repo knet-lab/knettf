@@ -210,7 +210,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
 
     <section id="vigil">
       <h2>7.8 vigil · 流量检测</h2>
-      <p>代码：<code>apps/backend/vigil/views.py</code> → <code>services.py</code> → <code>ml/models/runner.py</code>（模型推理）→ <code>ml/cilium/policy.py</code>（动作建议）→ <code>models.DetectionRecord</code>（写 PostgreSQL）。</p>
+      <p>代码：<code>apps/backend/vigil/views.py</code> → <code>services.py</code> → <code>detection/registry.py</code>（模型推理）→ <code>response/cilium.py</code>（动作建议）→ <code>models.DetectionRecord</code>（写 PostgreSQL）。</p>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-post">POST</span><code>/api/vigil/detect/</code><span class="perm">登录</span></div>
         <p>请求体是一条流的 35 个特征（<code>FlowInputSerializer</code>，必填只有 <code>src_ip</code>、<code>dst_ip</code>、<code>protocol</code>，其余缺省为 0），可选 <code>label</code>（"0"/"1"/""）、<code>model</code>（指定模型名，不填则跑全部已注册模型）。字段列表见 <a href="/help/db#features">特征表</a>。</p>
