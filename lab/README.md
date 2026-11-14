@@ -8,7 +8,7 @@
 - 把流量实时送到 NetSentinel 检测后端（Django `vigil` 应用，模型由 `VIGIL_MODELS` 配置，默认 `AdsMLModel`/OCSVM）并评估检测效果
 
 > 本目录是 knettf 仓库的 `lab/` 部分，有独立的 Python 环境（`lab/pyproject.toml`，只用 **uv** 管理）。下文路径除特别说明外都相对 `lab/`。
-> 运行目录：`/srv/netsentinel/lab`（由 `lab/sync-to-srv.sh` 从仓库同步代码，数据只放在那里）。
+> 运行目录：`/srv/netsentinel/lab`（软链接到 `/srv/netsentinel/lab-repo/lab`，一个只检出 `lab/` 的 Git 工作树，由 `lab/sync-to-srv.sh` 拉取 GitHub `main`；数据只放在那里）。
 
 ---
 
@@ -367,7 +367,14 @@ sudo NETSENTINEL_TOKEN=<JWT> bash simulation/run.sh [1|2|3]
 代码在 knettf 仓库的 `lab/` 下，用 Git 管理；运行时的数据只放在运行目录 `/srv/netsentinel/lab`，不进仓库。
 
 - 改代码：在自己的仓库检出里改 `lab/`，提交、合并到 `main`
-- 更新运行目录：`bash lab/sync-to-srv.sh`（rsync，不会覆盖或删除运行目录里的数据、`.env`、`.venv`）
+- 更新运行目录：`bash /srv/netsentinel/lab/sync-to-srv.sh`（`git pull --ff-only` GitHub `main`；`-n` 预览；有本地改动时拒绝更新；不会动被忽略的数据、`.env`、`.venv`）
+- 运行目录初始化（只需一次，已完成）：
+  ```bash
+  git clone --filter=blob:none --sparse https://github.com/knet-lab/knettf.git /srv/netsentinel/lab-repo
+  git -C /srv/netsentinel/lab-repo sparse-checkout set lab
+  git -C /srv/netsentinel/lab-repo config core.sharedRepository group
+  ln -s lab-repo/lab /srv/netsentinel/lab
+  ```
 - `lab/.gitignore` 排除：`*.csv`、`*.log`、`*.pid`、`*.done`、`logs/`、`.env`、`.venv/`、`replay/record_send_uuid.txt`、`simulation/monitor/monitor_report_*.txt`
 
 `replay/scripts/start_send.sh`、`start_read.sh` 在 `PATH` 中找不到 `uv` 时会回退到写死的 `/home/soar009/.local/bin/uv`，换用户运行时需确保 `uv` 在 `PATH` 中。

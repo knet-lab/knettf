@@ -46,7 +46,7 @@ Python 环境有两套，都用 [uv](https://docs.astral.sh/uv/) 管理：根目
 |------|------|--------|
 | `~/github/knettf`（每人自己的 home 下） | 开发：改代码、提交、开 PR | 本人 |
 | `/srv/netsentinel/prod` | 线上平台（knettf.com），systemd 服务 `netsentinel`，端口 8080 | 只由 `deploy.sh` 更新 |
-| `/srv/netsentinel/lab` | 实验脚本的运行目录，数据集、日志、CSV 都在这里 | 代码只由 `lab/sync-to-srv.sh` 更新 |
+| `/srv/netsentinel/lab` | 实验脚本的运行目录，数据集、日志、CSV 都在这里 | Git 工作树（`lab-repo/lab` 的软链接），代码只由 `lab/sync-to-srv.sh` 从 GitHub `main` 拉取 |
 
 **不要在 `/srv/netsentinel/prod` 或 `/srv/netsentinel/lab` 里改代码。** 数据库、`.env`、模型文件（`/srv/netsentinel/models/`）、数据集等都不在 Git 里，只在服务器上。
 
@@ -100,7 +100,7 @@ pnpm dev                                                       # 开发前端 :5
 | `main` | 唯一的长期分支，也是 GitHub 默认分支，线上运行的就是它。**只通过 GitHub 网页 PR 合入**，不直接 push，不 force push。本地 `main` 只用来 `git pull`，不在上面 commit 或 merge |
 | 任务分支 `feat/…`、`fix/…`、`docs/…` | 一件事一个分支，从最新 `main` 建；PR 合并后删除（远端和本地） |
 
-仓库是免费组织的私有仓库，GitHub 的分支保护不生效，以上规则靠大家遵守。动手前先 `git status`，确认第一行不是 `On branch main`。
+仓库是公开仓库，`main` 已开启 GitHub 分支保护（Ruleset）：必须通过 PR 合入，禁止直接 push、force push 和删除。动手前先 `git status`，确认第一行不是 `On branch main`。
 
 ## 日常流程
 
@@ -158,14 +158,14 @@ ops/scripts/check.sh backend lab         # 只查部分：backend / frontend / l
 - 线上当前版本：`git -C /srv/netsentinel/prod log --oneline -1`
 - 回退：新建任务分支 `git revert <提交>` → PR → 部署
 
-**实验环境**：本地 `main` 更新后同步到运行目录：
+**实验环境**：PR 合入 `main` 后更新运行目录：
 
 ```bash
-bash lab/sync-to-srv.sh -n    # 先预览会改哪些文件
-bash lab/sync-to-srv.sh
+bash /srv/netsentinel/lab/sync-to-srv.sh -n    # 先看会更新哪些提交
+bash /srv/netsentinel/lab/sync-to-srv.sh
 ```
 
-只同步 Git 跟踪的文件，`/srv/netsentinel/lab` 里的数据、`.env`、`.venv`、日志不会被覆盖或删除。
+它在运行目录里 `git pull --ff-only` GitHub 上的 `main`，与你本地检出哪个分支无关；运行目录里有已跟踪文件被改过时拒绝更新。数据、`.env`、`.venv`、日志被 Git 忽略，不会被动到。
 
 ---
 

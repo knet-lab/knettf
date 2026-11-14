@@ -59,7 +59,7 @@ sudo install -o NEWUSER -g NEWUSER -m 600 /home/soar009/.kube/config /home/NEWUS
       <p>仓库 <code>knet-lab/knettf</code> 在实验室组织 <code>knet-lab</code> 下，平台（<code>apps/</code>、<code>detector/</code>、<code>ops/</code>）和实验环境（<code>lab/</code>，原 knetsentinel）都在里面。<code>user.email</code> 只决定提交上<b>显示</b>谁，能不能 push 取决于你的 GitHub <b>账号</b>在不在组织里：</p>
       <div class="table-wrap"><table>
         <tr><th>仓库</th><th>本地目录</th><th>远程地址</th></tr>
-        <tr><td><code>knet-lab/knettf</code></td><td><code>/home/NEWUSER/github/knettf</code>（开发）；运行目录 <code>/srv/netsentinel/prod</code>（平台）、<code>/srv/netsentinel/lab</code>（实验环境，由 <code>lab/sync-to-srv.sh</code> 同步）</td><td><code>git@github.com:knet-lab/knettf.git</code>（任务分支 → 网页 PR → <code>main</code>）</td></tr>
+        <tr><td><code>knet-lab/knettf</code></td><td><code>/home/NEWUSER/github/knettf</code>（开发）；运行目录 <code>/srv/netsentinel/prod</code>（平台）、<code>/srv/netsentinel/lab</code>（实验环境，由 <code>lab/sync-to-srv.sh</code> 从 GitHub <code>main</code> 拉取）</td><td><code>git@github.com:knet-lab/knettf.git</code>（任务分支 → 网页 PR → <code>main</code>）</td></tr>
       </table></div>
       <ol>
         <li>组织的任意一位 Owner 打开 <code>https://github.com/orgs/knet-lab/people</code> → <b>Invite member</b> → 输入接手人的 GitHub 用户名。要能管理仓库和成员就给 <b>Owner</b>，只写代码给 <b>Member</b> 即可。</li>
@@ -93,7 +93,7 @@ sudo install -o NEWUSER -g NEWUSER -m 600 /home/soar009/.kube/config /home/NEWUS
         <li><b>网页 PR</b>：从最新 <code>main</code> 建任务分支，commit；把最新 <code>main</code> 合进来跑 <code>ops/scripts/check.sh</code>；push 后在 GitHub 网页开 PR 合入 <code>main</code>（有其他成员时请对方 Approve），合并后删除任务分支。</li>
         <li><b>deploy.sh</b>：在服务器运行 <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend | -backend | -all</code>，它用你自己的 GitHub 密钥把 <code>/srv/netsentinel/prod</code> 拉到最新 <code>main</code>，构建，重启服务。</li>
       </ol>
-      <p>实验环境 <code>lab/</code> 也走同一个 PR 流程；合并到 <code>main</code> 后，在自己的开发目录里运行 <code>bash lab/sync-to-srv.sh</code> 把代码同步到运行目录 <code>/srv/netsentinel/lab</code>。具体命令见 <a href="/help/deploy">部署修改</a>。</p>
+      <p>实验环境 <code>lab/</code> 也走同一个 PR 流程；合并到 <code>main</code> 后，运行 <code>bash /srv/netsentinel/lab/sync-to-srv.sh</code> 更新运行目录 <code>/srv/netsentinel/lab</code>。具体命令见 <a href="/help/deploy">部署修改</a>。</p>
       <p>所以下面按顺序做：用你自己的 Linux 账户配 GitHub 密钥（push 和发布时 pull 都用它）→ 从 GitHub 克隆到你的开发目录 → 设置提交身份 → 试一次提交。没 push、没合并到 main 的提交都不会上线。</p>
 
       <h3>第 1 步：在服务器上给你的账户配 GitHub 密钥</h3>
