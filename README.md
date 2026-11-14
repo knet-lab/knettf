@@ -47,7 +47,7 @@ Python 环境有两套，都用 uv 管理：根目录 `pyproject.toml` 是后端
 | `main` | 唯一的长期分支，也是 GitHub 默认分支，线上运行的就是它。**只通过 GitHub 网页 PR 合入**，不直接 push、不 force push。本地 `main` 只用来 `git pull`，不在上面 commit 或 merge |
 | 任务分支 `feat/…`、`fix/…`、`docs/…` | 一件事一个分支，从最新 `main` 建；PR 合并后删除（远端 + 本地） |
 
-仓库是免费组织的私有仓库，GitHub 分支保护不生效，以上规则靠大家遵守。
+仓库是公开仓库，`main` 已开启 GitHub 分支保护（Ruleset）：必须通过 PR 合入，禁止直接 push、force push 和删除。
 
 ## 日常流程
 
@@ -89,7 +89,7 @@ ops/scripts/check.sh backend lab  # 只查部分：backend / frontend / lab / de
 ## 上线
 
 - **平台**：PR 合入 `main` 后，在服务器运行 `/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend | -backend | -all`。它把 `/srv/netsentinel/prod` `git pull` 到最新 `main`，构建、迁移、重启并检查 HTTP 200。线上当前版本：`git -C /srv/netsentinel/prod log --oneline -1`。
-- **实验环境**：本地 `main` 更新后运行 `bash lab/sync-to-srv.sh`（`-n` 先预览），只同步 Git 跟踪的文件，运行目录里的数据不会被覆盖或删除。
+- **实验环境**：PR 合入 `main` 后运行 `bash /srv/netsentinel/lab/sync-to-srv.sh`（`-n` 先看会更新哪些提交）。它在运行目录里 `git pull --ff-only` GitHub 上的 `main`，与你本地检出哪个分支无关；运行目录有已跟踪文件被改过时拒绝更新。数据、`.env`、`.venv`、日志被 `.gitignore` 排除，不会被动到。
 - **回退**：新建任务分支 `git revert <提交>` → PR → 部署。
 
 详细步骤见站内手册（`/help`）。

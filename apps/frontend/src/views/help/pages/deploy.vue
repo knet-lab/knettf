@@ -11,7 +11,7 @@
         <tr><td><code>main</code></td><td><b>只通过 GitHub 网页 PR 合入</b>，不直接 push、不 force push。本地 <code>main</code> 只用来 <code>git pull</code>，不在上面 commit 或 merge</td><td>唯一的长期分支，GitHub 默认分支；线上运行的就是它</td></tr>
         <tr><td>任务分支（<code>feat/…</code>、<code>fix/…</code>、<code>docs/…</code>）</td><td>本人随便 commit / push</td><td>一件事一个分支，从最新 <code>main</code> 建；PR 合并后删除（远端 + 本地）</td></tr>
       </table></div>
-      <div class="note">仓库是免费组织的私有仓库，GitHub 的分支保护（Rulesets）<b>不生效</b>，以上规则靠大家遵守。<b>任何时候都不要用 <code>git push -f</code></b>。动手前先 <code>git status</code>，确认第一行不是 <code>On branch main</code>。</div>
+      <div class="note">仓库是公开仓库，<code>main</code> 已开启 GitHub 分支保护（Ruleset）：必须通过 PR 合入，禁止直接 push、force push 和删除。<b>任何时候都不要用 <code>git push -f</code></b>。动手前先 <code>git status</code>，确认第一行不是 <code>On branch main</code>。</div>
     </section>
 
     <section id="before">
@@ -60,8 +60,8 @@ git fetch --prune                               # 清掉已在网页上删除的
         <div class="res"><div><code>git branch -a</code> 只看到 <code>main</code> 和正在进行的任务分支。</div></div>
       </div>
       <div class="note"><span class="tag tag-k">K</span> 实验环境 <code>lab/</code> 在同一个仓库，走同样的 PR 流程。合并到 <code>main</code> 后，在自己的开发目录里同步到运行目录：<pre><code>cd /home/NEWUSER/github/knettf &amp;&amp; git switch main &amp;&amp; git pull --ff-only
-bash lab/sync-to-srv.sh -n     # 先看会改哪些文件
-bash lab/sync-to-srv.sh</code></pre>只同步 Git 里的文件，运行目录里的数据（<code>dataset/*.csv</code>、<code>logs/</code>、<code>.env</code>、<code>.venv</code>）不会被覆盖或删除。不要直接在 <code>/srv/netsentinel/lab</code> 里改代码。</div>
+bash /srv/netsentinel/lab/sync-to-srv.sh -n     # 先看会更新哪些提交
+bash /srv/netsentinel/lab/sync-to-srv.sh</code></pre>运行目录是一个只检出 <code>lab/</code> 的 Git 工作树（<code>/srv/netsentinel/lab-repo</code>），脚本在里面 <code>git pull --ff-only</code> GitHub 上的 <code>main</code>，与你本地检出哪个分支无关；有已跟踪文件被改过时拒绝更新。运行目录里的数据（<code>dataset/*.csv</code>、<code>logs/</code>、<code>.env</code>、<code>.venv</code>）被 Git 忽略，不会被动到。不要直接在 <code>/srv/netsentinel/lab</code> 里改代码。</div>
     </section>
 
     <section id="script">
