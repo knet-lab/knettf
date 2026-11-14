@@ -33,22 +33,33 @@ flowchart LR
 | `apps/frontend/` | Vue 3 + Vite 前端，包含站内使用手册（`src/views/help/`，访问 `/help`） |
 | `detector/` | 集群内检测器：代码、镜像构建（`build.sh`）、K8s 清单（`k8s/`） |
 | `lab/` | 实验环境：集群部署、Kafka / Vector 清单、发包、采集、数据集、检测评估。见 [lab/README.md](lab/README.md) |
-| `ops/` | 运维：`deploy/`（systemd、cron、sudoers、cloudflared 配置）、`scripts/deploy.sh`（上线）、`scripts/check.sh`（本地检查） |
+| `ops/` | 运维：`deploy/`（systemd、cron、sudoers、cloudflared 配置）、`scripts/deploy.sh`（部署）、`scripts/auto-deploy.sh`（自动部署）、`scripts/check.sh`（检查） |
+| `.github/workflows/` | PR 自动检查（GitHub Actions） |
 | `docs/` | `structure/` 架构文档与图，`lab/` 实验相关说明（特征定义等），`archive/` 旧资料 |
 
 Python 环境有两套，都用 [uv](https://docs.astral.sh/uv/) 管理：根目录的 `pyproject.toml` 是后端的，`lab/pyproject.toml` 是实验脚本的。
 
 ---
 
-## 三个目录，各管一件事
+## 开发空间与运行空间
 
-| 位置 | 用途 | 谁来改 |
-|------|------|--------|
-| `~/github/knettf`（每人自己的 home 下） | 开发：改代码、提交、开 PR | 本人 |
-| `/srv/netsentinel/prod` | 线上平台（knettf.com），systemd 服务 `netsentinel`，端口 8080 | 只由 `deploy.sh` 更新 |
-| `/srv/netsentinel/lab` | 实验脚本的运行目录，数据集、日志、CSV 都在这里 | Git 工作树（`lab-repo/lab` 的软链接），代码只由 `lab/sync-to-srv.sh` 从 GitHub `main` 拉取 |
+| 位置 | 用途 | 怎么更新 |
+|------|------|----------|
+| `~/github/knettf`（每人自己的 home 下） | **开发空间**：改代码、本地调试、提交、推送 | 本人 |
+| `/srv/netsentinel/prod` | **线上平台**（knettf.com），systemd 服务 `netsentinel`，端口 8080 | 自动部署（`deploy.sh`） |
+| `/srv/netsentinel/lab` → `lab-repo/lab` | **实验环境运行目录**，数据集、日志、CSV 都在这里 | 自动部署（`lab/sync-to-srv.sh`） |
 
-**不要在 `/srv/netsentinel/prod` 或 `/srv/netsentinel/lab` 里改代码。** 数据库、`.env`、模型文件（`/srv/netsentinel/models/`）、数据集等都不在 Git 里，只在服务器上。
+三处各是一份独立的 Git 检出，各有自己的 `.venv`。开发空间里怎么改都不影响运行空间，代码只能经 **GitHub 上的 `main`** 流到运行空间：
+
+```mermaid
+flowchart LR
+    DEV["~/github/knettf<br/>开发空间"] -- "git push" --> PR["GitHub PR<br/>自动检查 check.sh"]
+    PR -- "Merge" --> MAIN[("GitHub main")]
+    MAIN -- "定时器拉取<br/>deploy.sh" --> PROD["/srv/netsentinel/prod<br/>knettf.com"]
+    MAIN -- "定时器拉取<br/>sync-to-srv.sh" --> LABD["/srv/netsentinel/lab"]
+```
+
+**不要在 `/srv/netsentinel/prod` 或 `/srv/netsentinel/lab` 里改代码**：部署脚本发现运行目录有改动会拒绝更新。数据库、`.env`、模型文件（`/srv/netsentinel/models/`）、数据集只在服务器上，不在 Git 里。
 
 ---
 
@@ -56,7 +67,7 @@ Python 环境有两套，都用 [uv](https://docs.astral.sh/uv/) 管理：根目
 
 ### 1. 克隆仓库，设置提交身份
 
-每人用自己的 Linux 账户和自己的 GitHub 账号（需已加入 `knet-lab` 组织，服务器上配好自己的 GitHub SSH 密钥）：
+每人用自己的 Linux 账户和 GitHub 账号（需已加入 `knet-lab` 组织，服务器上配好自己的 GitHub SSH 密钥）：
 
 ```bash
 git clone git@github.com:knet-lab/knettf.git ~/github/knettf
@@ -71,11 +82,11 @@ git config user.email "<GitHub 上已验证的邮箱>"
 
 | 文件 | 内容 |
 |------|------|
-| `apps/backend/backend/.env` | 后端配置：`ENVIRONMENT`、`VIGIL_BRIDGE_TOKEN`、`VIGIL_KAFKA_GROUP_ID`（开发环境用 `vigil-bridge-dev`，避免和线上抢 Kafka 分区）等 |
+| `apps/backend/backend/.env` | `ENVIRONMENT=linux_development`、`VIGIL_BRIDGE_TOKEN`、`VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev`（避免和线上抢 Kafka 分区）等 |
 | `apps/frontend/.env` | `VITE_API_BASE`、`VITE_WS_BASE` |
 | `apps/backend/vigil/ml/ads_ml/` | 模型文件（线上在 `/srv/netsentinel/models/ads_ml/`） |
 
-数据库：`default` 是 SQLite（`apps/backend/db.sqlite3`）；`vigil` 是 PostgreSQL，开发时用本机 Docker 容器 `pg`（`127.0.0.1:5432`，库名默认 `vigil_dev`）。
+数据库：`default` 是 SQLite（`apps/backend/db.sqlite3`）；`vigil` 是 PostgreSQL，本机 Docker 容器 `pg`（`127.0.0.1:5432`），开发用库 `vigil_dev`，线上用库 `vigil`（同一个容器，注意别连错）。
 
 ### 3. 启动
 
@@ -91,43 +102,44 @@ pnpm install
 pnpm dev                                                       # 开发前端 :5173，/api、/ws 代理到 :8090
 ```
 
+开发环境和线上互不干扰：端口不同（8090 / 8080）、`vigil` 库不同、Kafka 消费组不同。
+
 ---
 
-## 分支规则
+## 从改代码到上线
 
-| 分支 | 规则 |
-|------|------|
-| `main` | 唯一的长期分支，也是 GitHub 默认分支，线上运行的就是它。**只通过 GitHub 网页 PR 合入**，不直接 push，不 force push。本地 `main` 只用来 `git pull`，不在上面 commit 或 merge |
-| 任务分支 `feat/…`、`fix/…`、`docs/…` | 一件事一个分支，从最新 `main` 建；PR 合并后删除（远端和本地） |
+**你只需要：提交 → 推送 → 网页开 PR → 检查通过后合并。之后服务器自动部署，不用登录做任何操作。**
 
-仓库是公开仓库，`main` 已开启 GitHub 分支保护（Ruleset）：必须通过 PR 合入，禁止直接 push、force push 和删除。动手前先 `git status`，确认第一行不是 `On branch main`。
+### 分支
 
-## 日常流程
+`main` 是唯一的长期分支，线上运行的就是它。仓库是公开的，`main` 开启了 GitHub 分支保护：只能通过 PR 合入，禁止直接 push、force push 和删除。
+
+日常开发用**个人分支** `dev/<名字>`（长期保留），也可以一件事临时建一个任务分支（`feat/…`、`fix/…`，合并后删除）。
+
+### 日常流程
 
 ```bash
-# 1. 从最新 main 建任务分支
-git switch main && git pull origin main
-git switch -c feat/简短说明
+# 1. 开工前，把最新 main 合进自己的分支
+git switch dev/<名字>
+git pull origin main
 
-# 2. 改代码、提交
+# 2. 改代码、提交（可选：本地先跑一遍检查）
 git add -A && git commit -m "模块：说明"
-
-# 3. 把最新 main 合进任务分支，本地检查（冲突在这里解决）
-git switch main && git pull origin main
-git switch feat/简短说明 && git merge main
 ops/scripts/check.sh
 
-# 4. 推送并开 PR：网页上点 Compare & pull request，确认 base: main ← compare: feat/简短说明，
-#    Able to merge → Create pull request →（有其他成员时请对方 Approve）→ Merge pull request → Delete branch
-git push -u origin feat/简短说明
-#    也可以用 gh：gh pr create --base main --fill  ；  gh pr merge --merge --delete-branch
-
-# 5. 同步本地，删除任务分支
-git switch main && git pull origin main
-git branch -d feat/简短说明 && git fetch --prune
+# 3. 推送
+git push
 ```
 
-### 本地检查 `ops/scripts/check.sh`
+4. 在 GitHub 网页上开 PR：点 **Compare & pull request**，确认 `base: main ← compare: dev/<名字>`，**Create pull request**。
+5. PR 页面会自动跑检查（GitHub Actions `check`，约 3 分钟）。✓ 通过后，合并按钮选 **Create a merge commit**（不要选 Squash / Rebase）→ **Merge pull request** → **Confirm merge**。个人分支**不要点 Delete branch**。
+6. 等几分钟，自动上线。看进度：`tail -f /srv/netsentinel/logs/auto-deploy.log`
+
+检查没过：在本地修好、提交、`git push`，PR 会自动更新并重新检查。有冲突：本地 `git pull origin main` 解决冲突后再 push。
+
+### 检查 `ops/scripts/check.sh`
+
+PR 上的自动检查和本地运行的是同一个脚本。GitHub Actions 对公开仓库免费。
 
 ```bash
 ops/scripts/check.sh                     # 全部
@@ -136,59 +148,52 @@ ops/scripts/check.sh backend lab         # 只查部分：backend / frontend / l
 
 | 目标 | 内容 |
 |------|------|
-| `backend` | `uv sync`、`manage.py check`、是否有未生成的迁移、Django 测试（约 4 分钟） |
+| `backend` | `uv sync`、`manage.py check`、是否有未生成的迁移、Django 测试 |
 | `frontend` | `pnpm install`、`pnpm build`（含类型检查） |
 | `lab` | Python、Shell 语法 |
 | `detector` | `detector/`、`ops/` 的 Python、Shell 语法 |
 
-只做静态检查和构建，不连 Kafka、不发包、不改数据库。最后输出 `✓ 全部通过` 才开 PR。
+只做静态检查和构建，不连 Kafka、不发包、不改线上数据库。
+
+### 自动部署
+
+服务器上的 `netsentinel-autodeploy.timer` 每 2 分钟以 `netsentinel` 账户运行 `ops/scripts/auto-deploy.sh`：
+
+1. 发现 GitHub `main` 有新提交，且该提交的检查全部通过；
+2. 按改动路径选择：`apps/backend/`、`pyproject.toml`、`uv.lock` → `deploy.sh -backend`；`apps/frontend/` → `deploy.sh -frontend`；其他（文档、ops）→ `deploy.sh -none`；`lab/` → `sync-to-srv.sh`；
+3. `deploy.sh` 拉取 `main`，执行 `uv sync`、`manage.py check`、`collectstatic`、`migrate`（`default` 库）、`pnpm build`，重启 `netsentinel` 并确认 HTTP 200。
+
+注意：
+
+- **`vigil` 库（PostgreSQL）的迁移不会自动执行**（大表改结构可能很慢），日志里会提示，需手动：
+  `cd /srv/netsentinel/prod/apps/backend && ../../.venv/bin/python manage.py migrate --database=vigil`
+- 检查没通过或部署失败的提交不会上线，也不会反复重试；看日志找原因，修好后合入新的 PR。
+- 合入 `main` 就等于上线。要撤回，在自己的分支上 `git revert <提交>` → PR → 合并，同样会自动部署。
 
 ---
 
-## 上线（自动）
+## 运维
 
-**PR 合入 `main` 后不用手动操作。** 流程：
+| 要做的事 | 命令 |
+|----------|------|
+| 线上当前版本 | `git -C /srv/netsentinel/prod log --oneline -1` |
+| 自动部署日志 / 下次运行时间 | `tail -f /srv/netsentinel/logs/auto-deploy.log` ／ `systemctl list-timers netsentinel-autodeploy.timer` |
+| 服务状态、日志 | `sudo systemctl status netsentinel` ／ `sudo journalctl -u netsentinel -n 200 -f` |
+| 重启后端 | `sudo systemctl restart netsentinel` |
+| knettf.com 打不开（隧道） | `sudo systemctl status cloudflared-knettf`，必要时 `restart` |
+| 手动部署平台 | `/srv/netsentinel/prod/ops/scripts/deploy.sh -backend`（或 `-frontend` / `-all` / `-none`） |
+| 手动更新实验环境 | `bash /srv/netsentinel/lab/sync-to-srv.sh`（`-n` 先预览） |
+| 立即触发一次自动部署 | `sudo systemctl start netsentinel-autodeploy.service` |
 
-1. 每个 PR 和 `main` 的每次提交都由 GitHub Actions（`.github/workflows/check.yml`）跑 `ops/scripts/check.sh`，结果显示在 PR 页面上。
-2. 服务器上的 `netsentinel-autodeploy.timer` 每 2 分钟运行 `ops/scripts/auto-deploy.sh`（`netsentinel` 账户）：发现 `main` 有新提交、且该提交的检查全部通过后，按改动路径自动执行下面的 `deploy.sh -backend` / `-frontend` / `-none` 和 `sync-to-srv.sh`。
-3. 合并后约 5～10 分钟上线（等检查跑完 + 下一轮定时器）。
+上面的 `sudo` 命令免密码，需要账户在 `netsentinel` 组里（`id` 查看），规则见 `ops/deploy/sudoers.netsentinel`。每天 0 点 cron 运行 `rotate_partitions` 滚动 `vigil` 分区（`ops/deploy/cron.netsentinel`）。
 
-```bash
-tail -f /srv/netsentinel/logs/auto-deploy.log            # 部署日志
-systemctl list-timers netsentinel-autodeploy.timer         # 下次运行时间
-```
-
-- 检查没通过或部署失败的提交不会上线，也不会反复重试；日志里有原因，修好后合入新的 PR 即可。
-- `vigil` 库（PostgreSQL）的迁移**仍需手动执行**，日志里会提示。
-- 安装（只需一次，需 sudo）：`sudo cp ops/deploy/systemd/netsentinel-autodeploy.{service,timer} /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now netsentinel-autodeploy.timer`。它用 `/srv/netsentinel/tools/` 里的 uv 和 node。
-
-下面两个脚本是自动部署调用的，也可以手动运行（例如自动部署失败后排查）。
-
-**平台**（手动，账户需在 `netsentinel` 组里）：
-
-```bash
-/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend    # 或 -backend / -all / -none
-```
-
-它在 `/srv/netsentinel/prod` 里 `git pull --ff-only` 到最新 `main`，然后按参数执行 `uv sync`、`manage.py check`、`collectstatic`、`migrate`（只迁移 `default` 库；`vigil` 库有未执行的迁移时只提示，需手动执行）、`pnpm build`，重启 `netsentinel` 并确认返回 HTTP 200。
-
-- 线上当前版本：`git -C /srv/netsentinel/prod log --oneline -1`
-- 回退：新建任务分支 `git revert <提交>` → PR → 部署
-
-**实验环境**（手动）：
-
-```bash
-bash /srv/netsentinel/lab/sync-to-srv.sh -n    # 先看会更新哪些提交
-bash /srv/netsentinel/lab/sync-to-srv.sh
-```
-
-它在运行目录里 `git pull --ff-only` GitHub 上的 `main`，与你本地检出哪个分支无关；运行目录里有已跟踪文件被改过时拒绝更新。数据、`.env`、`.venv`、日志被 Git 忽略，不会被动到。
+服务器上的部署配置都在 `ops/deploy/`：`netsentinel.service`（平台）、`cloudflared-knettf.service`（隧道）、`netsentinel-autodeploy.{service,timer}`（自动部署，用 `/srv/netsentinel/tools/` 里的 uv 和 node）。改了这些文件需要手动复制到 `/etc/systemd/system/` 并 `sudo systemctl daemon-reload`。
 
 ---
 
 ## 不进仓库的内容
 
-数据集与 CSV、日志、`.env`、数据库文件、模型文件、`node_modules/`、`dist/`、`.venv/` 都由 `.gitignore`、`lab/.gitignore` 排除。提交前看一眼 `git status`，不要用 `git add -f` 强行加入。
+数据集与 CSV、日志、`.env`、数据库文件、模型文件、`node_modules/`、`dist/`、`.venv/` 都由 `.gitignore`、`lab/.gitignore` 排除。提交前看一眼 `git status`，不要用 `git add -f` 强行加入。仓库是公开的，**不要提交任何密码、token、密钥**。
 
 ## 更多文档
 
