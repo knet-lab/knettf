@@ -1,0 +1,46 @@
+name: check
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vigil
+          POSTGRES_PASSWORD: vigil123
+          POSTGRES_DB: vigil_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vigil" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ENVIRONMENT: ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.27.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+      - name: ops/scripts/check.sh
+        run: ops/scripts/check.sh

@@ -145,12 +145,29 @@ ops/scripts/check.sh backend lab         # 只查部分：backend / frontend / l
 
 ---
 
-## 上线
+## 上线（自动）
 
-**平台**：PR 合入 `main` 后，在服务器上运行（账户需在 `netsentinel` 组里）：
+**PR 合入 `main` 后不用手动操作。** 流程：
+
+1. 每个 PR 和 `main` 的每次提交都由 GitHub Actions（`.github/workflows/check.yml`）跑 `ops/scripts/check.sh`，结果显示在 PR 页面上。
+2. 服务器上的 `netsentinel-autodeploy.timer` 每 2 分钟运行 `ops/scripts/auto-deploy.sh`（`netsentinel` 账户）：发现 `main` 有新提交、且该提交的检查全部通过后，按改动路径自动执行下面的 `deploy.sh -backend` / `-frontend` / `-none` 和 `sync-to-srv.sh`。
+3. 合并后约 5～10 分钟上线（等检查跑完 + 下一轮定时器）。
 
 ```bash
-/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend    # 或 -backend / -all
+tail -f /srv/netsentinel/logs/auto-deploy.log            # 部署日志
+systemctl list-timers netsentinel-autodeploy.timer         # 下次运行时间
+```
+
+- 检查没通过或部署失败的提交不会上线，也不会反复重试；日志里有原因，修好后合入新的 PR 即可。
+- `vigil` 库（PostgreSQL）的迁移**仍需手动执行**，日志里会提示。
+- 安装（只需一次，需 sudo）：`sudo cp ops/deploy/systemd/netsentinel-autodeploy.{service,timer} /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now netsentinel-autodeploy.timer`。它用 `/srv/netsentinel/tools/` 里的 uv 和 node。
+
+下面两个脚本是自动部署调用的，也可以手动运行（例如自动部署失败后排查）。
+
+**平台**（手动，账户需在 `netsentinel` 组里）：
+
+```bash
+/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend    # 或 -backend / -all / -none
 ```
 
 它在 `/srv/netsentinel/prod` 里 `git pull --ff-only` 到最新 `main`，然后按参数执行 `uv sync`、`manage.py check`、`collectstatic`、`migrate`（只迁移 `default` 库；`vigil` 库有未执行的迁移时只提示，需手动执行）、`pnpm build`，重启 `netsentinel` 并确认返回 HTTP 200。
@@ -158,7 +175,7 @@ ops/scripts/check.sh backend lab         # 只查部分：backend / frontend / l
 - 线上当前版本：`git -C /srv/netsentinel/prod log --oneline -1`
 - 回退：新建任务分支 `git revert <提交>` → PR → 部署
 
-**实验环境**：PR 合入 `main` 后更新运行目录：
+**实验环境**（手动）：
 
 ```bash
 bash /srv/netsentinel/lab/sync-to-srv.sh -n    # 先看会更新哪些提交

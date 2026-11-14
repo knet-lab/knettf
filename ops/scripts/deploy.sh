@@ -4,6 +4,7 @@
 #   -frontend  pnpm install + pnpm build → 重启 netsentinel（WhiteNoise 启动时才扫描 dist）
 #   -backend   uv sync → manage.py check → collectstatic → migrate(default) → 重启 netsentinel → 检查 8080
 #   -all       两者都做（先后端，再前端）
+#   -none      只拉代码并重启（改动不涉及前后端构建时，如文档、ops）
 # 生产目录是 /srv/netsentinel/prod（netsentinel 账户运行的系统服务），只部署 GitHub 上的 main：
 # 任务分支 → 网页 PR 合入 main → 运行本脚本，它在生产目录 git pull main 后再构建/重启。
 # 运行者须在 netsentinel 组（id 能看到），git pull 用运行者自己的 GitHub 密钥。
@@ -18,7 +19,7 @@ SERVICE=netsentinel
 PORT=8080
 
 usage() {
-  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -37,6 +38,7 @@ for arg in "$@"; do
     -frontend|--frontend) DO_FRONTEND=1 ;;
     -backend|--backend)   DO_BACKEND=1 ;;
     -all|--all)           DO_FRONTEND=1; DO_BACKEND=1 ;;
+    -none|--none)         ;;
     -h|--help)            usage 0 ;;
     *) printf '未知参数: %s\n\n' "$arg" >&2; usage 1 ;;
   esac
