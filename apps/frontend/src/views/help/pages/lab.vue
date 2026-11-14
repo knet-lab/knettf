@@ -88,7 +88,7 @@ tail -f send.log read.log</code></pre>
         <tr><td><code>run.sh 1|2|3</code></td><td>先后台启动 <code>monitor/monitor.py --mode N</code>，2 秒后跑 <code>simulate_N.py</code>（输出到 <code>monitor/send.log</code>），等 monitor 生成报告</td></tr>
         <tr><td><code>monitor/monitor.py</code></td><td>连 <code>ws://localhost:8080/ws/vigil/</code> 收检测结果，与 send.log 对比，输出 <code>monitor_report_N.txt</code>、<code>monitor_detail_N.csv</code></td></tr>
       </table></div>
-      <div class="danger">后端<b>没有</b> <code>ws/vigil/</code> 这个路由（只有 <code>ws/detector/push/</code> 和 Pod 日志），所以 <code>run.sh</code> 的 monitor 目前连不上、拿不到结果。评估改用 SQL 或 REST：<br>
+      <div class="danger">后端<b>没有</b> <code>ws/vigil/</code> 这个路由（只有保留未用的 <code>ws/detector/push/</code> 和 Pod 日志），所以 <code>run.sh</code> 的 monitor 目前连不上、拿不到结果。评估改用 SQL 或 REST：<br>
         <code>docker exec pg psql -U vigil vigil -c "select src_ip, is_attack, attack_type, count(*) from vigil_detectionrecord where created_at &gt; now() - interval '5 min' group by 1,2,3 order by 4 desc;"</code></div>
 <pre class="on-dev"><code><span class="c"># 在线仿真（结果用上面的 SQL 看）</span>
 cd /srv/netsentinel/lab &amp;&amp; sudo .venv/bin/python3 simulation/simulate_3.py

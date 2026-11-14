@@ -32,9 +32,7 @@ flowchart LR
         HUB["Hubble Relay :4245"]
         VEC["Vector DaemonSet<br/>每节点 hubble observe"]
         KAF[("Kafka KRaft<br/>1 controller + 4 broker<br/>topic: ebpf-net-logs")]
-        DET["detector Pod<br/>（可选）"]
         SVC --> CIL --> HUB --> VEC --> KAF
-        KAF --> DET
     end
 
     GEN -- "伪造源 IP 发包<br/>virbr-k8s 192.168.100.0/24" --> SVC
@@ -42,7 +40,6 @@ flowchart LR
     KAF -- "kubectl exec<br/>kafka-console-consumer" --> BRG
     KAF -- "外部 listener :9094<br/>vigil/ingest/bridge.py" --> NS
     BRG -- "POST /api/vigil/detect/batch/" --> NS
-    DET -- "ws/detector/push/" --> NS
     NS -- "GET /api/vigil/records/" --> MON
 ```
 
@@ -178,7 +175,6 @@ kubectl apply -f cluster/targets.yaml
 
 其他：
 
-- `../detector/k8s/detector-deployment.yaml`：在 `netsentinel` 命名空间部署 `soar009/netsentinel-detector`，消费 `ebpf-net-logs`，结果经 WebSocket 推到 `ws://knettf.com:8080/ws/detector/push/`（`knettf.com` 通过 hostAliases 指向宿主机 `192.168.100.1`）。需先创建 Secret `detector-secret`（key `django-token`）
 - `cluster/my-nginx-ingress.yaml`：my-nginx 的 Ingress（需要 nginx ingress controller）
 
 ### 4.5 部署验证
@@ -248,7 +244,7 @@ lab/
 └── sync-to-srv.sh
 ```
 
-检测器的 K8s 清单在仓库的 `detector/k8s/`，特征说明等文档在 `docs/lab/`。
+特征说明等文档在 `docs/lab/`。检测只在平台后端做，集群不跑模型。
 
 ### 6.1 `traffic/` — 发包
 
@@ -332,7 +328,6 @@ sudo NETSENTINEL_TOKEN=<JWT> bash simulation/run.sh [1|2|3]
 |------|--------|
 | `POST /api/vigil/detect/batch/`（JWT） | `collect/vigil_bridge.py` |
 | `GET /api/vigil/records/`（JWT，支持 `time_from`/`limit`/`offset`） | `simulation/monitor/monitor.py` |
-| `ws/detector/push/`（Bearer = 后端 `VIGIL_BRIDGE_TOKEN`） | `../detector/k8s/detector-deployment.yaml` 中的检测器 Pod |
 | Python 模块 `vigil.services` | `simulation/simulate_4.py` |
 
 后端已不再提供 `ws/vigil/` WebSocket 推送（NetSentinel 原仓库提交 bf011ca 删除），检测结果只能从数据库 / `records` 接口读取。
@@ -342,7 +337,7 @@ sudo NETSENTINEL_TOKEN=<JWT> bash simulation/run.sh [1|2|3]
 - `VIGIL_MODELS`：要加载的模型类列表，默认 `vigil.detection.ads_ml.AdsMLModel`
 - `VIGIL_ADS_ML_CONFIG`：AdsMLModel 的配置文件，默认 `/srv/netsentinel/models/ads_ml/current/config.yaml`；模型目录在启动时解析软链接，切换版本需重启后端
 - `VIGIL_KAFKA_GROUP_ID`：后端自带的 Kafka 消费桥（`vigil/ingest/bridge.py`，随后端启动）使用的 consumer group，默认 `vigil-bridge`
-- `VIGIL_BRIDGE_TOKEN`：`ws/detector/push/` 的认证 token
+- `VIGIL_BRIDGE_TOKEN`：`vigil-bridge` 服务账号的长期 JWT（`collect/vigil_bridge.py` 等脚本调用 REST 用）；也是保留未用的 `ws/detector/push/` 的认证 token
 
 ---
 

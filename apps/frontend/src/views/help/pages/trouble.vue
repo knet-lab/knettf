@@ -57,7 +57,6 @@
         <tr><td>分区轮转</td><td><code>/srv/netsentinel/logs/rotate_partitions.log</code>（重启后清空）</td><td><code>rotate_partitions done</code></td></tr>
         <tr><td>PostgreSQL</td><td><code>docker logs --tail 100 pg</code></td><td></td></tr>
         <tr><td>Vector / Kafka / hubble-relay</td><td><code>kubectl -n kube-system logs -l app=vector --tail=50</code>；<code>kubectl logs kafka-broker-0</code>；<code>kubectl -n kube-system logs deploy/hubble-relay</code></td><td></td></tr>
-        <tr><td>入口 B 检测器</td><td><code>kubectl -n netsentinel logs deploy/netsentinel-detector -f</code></td><td><code>connected to Django</code></td></tr>
         <tr><td>knetsentinel 脚本</td><td><code>/srv/netsentinel/lab/logs/</code>、<code>/srv/netsentinel/lab/collect/*.log</code>、<code>/srv/netsentinel/lab/replay/*.log</code>、<code>/srv/netsentinel/lab/simulation/monitor/send.log</code></td><td></td></tr>
       </table></div>
     </section>

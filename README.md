@@ -15,11 +15,9 @@ flowchart LR
         KAF[("Kafka<br/>ebpf-net-logs")]
         TR --> CIL -- "Vector" --> KAF
     end
-    DET["detector/<br/>集群内检测器（可选）"]
     BE["apps/backend<br/>Django · vigil / kcore / autotf"]
     FE["apps/frontend<br/>Vue · 站内手册 /help"]
     KAF -- "vigil/ingest/bridge.py" --> BE
-    KAF --> DET -- "ws/detector/push/" --> BE
     FE -- "REST / WebSocket" --> BE
 ```
 
@@ -31,11 +29,10 @@ flowchart LR
 |------|------|
 | `apps/backend/` | Django 后端。`vigil`：检测（Kafka 消费、模型、检测记录 API）；`kcore`：用户与集群管理；`autotf`：Terraform 配置扫描；`common`：公共工具 |
 | `apps/frontend/` | Vue 3 + Vite 前端，包含站内使用手册（`src/views/help/`，访问 `/help`） |
-| `detector/` | 集群内检测器：代码、镜像构建（`build.sh`）、K8s 清单（`k8s/`） |
 | `lab/` | 实验环境：集群部署、Kafka / Vector 清单、发包、采集、数据集、检测评估。见 [lab/README.md](lab/README.md) |
 | `ops/` | 运维：`deploy/`（systemd、cron、sudoers、cloudflared 配置）、`scripts/deploy.sh`（部署）、`scripts/auto-deploy.sh`（自动部署）、`scripts/check.sh`（检查） |
 | `.github/workflows/` | PR 自动检查（GitHub Actions） |
-| `docs/` | `structure/` 架构文档与图，`lab/` 实验相关说明（特征定义等），`archive/` 旧资料 |
+| `docs/` | `structure/` 架构文档与图，`lab/` 实验相关说明（特征定义等），`archive/` 旧资料（含已停用的集群内检测器 `detector/`） |
 
 Python 环境有两套，都用 [uv](https://docs.astral.sh/uv/) 管理：根目录的 `pyproject.toml` 是后端的，`lab/pyproject.toml` 是实验脚本的。
 
@@ -132,7 +129,7 @@ cd apps/frontend && pnpm install && pnpm dev              # 前端 :5173（另�
 PR 上的自动检查跑的就是这个脚本，本地先跑能更早发现问题：
 
 ```bash
-ops/scripts/check.sh                 # 全部：backend / frontend / lab / detector
+ops/scripts/check.sh                 # 全部：backend / frontend / lab / ops
 ops/scripts/check.sh frontend        # 只查一部分
 ```
 

@@ -9,7 +9,7 @@
       <p>整个系统的很多地方按 IP 段做判断，先把这张表记住：</p>
       <div class="table-wrap"><table>
         <tr><th>地址</th><th>是谁</th><th>谁定的</th><th>哪里依赖它</th></tr>
-        <tr><td><code>.1</code></td><td>宿主机在网桥 virbr-k8s 上的地址（网关）</td><td>01 脚本</td><td>bridge 过滤（基础设施）；入口 B 的 WS 地址；VM 出网 NAT</td></tr>
+        <tr><td><code>.1</code></td><td>宿主机在网桥 virbr-k8s 上的地址（网关）</td><td>01 脚本</td><td>bridge 过滤（基础设施）；VM 出网 NAT</td></tr>
         <tr><td><code>.10</code></td><td>k8s-master（API <code>:6443</code>）</td><td>01：MAC <code>52:54:00:10:00:01</code> 绑定</td><td>kubeconfig；Cilium <code>k8sServiceHost</code></td></tr>
         <tr><td><code>.11 ~ .14</code></td><td>k8s-node1 ~ node4</td><td>01：MAC <code>52:54:00:1N:00:01</code></td><td>攻击脚本目标</td></tr>
         <tr><td><code>.16 ~ .29</code></td><td>伪造攻击源（<code>.20-.29</code> 实际使用）</td><td><code>traffic/spoof_attack.py</code>、<code>handle_addr.py</code></td><td>bridge 打标签 label=1</td></tr>
