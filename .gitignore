@@ -50,8 +50,8 @@ __pycache__/
 *.py[cod]
 db.sqlite3*
 *.sqlite3
-backend/staticfiles/
-backend/media/
+apps/backend/staticfiles/
+apps/backend/media/
 
 
 # normal
