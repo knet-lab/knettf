@@ -7,10 +7,10 @@
       <h2>8.1 两个数据库与路由</h2>
       <div class="table-wrap"><table>
         <tr><th>别名</th><th>引擎</th><th>位置</th><th>存放</th><th>连接方式</th></tr>
-        <tr><td><code>default</code></td><td>SQLite</td><td><code>backend/db.sqlite3</code>（线上 <code class="vp">/srv/netsentinel/prod/backend/</code>，开发 <code class="vn">/home/NEWUSER/github/NetSentinel/backend/</code>，互不相通）</td><td>kcore、autotf、Django 内置（auth、admin、session、contenttypes、migrations）</td><td><code>sqlite3 backend/db.sqlite3</code></td></tr>
+        <tr><td><code>default</code></td><td>SQLite</td><td><code>apps/backend/db.sqlite3</code>（线上 <code class="vp">/srv/netsentinel/prod/apps/backend/</code>，开发 <code class="vn">/home/NEWUSER/github/knettf/backend/</code>，互不相通）</td><td>kcore、autotf、Django 内置（auth、admin、session、contenttypes、migrations）</td><td><code>sqlite3 apps/backend/db.sqlite3</code></td></tr>
         <tr><td><code>vigil</code></td><td>PostgreSQL</td><td>Docker 容器 <code>pg</code>，127.0.0.1:5432，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>（线上的副本，开发随便用），用户 <code>vigil</code> / 密码 <code>vigil123</code>；用哪个库由 .env 的 <code>VIGIL_DB_NAME</code> 决定</td><td>只有 <code>vigil_detectionrecord</code>（分区表）</td><td><code>docker exec -it pg psql -U vigil vigil</code></td></tr>
       </table></div>
-      <p>路由规则（<code>backend/backend/db_router.py AppRouter</code>）：</p>
+      <p>路由规则（<code>apps/backend/backend/db_router.py AppRouter</code>）：</p>
       <ul>
         <li>读写：<code>kcore → default</code>，<code>vigil → vigil</code>，其他 app（autotf、auth…）返回 None，即落到 <code>default</code>。</li>
         <li>迁移：vigil 的迁移只在 <code>vigil</code> 库执行，其余只在 <code>default</code> 执行。所以要分别执行 <code>migrate</code> 和 <code>migrate --database=vigil</code>。</li>
@@ -94,7 +94,7 @@
         <tr><td><code>id</code></td><td>AutoField PK</td><td>URL 中的 <code>config_pk</code></td></tr>
         <tr><td><code>owner_id</code></td><td>FK → kcore_user，CASCADE</td><td>(owner, name) 唯一</td></tr>
         <tr><td><code>name</code></td><td>varchar(255)</td><td>配置名</td></tr>
-        <tr><td><code>file</code></td><td>FileField(upload_to='terraform/')</td><td>相对路径，实际文件在 <code>backend/terraform/</code>（<code>MEDIA_ROOT</code> 未设置，相对于服务的 WorkingDirectory）</td></tr>
+        <tr><td><code>file</code></td><td>FileField(upload_to='terraform/')</td><td>相对路径，实际文件在 <code>apps/backend/terraform/</code>（<code>MEDIA_ROOT</code> 未设置，相对于服务的 WorkingDirectory）</td></tr>
         <tr><td><code>is_scanned</code></td><td>bool</td><td>最近一次扫描成功后为 True；扫描开始时置 False</td></tr>
         <tr><td><code>created_at</code> · <code>updated_at</code></td><td>datetime</td><td></td></tr>
         <tr><td><code>last_apply_at</code></td><td>datetime 可空</td><td>最近一次 apply 时间</td></tr>
@@ -196,7 +196,7 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
 
     <section id="features">
       <h2>8.6 35 个流特征（检测输入）</h2>
-      <p>一条“流”= 一个 Kafka 消费批次内同一五元组 <code>(src_ip, dst_ip, src_port, dst_port, protocol)</code> 的全部 Hubble 事件。字段在以下五处必须一致：<code>K dataset/aggregate_flows.py</code>、<code>K kafka/vigil_bridge.py</code>、<code>N vigil/bridge.py compute_flow()</code>、<code>N vigil/serializers.py FlowInputSerializer</code>、<code>N vigil/ml/models/base.py DetectionInput</code>（以及 <code>detector/detector.py</code>）。</p>
+      <p>一条“流”= 一个 Kafka 消费批次内同一五元组 <code>(src_ip, dst_ip, src_port, dst_port, protocol)</code> 的全部 Hubble 事件。字段在以下五处必须一致：<code>K dataset/aggregate_flows.py</code>、<code>K lab/collect/vigil_bridge.py</code>、<code>N vigil/bridge.py compute_flow()</code>、<code>N vigil/serializers.py FlowInputSerializer</code>、<code>N vigil/ml/models/base.py DetectionInput</code>（以及 <code>detector/detector.py</code>）。</p>
       <p>“模型使用”列：OCSVM 流水线实际只用 28 列；标“常量剔除”的列在训练集中恒定，被 <code>constant_cols</code> 去掉。</p>
       <div class="table-wrap"><table>
         <tr><th>#</th><th>字段</th><th>类型</th><th>计算方式（<code>compute_flow</code>）</th><th>模型使用</th></tr>
@@ -290,8 +290,8 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
         <tr><td><code>dataset/dataset.csv</code>、<code>dataset_v1.csv</code></td><td>包级</td><td><code>timestamp, verdict, direction, summary, src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, is_reply, trace_reason, label</code></td><td><code>dataset_collector.py</code> / <code>kafka_read_csv.py</code></td></tr>
         <tr><td><code>flows*.csv</code></td><td>流级</td><td>上表 35 特征 + label</td><td><code>aggregate_flows.py -i dataset.csv -o flows.csv -t 5</code>（5 秒超时窗口）</td></tr>
         <tr><td><code>simulation/simulate4.csv</code></td><td>流级</td><td>35 特征 + 攻击类型标签</td><td><code>gen_simulate4_csv.py</code> 合并 <code>test set_20000.csv</code> 与 <code>20000_test_attack_label.csv</code></td></tr>
-        <tr><td><code>traffic_request/read_result.csv</code></td><td>包级</td><td>同 dataset</td><td><code>start_read.sh</code></td></tr>
-        <tr><td><code>traffic_request/record_send_uuid.txt</code></td><td>每行一个 JSON</td><td>每条重放 flow 的发送记录</td><td><code>start_send.sh</code></td></tr>
+        <tr><td><code>lab/replay/read_result.csv</code></td><td>包级</td><td>同 dataset</td><td><code>start_read.sh</code></td></tr>
+        <tr><td><code>lab/replay/record_send_uuid.txt</code></td><td>每行一个 JSON</td><td>每条重放 flow 的发送记录</td><td><code>start_send.sh</code></td></tr>
         <tr><td><code>simulation/monitor/monitor_report_&lt;mode&gt;.txt</code>、<code>monitor_detail_&lt;mode&gt;.csv</code></td><td>—</td><td>混淆矩阵、Accuracy / Precision / Recall / F1</td><td><code>simulation/run.sh</code></td></tr>
       </table></div>
     </section>

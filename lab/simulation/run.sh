@@ -5,7 +5,7 @@
 set -e
 cd "$(dirname "$0")"
 
-PYTHON=/srv/netsentinel/knetsentinel/.venv/bin/python3
+PYTHON="$(pwd)/../.venv/bin/python3"   # lab/.venv
 
 MODE=${1:-}
 if [[ -z "$MODE" ]]; then

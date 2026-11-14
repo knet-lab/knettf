@@ -10,7 +10,7 @@
         <li>GitHub：knet-lab 组织里保持至少两个 Owner，离开者移出前确认其余 Owner 已在（<a href="/help/prepare#github">入门 2.2</a>）。</li>
         <li>Cloudflare：knettf.com 和隧道在原作者的 Cloudflare 账号里，要把留下的人加为成员（Manage Account → Members）。</li>
         <li>Tailscale：tailnet 属于原作者，要么邀请留下的人，要么改用留下的人自己的 tailnet（<a href="/help/prepare#user">入门 2.1</a>）。</li>
-        <li>当面移交：网页管理员账号、<code>/srv/netsentinel/prod/backend/backend/.env</code>（SECRET_KEY、VIGIL_BRIDGE_TOKEN）、PostgreSQL 密码（vigil 用户，当前是 <code>settings.py</code> 里的默认值）。</li>
+        <li>当面移交：网页管理员账号、<code>/srv/netsentinel/prod/apps/backend/backend/.env</code>（SECRET_KEY、VIGIL_BRIDGE_TOKEN）、PostgreSQL 密码（vigil 用户，当前是 <code>settings.py</code> 里的默认值）。</li>
         <li>锁定离开者的账户。NetSentinel 线上不在任何个人账户下，锁谁都不影响它；但 soar009 下还跑着 my-code 的服务和隧道，锁 soar009（或关 linger）会把它们一起停掉，要先确认 my-code 怎么处理：
           <pre><code>sudo usermod -L 用户名              # 只锁密码；密钥登录要另外删 /home/用户名/.ssh/authorized_keys
 sudo gpasswd -d 用户名 sudo</code></pre></li>

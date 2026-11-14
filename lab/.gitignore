@@ -1,34 +1,14 @@
-# Python-generated files
+# lab/ 专用忽略规则（根目录 .gitignore 另有通用规则）
 __pycache__/
 *.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv
-.venv312/
-
-# 编辑器 / 本地工具
-.vscode/
-.claude
-
+.venv/
 .env
 
-# 数据与运行产物（不进仓库）
-dataset/
+# 数据与运行产物（只放在运行目录 /srv/netsentinel/lab，不进仓库）
 logs/
-docs/
 *.csv
 *.log
 *.pid
 *.done
-traffic_request/record_send_uuid.txt
-
-# cluster-setup：只纳入在用的 targets.yaml、host-firewall-ccnp.yaml；minikube 旧脚本不纳入
-cluster-setup/*
-!cluster-setup/targets.yaml
-!cluster-setup/host-firewall-ccnp.yaml
-traffic_scripts
+replay/record_send_uuid.txt
 simulation/monitor/monitor_report_*.txt

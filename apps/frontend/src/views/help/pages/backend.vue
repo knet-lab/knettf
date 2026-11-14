@@ -2,12 +2,12 @@
   <div v-pre>
         <h1>3 后端代码</h1>
     <div class="meta">读完你能：说出一个 HTTP 请求在后端经过的每一步，读懂三个应用的每个文件，会跑管理命令、加接口、改数据库结构。<br>
-      代码根目录 <code class="vn">/home/NEWUSER/github/NetSentinel/backend/</code>（开发），线上运行的是 <code class="vp">/srv/netsentinel/prod/backend/</code>（见 <a href="/help/index#envs">开发与生产</a>）。<code>manage.py</code> 命令在对应目录里用 <code>../.venv/bin/python manage.py ...</code> 执行：调试、生成迁移在 <code class="vn">/home/NEWUSER/github/NetSentinel</code>；操作线上数据（改密码、补分区）在 <code class="vp">/srv/netsentinel/prod</code>。逐个接口的参数与响应示例见 <a href="/help/api">API 逐接口</a>，表字段见 <a href="/help/db">数据库与模型字段</a>。</div>
+      代码根目录 <code class="vn">/home/NEWUSER/github/knettf/backend/</code>（开发），线上运行的是 <code class="vp">/srv/netsentinel/prod/apps/backend/</code>（见 <a href="/help/index#envs">开发与生产</a>）。<code>manage.py</code> 命令在对应目录里用 <code>../.venv/bin/python manage.py ...</code> 执行：调试、生成迁移在 <code class="vn">/home/NEWUSER/github/knettf</code>；操作线上数据（改密码、补分区）在 <code class="vp">/srv/netsentinel/prod</code>。逐个接口的参数与响应示例见 <a href="/help/api">API 逐接口</a>，表字段见 <a href="/help/db">数据库与模型字段</a>。</div>
 
     <section id="django">
       <h2>3.1 Django 五分钟入门（只讲本项目用到的）</h2>
       <dl class="terms">
-        <dt>project</dt><dd><code>backend/backend/</code>：全局配置（settings、总路由、ASGI 入口）。</dd>
+        <dt>project</dt><dd><code>apps/backend/backend/</code>：全局配置（settings、总路由、ASGI 入口）。</dd>
         <dt>app</dt><dd>一个功能模块，本项目有 <code>kcore</code>、<code>autotf</code>、<code>vigil</code>，外加共享代码 <code>common</code>（不是 app，只是包）。</dd>
         <dt>models.py</dt><dd>数据表定义。一个类 = 一张表，表名默认 <code>&lt;app&gt;_&lt;类名小写&gt;</code>，如 <code>kcore_kubecluster</code>。</dd>
         <dt>migrations/</dt><dd>表结构变更脚本。改了 models 后 <code>makemigrations</code> 生成，<code>migrate</code> 执行。</dd>
@@ -25,7 +25,7 @@
       <h2>3.2 进程是怎么起来的</h2>
 <ol>
         <li><b>systemd 启动</b>：<code>/etc/systemd/system/netsentinel.service</code> 以 <code>netsentinel</code> 账户、工作目录 <code class="vp">/srv/netsentinel/prod</code><code>/backend</code> 运行 <code class="vp">/srv/netsentinel/prod</code><code>/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080</code>。<code>Restart=always</code>，<code>MemoryMax=3G</code>，<code>TasksMax=500</code>。</li>
-        <li><b>uvicorn 导入 <code>backend/asgi.py</code></b>：设置 <code>DJANGO_SETTINGS_MODULE=backend.settings</code>，调用 <code>django.setup()</code>。</li>
+        <li><b>uvicorn 导入 <code>apps/backend/asgi.py</code></b>：设置 <code>DJANGO_SETTINGS_MODULE=backend.settings</code>，调用 <code>django.setup()</code>。</li>
         <li><b>读配置</b>：<code>settings.py</code> 读取 <code class="vp">/srv/netsentinel/prod</code><code>/backend/backend/.env</code>（<code>DEBUG=False</code>、<code>SECRET_KEY</code>、<code>VIGIL_DB_NAME=vigil</code>、<code>VIGIL_ADS_ML_CONFIG</code> …）。</li>
         <li><b>启动 bridge</b>：加载 INSTALLED_APPS 时调用 <code>vigil/apps.py</code> 的 <code>ready()</code>；<code>_should_start_bridge()</code> 看到进程是 uvicorn，就 <code>bridge.start()</code> 起两个守护线程 vigil-bridge、vigil-drainer（见 <a href="/help/detect">4 检测链路与模型</a>）。</li>
         <li><b>加载模型</b>：导入 <code>vigil/ml/models/registry.py</code> 时按 <code>VIGIL_MODELS</code> 实例化模型，日志 <code>AdsMLModel loaded from ...</code>。</li>
@@ -39,16 +39,16 @@
       <h2>3.3 settings.py 逐项</h2>
       <div class="table-wrap"><table>
         <tr><th>设置</th><th>当前值</th><th>说明 / 风险</th></tr>
-        <tr><td><code>env.read_env(...)</code></td><td><code>backend/backend/.env</code></td><td>真正被读取的 .env，开发和线上各一份，不进 Git。仓库根目录那个 <code>.env</code> 不会被读。下面标“env”的设置都从这里读，没写就用默认值（默认值 = 开发配置）</td></tr>
+        <tr><td><code>env.read_env(...)</code></td><td><code>apps/backend/backend/.env</code></td><td>真正被读取的 .env，开发和线上各一份，不进 Git。仓库根目录那个 <code>.env</code> 不会被读。下面标“env”的设置都从这里读，没写就用默认值（默认值 = 开发配置）</td></tr>
         <tr><td><code>SECRET_KEY</code></td><td>env；默认是代码里那个 insecure key</td><td>JWT 签名也用它。线上 .env 里是单独生成的随机值；换掉它会让所有已登录用户的 token 失效</td></tr>
         <tr><td><code>DEBUG</code></td><td>env；默认 <code>True</code>，线上 <code>False</code></td><td>开着时出错返回带源码的调试页。关掉后 WhiteNoise 只在启动时扫描 dist，所以前端构建后要重启（<code>deploy.sh</code> 会做）</td></tr>
         <tr><td><code>ALLOWED_HOSTS</code></td><td>env；默认 <code>["*"]</code>，线上 <code>knettf.com,localhost,127.0.0.1,192.168.100.1</code></td><td>用别的域名 / IP 访问线上会返回 400，要加进 .env 并重启</td></tr>
         <tr><td><code>INSTALLED_APPS</code></td><td>channels、Django 内置、rest_framework、corsheaders、simplejwt、kcore、autotf、vigil</td><td><code>channels</code> 放第一位是 Channels 的要求</td></tr>
         <tr><td><code>MIDDLEWARE</code></td><td>Cors → Security → <b>WhiteNoise</b> → Session → Common → <b>DisableCSRFForAPI</b> → Auth → Messages → Clickjacking</td><td>WhiteNoise 提供前端文件；自定义中间件让 <code>/api/</code>、<code>/auth/</code> 免 CSRF</td></tr>
-        <tr><td><code>DATABASES</code></td><td><code>default</code>：SQLite <code>backend/db.sqlite3</code>（各目录自己的）；<code>vigil</code>：PostgreSQL，env <code>VIGIL_DB_NAME</code> / <code>_USER</code> / <code>_PASSWORD</code> / <code>_HOST</code> / <code>_PORT</code>，默认 <code>vigil/vigil123@127.0.0.1:5432/vigil_dev</code></td><td>线上 .env 设 <code>VIGIL_DB_NAME=vigil</code>。<b>忘了设就会连到开发库</b></td></tr>
+        <tr><td><code>DATABASES</code></td><td><code>default</code>：SQLite <code>apps/backend/db.sqlite3</code>（各目录自己的）；<code>vigil</code>：PostgreSQL，env <code>VIGIL_DB_NAME</code> / <code>_USER</code> / <code>_PASSWORD</code> / <code>_HOST</code> / <code>_PORT</code>，默认 <code>vigil/vigil123@127.0.0.1:5432/vigil_dev</code></td><td>线上 .env 设 <code>VIGIL_DB_NAME=vigil</code>。<b>忘了设就会连到开发库</b></td></tr>
         <tr><td><code>DATABASE_ROUTERS</code></td><td><code>backend.db_router.AppRouter</code></td><td>见 <a href="#db">两个数据库与路由</a></td></tr>
         <tr><td><code>TIME_ZONE</code> / <code>USE_TZ</code></td><td><code>UTC</code> / <code>True</code></td><td>数据库与 API 一律 UTC，前端转本地时间</td></tr>
-        <tr><td><code>WHITENOISE_ROOT</code></td><td><code>frontend/dist</code></td><td>该目录下的文件按原路径对外提供</td></tr>
+        <tr><td><code>WHITENOISE_ROOT</code></td><td><code>apps/frontend/dist</code></td><td>该目录下的文件按原路径对外提供</td></tr>
         <tr><td><code>AUTH_USER_MODEL</code></td><td><code>kcore.User</code></td><td>自定义用户表 <code>kcore_user</code></td></tr>
         <tr><td><code>REST_FRAMEWORK</code></td><td>认证 JWT；默认权限 <code>IsAuthenticated</code>；异常处理 <code>common.exceptions.exception_handler</code></td><td>所以没特别声明的接口都要登录</td></tr>
         <tr><td><code>SIMPLE_JWT</code></td><td>access 2 小时，refresh 7 天，头 <code>Bearer</code></td><td></td></tr>
@@ -67,7 +67,7 @@
       <div class="steps">
         <div class="step"><div class="step-title">中间件链</div><p>CORS 头 → WhiteNoise（不是静态文件，放过）→ <code>DisableCSRFForAPI</code> 标记免 CSRF → ...</p></div>
         <div class="step"><div class="step-title">URL 匹配</div>
-          <p><code>backend/urls.py</code>：<code>api/kcore/</code> → <code>include('kcore.urls')</code> → <code>clusters/&lt;int:cluster_id&gt;/resources/&lt;str:resource_type&gt;/</code> → <code>KubeResourceList</code>，参数 <code>cluster_id=3, resource_type='pods'</code>。</p></div>
+          <p><code>apps/backend/urls.py</code>：<code>api/kcore/</code> → <code>include('kcore.urls')</code> → <code>clusters/&lt;int:cluster_id&gt;/resources/&lt;str:resource_type&gt;/</code> → <code>KubeResourceList</code>，参数 <code>cluster_id=3, resource_type='pods'</code>。</p></div>
         <div class="step"><div class="step-title">DRF 认证与权限</div>
           <p><code>JWTAuthentication</code> 解析 <code>Authorization: Bearer ...</code>，取出 <code>user_id</code> 查 <code>kcore_user</code> 得到 <code>request.user</code>。token 无效 / 过期 → 401。然后默认权限 <code>IsAuthenticated</code>。</p></div>
         <div class="step"><div class="step-title">view 方法</div>
@@ -192,8 +192,8 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
       <p><code>ScanReportHTMLView</code>、<code>ScanReportPDFView</code> 是普通 Django <code>View</code>（不是 DRF），用 <code>_user_from_query_token()</code> 从 <code>?token=</code> 解析 <code>AccessToken</code> 得到用户，再做 owner 检查。HTML 由 <code>_render_report_html()</code> 拼字符串，PDF 由 <code>_render_report_pdf()</code> 用 reportlab 画。</p>
       <h3>管理命令</h3>
       <ul>
-        <li><code>autotf_init</code>：建 <code>backend/terraform/</code> 目录；对 5 个工具 <code>update_or_create</code>，版本通过执行 <code>--version</code> 获得（找不到记 unknown）。<b>会覆盖</b>你在网页上改过的工具命令。</li>
-        <li><code>autotf_clear</code>：删除全部配置、报告，<b>并删除整个 <code>backend/terraform/</code> 目录</b>。</li>
+        <li><code>autotf_init</code>：建 <code>apps/backend/terraform/</code> 目录；对 5 个工具 <code>update_or_create</code>，版本通过执行 <code>--version</code> 获得（找不到记 unknown）。<b>会覆盖</b>你在网页上改过的工具命令。</li>
+        <li><code>autotf_clear</code>：删除全部配置、报告，<b>并删除整个 <code>apps/backend/terraform/</code> 目录</b>。</li>
       </ul>
       <h3>迁移历史</h3>
       <p>0001 初始 → 0002 工具加 cmd 字段 → 0003 配置加 apply 字段 → 0004 改 output_format → 0005 改 owner → 0006 恢复 owner 外键约束。</p>
@@ -222,7 +222,7 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
 
     <section id="cmds">
       <h2>3.10 manage.py 命令速查</h2>
-<pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/NetSentinel</span>/backend      # 开发；操作线上数据时换成 <span class="vp">/srv/netsentinel/prod</span>/backend</code></pre>
+<pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/backend      # 开发；操作线上数据时换成 <span class="vp">/srv/netsentinel/prod</span>/backend</code></pre>
       <div class="table-wrap"><table>
         <tr><th>命令</th><th>做什么</th></tr>
         <tr><td><code>../.venv/bin/python manage.py check</code></td><td>检查配置和代码能否加载，改完代码先跑它</td></tr>
@@ -236,10 +236,10 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
         <tr><td><code>../.venv/bin/python manage.py createsuperuser</code> / <code>changepassword &lt;u&gt;</code></td><td>建超级用户 / 改密码</td></tr>
         <tr><td><code>../.venv/bin/python manage.py users_init</code> / <code>users_clear</code></td><td>初始化 / 清空用户</td></tr>
         <tr><td><code>../.venv/bin/python manage.py autotf_init</code> / <code>autotf_clear</code></td><td>初始化 / 清空 Terraform 数据</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py generate_bridge_token [--username vigil-bridge] [--years 10] [--write-env]</code></td><td>生成长期 JWT 并写入 <code>backend/backend/.env</code>（需重启服务生效）</td></tr>
+        <tr><td><code>../.venv/bin/python manage.py generate_bridge_token [--username vigil-bridge] [--years 10] [--write-env]</code></td><td>生成长期 JWT 并写入 <code>apps/backend/backend/.env</code>（需重启服务生效）</td></tr>
         <tr><td><code>../.venv/bin/python manage.py rotate_partitions [--database vigil] [--dry-run]</code></td><td>建明天分区、删 90 天前的分区（<code>/etc/cron.d/netsentinel</code> 每天 0 点以 netsentinel 账户跑）</td></tr>
         <tr><td><code>../.venv/bin/python manage.py test kcore autotf</code></td><td>跑单元测试：145 个用例，约 5 分钟（2026-10-18 全部通过）。测试库为临时 SQLite，不影响线上数据</td></tr>
-        <tr><td><code>../.venv/bin/python manage.py runserver 8090</code></td><td>开发服务器（只在 <code class="vn">/home/NEWUSER/github/NetSentinel</code> 里跑；8000 被别的项目占用）。<b>会启动 bridge</b>，见 <a href="#start">进程是怎么起来的</a></td></tr>
+        <tr><td><code>../.venv/bin/python manage.py runserver 8090</code></td><td>开发服务器（只在 <code class="vn">/home/NEWUSER/github/knettf</code> 里跑；8000 被别的项目占用）。<b>会启动 bridge</b>，见 <a href="#start">进程是怎么起来的</a></td></tr>
       </table></div>
     </section>
 
@@ -263,7 +263,7 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
         <div class="step"><div class="step-title">url：<code>vigil/urls.py</code> 加</div>
 <pre><code>path("top-sources/", views.TopSourcesView.as_view(), name="vigil-top-sources"),</code></pre></div>
         <div class="step"><div class="step-title">检查并重启</div>
-<pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/NetSentinel</span>/backend &amp;&amp; ../.venv/bin/python manage.py check
+<pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/backend &amp;&amp; ../.venv/bin/python manage.py check
 ../.venv/bin/python manage.py runserver 8090      # runserver 改代码自动重载</code></pre></div>
         <div class="step"><div class="step-title">用 curl 验证</div>
 <pre><code>TOKEN=$(curl -s -X POST localhost:8090/api/auth/token/ -H 'Content-Type: application/json' \
@@ -271,13 +271,13 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
 curl -s "localhost:8090/api/vigil/top-sources/?limit=3" -H "Authorization: Bearer $TOKEN" | python3 -m json.tool</code></pre>
           <div class="expect">预期：<code>{"status":"success","code":0,"message":"Success","data":{"sources":[{"src_ip":"192.168.100.23","count":...}]}}</code></div></div>
         <div class="step"><div class="step-title">写测试（可选但推荐）</div><p>参照 <code>vigil/tests.py</code> 的写法加一个用例。</p></div>
-        <div class="step"><div class="step-title">提交并上线</div><pre class="on-both"><code>cd /home/NEWUSER/github/NetSentinel &amp;&amp; git add -A &amp;&amp; git commit -m "vigil: top-sources 接口" &amp;&amp; git push
+        <div class="step"><div class="step-title">提交并上线</div><pre class="on-both"><code>cd /home/NEWUSER/github/knettf &amp;&amp; git add -A &amp;&amp; git commit -m "vigil: top-sources 接口" &amp;&amp; git push
 <span class="c"># PR 合并到 merge-dev 后</span>
 /srv/netsentinel/release.sh -backend</code></pre></div>
       </div>
       <h3>改数据库结构的流程</h3>
       <ul>
-        <li><b>kcore / autotf</b>（SQLite）：在 <code class="vn">/home/NEWUSER/github/NetSentinel</code> 改 models.py → <code>makemigrations</code> → <code>sqlmigrate</code> 看 SQL → 在开发库 <code>migrate</code> 试 → 提交 → 备份线上 <code class="vp">/srv/netsentinel/prod/backend/db.sqlite3</code> → PR 合并后 <code>/srv/netsentinel/release.sh -backend</code>（自动 migrate default）。</li>
+        <li><b>kcore / autotf</b>（SQLite）：在 <code class="vn">/home/NEWUSER/github/knettf</code> 改 models.py → <code>makemigrations</code> → <code>sqlmigrate</code> 看 SQL → 在开发库 <code>migrate</code> 试 → 提交 → 备份线上 <code class="vp">/srv/netsentinel/prod/apps/backend/db.sqlite3</code> → PR 合并后 <code>/srv/netsentinel/release.sh -backend</code>（自动 migrate default）。</li>
         <li><b>vigil</b>（<code>managed=False</code>）：改 models.py 只生成不执行 SQL 的状态迁移。真正改表要在迁移里加 <code>migrations.RunSQL("ALTER TABLE vigil_detectionrecord ADD COLUMN ...", reverse_sql=...)</code>；对父表的 ALTER 自动作用于所有分区。先在开发库（<code>vigil_dev</code>）<code>migrate --database=vigil</code> 试，部署后再在 <code class="vp">/srv/netsentinel/prod</code> 里对线上库执行。</li>
       </ul>
     </section>

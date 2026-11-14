@@ -56,15 +56,14 @@ sudo install -o NEWUSER -g NEWUSER -m 600 /home/soar009/.kube/config /home/NEWUS
 
     <section id="github">
       <h2>2.2 GitHub：加入 knet-lab 组织</h2>
-      <p>两个仓库都在实验室组织 <code>knet-lab</code> 下。<code>user.email</code> 只决定提交上<b>显示</b>谁，能不能 push 取决于你的 GitHub <b>账号</b>在不在组织里：</p>
+      <p>仓库 <code>knet-lab/knettf</code> 在实验室组织 <code>knet-lab</code> 下，平台（<code>apps/</code>、<code>detector/</code>、<code>ops/</code>）和实验环境（<code>lab/</code>，原 knetsentinel）都在里面。<code>user.email</code> 只决定提交上<b>显示</b>谁，能不能 push 取决于你的 GitHub <b>账号</b>在不在组织里：</p>
       <div class="table-wrap"><table>
         <tr><th>仓库</th><th>本地目录</th><th>远程地址</th></tr>
-        <tr><td><code>knet-lab/NetSentinel</code></td><td><code>/home/NEWUSER/github/NetSentinel</code></td><td><code>git@github.com:knet-lab/NetSentinel.git</code>（个人分支 → <code>merge-dev</code> → <code>prod</code>）</td></tr>
-        <tr><td><code>knet-lab/knetsentinel</code></td><td><code>/home/NEWUSER/github/knetsentinel</code>（开发）、<code>/srv/netsentinel/knetsentinel</code>（运行）</td><td><code>git@github.com:knet-lab/knetsentinel.git</code>（个人分支 → <code>merge-dev</code> → <code>master</code>）</td></tr>
+        <tr><td><code>knet-lab/knettf</code></td><td><code>/home/NEWUSER/github/knettf</code>（开发）；运行目录 <code>/srv/netsentinel/prod</code>（平台）、<code>/srv/netsentinel/lab</code>（实验环境，由 <code>lab/sync-to-srv.sh</code> 同步）</td><td><code>git@github.com:knet-lab/knettf.git</code>（个人分支 → <code>merge-dev</code> → <code>prod</code>）</td></tr>
       </table></div>
       <ol>
         <li>组织的任意一位 Owner 打开 <code>https://github.com/orgs/knet-lab/people</code> → <b>Invite member</b> → 输入接手人的 GitHub 用户名。要能管理仓库和成员就给 <b>Owner</b>，只写代码给 <b>Member</b> 即可。</li>
-        <li>接手人打开 <code>https://github.com/orgs/knet-lab/invitation</code> 接受，一次邀请两个仓库都能用。</li>
+        <li>接手人打开 <code>https://github.com/orgs/knet-lab/invitation</code> 接受，即可访问仓库。</li>
         <li>接手人在 GitHub <b>Settings → Emails</b> 确认要用的提交邮箱已验证。</li>
       </ol>
       <p>组织里始终保持至少两个 Owner，这样任何一个人离开都不会导致没人能管理仓库。</p>
@@ -92,11 +91,11 @@ sudo install -o NEWUSER -g NEWUSER -m 600 /home/soar009/.kube/config /home/NEWUS
   class B,C gh
   class D prod</pre>
       <ol>
-        <li><b>PR + 审查</b>：在 <code>/home/NEWUSER/github/NetSentinel</code> 的个人分支 <code>NEWUSER</code> 上 commit、push，开 PR 到 <code>merge-dev</code>，另一人审查（Files changed → Review changes → Approve）后合并。</li>
+        <li><b>PR + 审查</b>：在 <code>/home/NEWUSER/github/knettf</code> 的个人分支 <code>NEWUSER</code> 上 commit、push，开 PR 到 <code>merge-dev</code>，另一人审查（Files changed → Review changes → Approve）后合并。</li>
         <li><b>release.sh</b>：运行 <code>/srv/netsentinel/release.sh -frontend | -backend | -all</code>，把 <code>prod</code> 快进到 <code>merge-dev</code>，从不直接在 prod 上提交。</li>
         <li><b>deploy.sh</b>：在 <code>/srv/netsentinel/prod</code> 里用运行者自己的 GitHub 密钥 <code>git pull</code>，构建，重启服务。</li>
       </ol>
-      <p>knetsentinel 前半段相同（开发目录 <code>/home/NEWUSER/github/knetsentinel</code> → PR → <code>merge-dev</code>），合并后把 <code>master</code> 快进到 <code>merge-dev</code>，再在运行目录 <code>/srv/netsentinel/knetsentinel</code> 里 <code>git pull --ff-only</code>。两边的具体命令见 <a href="/help/deploy">部署修改</a>。</p>
+      <p>实验环境 <code>lab/</code> 也走同一个 PR 流程；合并到 <code>merge-dev</code> 后，在自己的开发目录里运行 <code>bash lab/sync-to-srv.sh</code> 把代码同步到运行目录 <code>/srv/netsentinel/lab</code>。具体命令见 <a href="/help/deploy">部署修改</a>。</p>
       <p>所以下面按顺序做：用你自己的 Linux 账户配 GitHub 密钥（push 和发布时 pull 都用它）→ 从 GitHub 克隆到你的开发目录、建个人分支 → 设置提交身份 → 试一次提交。没 push、没合并到 merge-dev 的提交都不会上线。</p>
 
       <h3>第 1 步：在服务器上给你的账户配 GitHub 密钥</h3>
@@ -116,28 +115,22 @@ ssh -T git@github.com                          # 第一次问 Are you sure you w
       <div class="note">只用你自己的密钥。<code>ssh -T</code> 若输出的不是你的 GitHub 用户名，说明你不在自己的账户下。</div>
 
       <h3>第 2 步：从 GitHub 克隆到你的开发目录，建个人分支</h3>
-      <p>代码只在自己家目录的开发目录里改，<b>不要</b>在 <code>/srv/netsentinel/prod</code> 或 <code>/srv/netsentinel/knetsentinel</code> 里改。发布要写 <code>/srv</code> 下的目录，所以 2.1 已经把你加进了 <code>netsentinel</code> 组：</p>
+      <p>代码只在自己家目录的开发目录里改，<b>不要</b>在 <code>/srv/netsentinel/prod</code> 或 <code>/srv/netsentinel/lab</code> 里改。发布要写 <code>/srv</code> 下的目录，所以 2.1 已经把你加进了 <code>netsentinel</code> 组：</p>
       <pre><code>mkdir -p /home/NEWUSER/github
-git clone git@github.com:knet-lab/NetSentinel.git /home/NEWUSER/github/NetSentinel
-git clone git@github.com:knet-lab/knetsentinel.git /home/NEWUSER/github/knetsentinel
-git -C /home/NEWUSER/github/NetSentinel switch -c NEWUSER origin/merge-dev
-git -C /home/NEWUSER/github/NetSentinel push -u origin NEWUSER
-git -C /home/NEWUSER/github/knetsentinel switch -c NEWUSER origin/merge-dev
-git -C /home/NEWUSER/github/knetsentinel push -u origin NEWUSER</code></pre>
+git clone git@github.com:knet-lab/knettf.git /home/NEWUSER/github/knettf
+git -C /home/NEWUSER/github/knettf switch -c NEWUSER origin/merge-dev
+git -C /home/NEWUSER/github/knettf push -u origin NEWUSER</code></pre>
 
       <h3>第 3 步：本地仓库的提交设置</h3>
-      <p>提交身份写在<b>你自己的两个开发仓库</b>里（仓库内的 <code>.git/config</code>），只对这两个仓库生效，不影响你账户下的其他项目：</p>
-      <pre><code>git -C /home/NEWUSER/github/NetSentinel  config user.name  "你的GitHub用户名"
-git -C /home/NEWUSER/github/NetSentinel  config user.email "你在GitHub已验证的邮箱"   # 或 GitHub 提供的 数字+用户名@users.noreply.github.com
-git -C /home/NEWUSER/github/knetsentinel config user.name  "你的GitHub用户名"
-git -C /home/NEWUSER/github/knetsentinel config user.email "你在GitHub已验证的邮箱"
-git -C /home/NEWUSER/github/NetSentinel  config --local --get-regexp user     # 应显示你的名字和邮箱
-git -C /home/NEWUSER/github/knetsentinel config --local --get-regexp user     # 同上</code></pre>
-      <p>为什么只写在开发仓库：这两个目录只有你自己用，写在这里最精确。邮箱必须是 GitHub 上已验证的，GitHub 才会把提交关联到你的账号。线上目录 <code>/srv/netsentinel/prod</code> 和 <code>/srv/netsentinel/knetsentinel</code> 是大家共用的、只 pull 不提交，<b>不要</b>在里面设身份，否则谁在那里提交都会显示成同一个人。</p>
+      <p>提交身份写在<b>你自己的开发仓库</b>里（仓库内的 <code>.git/config</code>），只对这个仓库生效，不影响你账户下的其他项目：</p>
+      <pre><code>git -C /home/NEWUSER/github/knettf  config user.name  "你的GitHub用户名"
+git -C /home/NEWUSER/github/knettf  config user.email "你在GitHub已验证的邮箱"   # 或 GitHub 提供的 数字+用户名@users.noreply.github.com
+git -C /home/NEWUSER/github/knettf  config --local --get-regexp user     # 应显示你的名字和邮箱
+      <p>为什么只写在开发仓库：这个目录只有你自己用，写在这里最精确。邮箱必须是 GitHub 上已验证的，GitHub 才会把提交关联到你的账号。线上目录 <code>/srv/netsentinel/prod</code> 和 <code>/srv/netsentinel/lab</code> 是大家共用的运行目录，不提交，<b>不要</b>在里面设身份，否则谁在那里提交都会显示成同一个人。</p>
 
       <h3>第 4 步：试一次提交</h3>
-      <p>用一个临时分支试，不弄脏个人分支。knetsentinel 把路径换成 <code>/home/NEWUSER/github/knetsentinel</code> 再做一遍：</p>
-      <pre><code>cd /home/NEWUSER/github/NetSentinel
+      <p>用一个临时分支试，不弄脏个人分支：</p>
+      <pre><code>cd /home/NEWUSER/github/knettf
 git switch -c test/handover
 git commit --allow-empty -m "test: handover commit"
 git log -1 --format='%an &lt;%ae&gt;'     # 应是你自己
@@ -150,13 +143,13 @@ git branch -D test/handover</code></pre>
       <p>发布时两个脚本都在 <code>/srv/netsentinel/prod</code> 里操作 GitHub：<code>release.sh</code> 执行 <code>git push origin origin/merge-dev:prod</code>（往 GitHub 推），<code>deploy.sh</code> 执行 <code>git pull</code>（从 GitHub 拉）。这个目录归 <code>netsentinel</code>，但 Git 命令由<b>运行 release.sh 的那个账户</b>执行，用的是<b>那个账户</b>的 GitHub 密钥，也就是你在第 1 步加的 <code>/home/NEWUSER/.ssh/github_ssh_key</code>。所以要确认它在这里既能拉也能推：</p>
       <pre><code>git -C /srv/netsentinel/prod fetch origin                                   # 能拉：不报错即可
 git -C /srv/netsentinel/prod push --dry-run origin origin/prod:prod         # 能推：只演练不推送，输出 Everything up-to-date 即可</code></pre>
-      <p>报 <code>Permission denied (publickey)</code> → 回到第 1 步；push 报 <code>Permission to knet-lab/NetSentinel.git denied</code> → 你的 GitHub 账号在组织里没有写权限（2.2）；报 <code>insufficient permission</code> 或 <code>dubious ownership</code> → 还没加进 <code>netsentinel</code> 组（2.1 第 2 步），或加组后没重新登录。</p>
+      <p>报 <code>Permission denied (publickey)</code> → 回到第 1 步；push 报 <code>Permission to knet-lab/knettf.git denied</code> → 你的 GitHub 账号在组织里没有写权限（2.2）；报 <code>insufficient permission</code> 或 <code>dubious ownership</code> → 还没加进 <code>netsentinel</code> 组（2.1 第 2 步），或加组后没重新登录。</p>
 
       <h3>常见错误</h3>
       <div class="table-wrap"><table>
         <tr><th>现象</th><th>原因</th><th>处理</th></tr>
         <tr><td><code>Permission denied (publickey)</code></td><td>服务器上你账户的公钥没加到 GitHub</td><td>第 1 步</td></tr>
-        <tr><td><code>Permission to knet-lab/NetSentinel.git denied to 你的用户名</code></td><td>还没接受 knet-lab 组织的邀请</td><td>2.2</td></tr>
+        <tr><td><code>Permission to knet-lab/knettf.git denied to 你的用户名</code></td><td>还没接受 knet-lab 组织的邀请</td><td>2.2</td></tr>
         <tr><td>提交作者显示 Wk-P</td><td>在 soar009 账户下提交了，或你的开发仓库里没设身份</td><td>第 3 步</td></tr>
         <tr><td><code>detected dubious ownership</code></td><td>仓库属于别的账户</td><td><code>git config --global --add safe.directory 仓库路径</code>（线上目录已在系统级配置里加过）</td></tr>
         <tr><td><code>insufficient permission for adding an object</code></td><td>/srv 下有文件不是组可写</td><td><code>sudo chmod -R g+rwX /srv/netsentinel/prod/.git</code>，确认 umask 002</td></tr>
@@ -173,7 +166,7 @@ git -C /srv/netsentinel/prod push --dry-run origin origin/prod:prod         # �
         <tr><td>3</td><td><code>sudo systemctl is-active netsentinel cloudflared-knettf</code></td><td><code>active</code></td><td>2.1 第 2 步（缺 sudo 组）</td></tr>
         <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 个节点 <code>Ready</code></td><td>2.1 第 4–5 步</td></tr>
         <tr><td>5</td><td><code>ssh -T git@github.com</code></td><td><code>Hi 你的GitHub用户名!</code></td><td>2.3 第 1 步</td></tr>
-        <tr><td>6</td><td>在两个仓库各试一次提交并 push</td><td>GitHub 上作者是你，不是 Wk-P</td><td>2.2、2.3 第 2–4 步</td></tr>
+        <tr><td>6</td><td>试一次提交并 push</td><td>GitHub 上作者是你，不是 Wk-P</td><td>2.2、2.3 第 2–4 步</td></tr>
         <tr><td>7</td><td><code>git -C /srv/netsentinel/prod fetch origin</code>，以自己的账户执行</td><td>不报错</td><td>2.3 第 1、5 步</td></tr>
       </table></div>
     </section>

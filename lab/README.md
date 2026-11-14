@@ -1,4 +1,4 @@
-# knetsentinel
+# lab — 实验环境（原 knetsentinel）
 
 基于 **KVM + kubeadm + Cilium/Hubble (eBPF) + Vector + Kafka** 的 Kubernetes 网络流量采集与入侵检测实验环境。
 
@@ -7,7 +7,8 @@
 - 采集带标签的数据集（包级 → 流级 30 特征）
 - 把流量实时送到 NetSentinel 检测后端（Django `vigil` 应用，模型由 `VIGIL_MODELS` 配置，默认 `AdsMLModel`/OCSVM）并评估检测效果
 
-> 本仓库只用 **uv** 维护管理 Python 环境。
+> 本目录是 knettf 仓库的 `lab/` 部分，有独立的 Python 环境（`lab/pyproject.toml`，只用 **uv** 管理）。下文路径除特别说明外都相对 `lab/`。
+> 运行目录：`/srv/netsentinel/lab`（由 `lab/sync-to-srv.sh` 从仓库同步代码，数据只放在那里）。
 
 ---
 
@@ -17,9 +18,9 @@
 flowchart LR
     subgraph HOST["宿主机（Ubuntu，KVM/libvirt）"]
         direction TB
-        GEN["发包脚本<br/>traffic/ · simulation/ · traffic_request/<br/>scapy / curl / nc"]
-        COL["采集脚本<br/>dataset/ · kafka/"]
-        BRG["kafka/vigil_bridge.py"]
+        GEN["发包脚本<br/>traffic/ · simulation/ · replay/<br/>scapy / curl / nc"]
+        COL["采集脚本<br/>dataset/ · collect/"]
+        BRG["collect/vigil_bridge.py"]
         MON["simulation/monitor"]
         NS["NetSentinel 后端 :8080<br/>Django vigil（仓库外）"]
     end
@@ -94,16 +95,16 @@ VM IP 通过 **libvirt DHCP 的 MAC→IP 绑定** 固定（MAC `52:54:00:1X:00:0
 - `/home/vm-images` 所在分区可用空间 **≥ 420GB**
 - 宿主机能访问外网（下载 cloud image、apt 源、Helm chart、镜像）
 - 已安装 `kubectl`；`helm` 缺失时脚本会自动安装
-- 若宿主机出口网卡不是 `enp6s0`，修改 `kubeadm-cluster/02-setup-cluster.sh` 中的 `HOST_NIC`
+- 若宿主机出口网卡不是 `enp6s0`，修改 `cluster/02-setup-cluster.sh` 中的 `HOST_NIC`
 
-脚本里的绝对路径统一为 `/srv/netsentinel/knetsentinel`（仓库）和 `/home/vm-images`（VM 磁盘），换目录时需要一并修改。
+脚本里的绝对路径统一为 `/srv/netsentinel/lab`（仓库）和 `/home/vm-images`（VM 磁盘），换目录时需要一并修改。
 
-### 4.1 一键部署流程（`kubeadm-cluster/`）
+### 4.1 一键部署流程（`cluster/`）
 
 脚本均为幂等设计，失败修复后可直接重跑。
 
 ```bash
-cd kubeadm-cluster
+cd cluster
 
 bash 00-clear.sh          # 可选：彻底清理旧环境（VM、网桥、磁盘、cloud image、kubeconfig、/etc/hosts）
 bash 01-setup-vms.sh      # 创建网桥 + 5 台 VM，等待 SSH 就绪
@@ -132,14 +133,14 @@ bash 03-deploy-5nodes.sh  # 部署 Kafka + Vector + nginx，并回写本地配�
 **03-deploy-5nodes.sh**
 
 1. 前置检查：5 节点 Ready、local-path、MetalLB、hubble-relay
-2. 先只 apply `kafka-svc/kafka-5nodes.yaml` 中的 Service，等 MetalLB 分配 `kafka-{0..3}-external` IP
+2. 先只 apply `manifests/kafka-5nodes.yaml` 中的 Service，等 MetalLB 分配 `kafka-{0..3}-external` IP
 3. 用真实 IP 创建 ConfigMap `kafka-node-ips`，再 apply 完整 Kafka 清单，等 controller 与 4 个 broker 就绪
-4. 创建 Secret `vector-kafka-secret`（`kafka-svc.default.svc.cluster.local:9092`），部署 `cilium-vector/vector-5nodes.yaml`
+4. 创建 Secret `vector-kafka-secret`（`kafka-svc.default.svc.cluster.local:9092`），部署 `manifests/vector-5nodes.yaml`
 5. 部署 `my-nginx`（LoadBalancer:80）作为测试目标
 6. 后台 `kubectl port-forward svc/hubble-relay 4245`（日志 `/tmp/hubble-pf.log`）
-7. 在 `/etc/hosts` 写入 `kafka-svc.default.svc.cluster.local`，并重写项目根目录的 `.env`
+7. 在 `/etc/hosts` 写入 `kafka-svc.default.svc.cluster.local`，并重写 `lab/.env`
 
-### 4.2 Kafka 部署要点（`kafka-svc/kafka-5nodes.yaml`）
+### 4.2 Kafka 部署要点（`manifests/kafka-5nodes.yaml`）
 
 - **KRaft 模式**，固定 cluster id `MkU3OEVBNTcwNTJENDM2Qg`
 - `kafka-controller`：单个 Pod，固定在 k8s-master（容忍 control-plane taint），`process.roles=controller`，监听 9093，数据用 emptyDir
@@ -149,22 +150,22 @@ bash 03-deploy-5nodes.sh  # 部署 Kafka + Vector + nginx，并回写本地配�
   - 每个 broker 一个 10Gi PVC（local-path）
 - Service：`kafka-svc`（集群内 bootstrap :9092）、`kafka-headless`、`kafka-controller-svc`、`kafka-{0..3}-external`（`externalTrafficPolicy: Local`）
 
-### 4.3 Vector 管道（`cilium-vector/vector-5nodes.yaml`）
+### 4.3 Vector 管道（`manifests/vector-5nodes.yaml`）
 
 - initContainer 从 `quay.io/cilium/hubble:v0.13.0` 拷出 hubble 二进制
 - `source`：`exec` 流式运行 `hubble observe --follow --output=json --server=hubble-relay.kube-system.svc.cluster.local:4245`，退出后 5s 重启
 - `transform`：`parse_json` 解析，失败丢弃
 - `sink`：Kafka topic `ebpf-net-logs`，JSON 编码，批量 500 条 / 1s，内存缓冲 50000，满了丢最新
-- `cilium-vector/vector.yaml` 是早期 minikube 版本
+- `manifests/vector.yaml` 是早期 minikube 版本
 
 ### 4.4 可选组件（需手动 apply）
 
 ```bash
 # 主机防火墙可见性策略：允许集群内部、192.168.100.0/24、Pod CIDR 入站，让 host endpoint 流量也被 Hubble 记录
-kubectl apply -f cluster-setup/host-firewall-ccnp.yaml
+kubectl apply -f cluster/host-firewall-ccnp.yaml
 
 # simulation/ 使用的靶机服务（namespace: targets，DaemonSet + 固定 MetalLB IP）
-kubectl apply -f cluster-setup/targets.yaml
+kubectl apply -f cluster/targets.yaml
 ```
 
 | 服务 | IP:端口 | 镜像 |
@@ -177,9 +178,8 @@ kubectl apply -f cluster-setup/targets.yaml
 
 其他：
 
-- `detector/detector-deployment.yaml`：在 `netsentinel` 命名空间部署 `soar009/netsentinel-detector`，消费 `ebpf-net-logs`，结果经 WebSocket 推到 `ws://knettf.com:8080/ws/detector/push/`（`knettf.com` 通过 hostAliases 指向宿主机 `192.168.100.1`）。需先创建 Secret `detector-secret`（key `django-token`）
-- `ingress-controller/my-nginx-ingress.yaml`：my-nginx 的 Ingress（需要 nginx ingress controller）
-- `cluster-setup/init.sh`、`init-5nodes.sh`、`minikube-check.sh`：早期 **minikube（kvm2 driver）** 方案的部署/诊断脚本，已被 `kubeadm-cluster/` 取代；仅存在于本机，**不纳入 Git**
+- `../detector/k8s/detector-deployment.yaml`：在 `netsentinel` 命名空间部署 `soar009/netsentinel-detector`，消费 `ebpf-net-logs`，结果经 WebSocket 推到 `ws://knettf.com:8080/ws/detector/push/`（`knettf.com` 通过 hostAliases 指向宿主机 `192.168.100.1`）。需先创建 Secret `detector-secret`（key `django-token`）
+- `cluster/my-nginx-ingress.yaml`：my-nginx 的 Ingress（需要 nginx ingress controller）
 
 ### 4.5 部署验证
 
@@ -203,7 +203,7 @@ kubectl exec -n default kafka-broker-0 -- /opt/kafka/bin/kafka-console-consumer.
 kubectl logs -n kube-system -l app=vector --tail=50
 
 # 宿主机环境诊断（磁盘、网桥、DHCP 租约、NAT、KVM）
-bash kubeadm-cluster/host-info.sh
+bash cluster/host-info.sh
 ```
 
 ---
@@ -219,7 +219,7 @@ uv run python <script.py>
 - 依赖声明在 `pyproject.toml`，`requirements.txt` 只是旧的子集，不再维护
 - 发包脚本需要 root（`ip addr add` + raw socket），用 `sudo .venv/bin/python3 ...` 或 `sudo $(which uv) run ...`
 - 采集脚本以普通用户运行即可，它们通过 `kubectl exec kafka-broker-0 -- kafka-console-consumer.sh` 读 Kafka，依赖本机 kubeconfig，**不直接连 Kafka 外部端口**
-- `kafka/vigil_bridge.py` 用到 `requests`，`simulation/monitor/monitor.py` 只用标准库；`requests` 不在 `pyproject.toml` 中
+- `collect/vigil_bridge.py` 用到 `requests`，`simulation/monitor/monitor.py` 只用标准库；`requests` 不在 `pyproject.toml` 中
 
 ### `.env`
 
@@ -237,22 +237,18 @@ TOPICS='["ebpf-net-logs"]'
 ## 6. 目录说明与使用
 
 ```
-knetsentinel/
-├── kubeadm-cluster/   # ★ 集群部署脚本 00~03 + host-info.sh
-├── kafka-svc/         # Kafka KRaft 清单
-├── cilium-vector/     # Vector DaemonSet 清单
-├── cluster-setup/     # 防火墙策略、靶机服务（旧 minikube 脚本仅本机，不入 Git）
-├── detector/          # 集群内检测器 Deployment
-├── ingress-controller/
-├── hubble-scripts/    # 从 cilium Pod 取最后一条 hubble 事件
-├── traffic/           # 基础发包脚本
-├── dataset/           # 数据集采集与流聚合（整个目录不入 Git，仅本机）
-├── kafka/             # Kafka 读取、过滤、推送到检测后端
-├── traffic_request/   # CSV 流量重放 + 采集流水线（有独立 README）
-├── simulation/        # 端到端检测效果评估
-├── docs/              # 特征说明、kafka_read 使用说明（不入 Git，仅本机）
-└── logs/              # 历史运行日志（不入 Git）
+lab/
+├── cluster/      # ★ 集群部署脚本 00~03 + host-info.sh；targets.yaml、host-firewall-ccnp.yaml、my-nginx-ingress.yaml
+├── manifests/    # Kafka KRaft、Vector DaemonSet 清单
+├── traffic/      # 基础发包脚本
+├── dataset/      # 数据集采集与流聚合
+├── collect/      # Kafka 读取、过滤、推送到检测后端；last_record.sh 取最后一条 hubble 事件
+├── replay/       # CSV 流量重放 + 采集流水线（有独立 README）
+├── simulation/   # 端到端检测效果评估
+└── sync-to-srv.sh
 ```
+
+检测器的 K8s 清单在仓库的 `detector/k8s/`，特征说明等文档在 `docs/lab/`。
 
 ### 6.1 `traffic/` — 发包
 
@@ -266,8 +262,6 @@ knetsentinel/
 
 ### 6.2 `dataset/` — 数据集
 
-> 注意：`dataset/` 整个目录被 `.gitignore` 排除，以下脚本只存在于本机 `/srv/netsentinel/knetsentinel/dataset/`，从 Git 克隆的副本里没有（`traffic/run_traffic_only.sh` 依赖的 `dataset_collector.py` 也因此缺失）。
-
 ```bash
 sudo bash dataset/run_dataset_collection.sh [输出.csv]
 ```
@@ -275,37 +269,37 @@ sudo bash dataset/run_dataset_collection.sh [输出.csv]
 编排：后台启动 `dataset_collector.py`（普通用户）→ 发正常流量 → 发攻击流量 → 等 20s 排水 → 停止。默认目标 160000 条攻击、50000 条正常。
 
 - `dataset_collector.py`：按源 IP 打标签（`.20-.29`→1，`.50-.64`→0，其余丢弃），输出包级 CSV：`timestamp, verdict, direction, summary, src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, is_reply, trace_reason, label`
-- `aggregate_flows.py -i dataset.csv -o flows.csv -t 5`：按五元组 + 超时窗口聚合成 **30 个流级特征**（时长、包数/速率、IAT 统计、TCP 标志计数与比例、回包比例、放行/丢弃统计），详见 `docs/features.md`（本机文件，不在 Git 中）
+- `aggregate_flows.py -i dataset.csv -o flows.csv -t 5`：按五元组 + 超时窗口聚合成 **30 个流级特征**（时长、包数/速率、IAT 统计、TCP 标志计数与比例、回包比例、放行/丢弃统计），详见 [docs/lab/features.md](../docs/lab/features.md)
 
-### 6.3 `kafka/` — 读取与推送
+### 6.3 `collect/` — 读取与推送
 
 ```bash
-python3 kafka/kafka_read.py --protocol TCP --src 192.168.100.2 --from-beginning   # 过滤打印
-bash kafka/run_kafka_read.sh       # 全量读取 → kafka_read_result.log
-bash kafka/run_spoof_capture.sh    # 只抓 .20-.29 的 TCP → spoof_attack_captured.log
-python3 kafka/kafka_read_csv.py --output dataset.csv --max-attack 160000 --max-normal 50000
+python3 collect/kafka_read.py --protocol TCP --src 192.168.100.2 --from-beginning   # 过滤打印
+bash collect/run_kafka_read.sh       # 全量读取 → kafka_read_result.log
+bash collect/run_spoof_capture.sh    # 只抓 .20-.29 的 TCP → spoof_attack_captured.log
+python3 collect/kafka_read_csv.py --output dataset.csv --max-attack 160000 --max-normal 50000
 ```
 
-`kafka_read.py` 的过滤参数：`--verdict --direction --protocol --src --dst --src-ns --dst-ns --src-pod --dst-pod --node --drop-only -n`，详见 `docs/kafka_read.md`（本机文件，不在 Git 中）。
+`kafka_read.py` 的过滤参数：`--verdict --direction --protocol --src --dst --src-ns --dst-ns --src-pod --dst-pod --node --drop-only -n`，详见 [docs/lab/kafka_read.md](../docs/lab/kafka_read.md)。
 
 **`vigil_bridge.py`**：消费 `ebpf-net-logs`，在内存中按五元组聚合为 30 特征流记录，批量 POST 到 NetSentinel 的 `/api/vigil/detect/batch/`：
 
 ```bash
-uv run python kafka/vigil_bridge.py --backend http://localhost:8080 --token <JWT> \
+uv run python collect/vigil_bridge.py --backend http://localhost:8080 --token <JWT> \
   --window 5 --batch-size 20 [--from-beginning]
 ```
 
-### 6.4 `traffic_request/` — CSV 流量重放
+### 6.4 `replay/` — CSV 流量重放
 
 把外部数据集（`test set_20000(1).csv`，约 2 万条 flow）通过 `ip_mapping.json` 映射到测试环境 IP（源 `.50-.64`，目标 `.10-.14`），用 scapy 逐 flow 重放，同时从 Kafka 采集结果：
 
 ```bash
-sudo bash traffic_request/scripts/start_send.sh [--max-packets N]   # 后台发包，写 send.pid / send.done
-bash traffic_request/scripts/start_read.sh                          # 等 send.pid 出现后开始采集，send.done 后再排水 15s 退出
-uv run traffic_request/scripts/aggregate.py --window 10000          # 每 N 行汇总统计
+sudo bash replay/scripts/start_send.sh [--max-packets N]   # 后台发包，写 send.pid / send.done
+bash replay/scripts/start_read.sh                          # 等 send.pid 出现后开始采集，send.done 后再排水 15s 退出
+uv run replay/scripts/aggregate.py --window 10000          # 每 N 行汇总统计
 ```
 
-产物：`record_send_uuid.txt`（每条 flow 的发送记录，JSONL）、`read_result.csv`。详见 [traffic_request/README.md](traffic_request/README.md)。
+产物：`record_send_uuid.txt`（每条 flow 的发送记录，JSONL）、`read_result.csv`。详见 [replay/README.md](replay/README.md)。
 
 ### 6.5 `simulation/` — 端到端检测评估
 
@@ -324,26 +318,26 @@ sudo NETSENTINEL_TOKEN=<JWT> bash simulation/run.sh [1|2|3]
 
 `run.sh` 先启动 `monitor/monitor.py`，再运行 simulate 脚本。monitor 每秒轮询一次 `GET /api/vigil/records/?time_from=<启动时间>`（JWT 认证），收集启动后落库的检测记录；simulate 每发一条输出一行 `SEND|group|src|dst|port|type|ts` 到 `monitor/send.log`，monitor 将其与检测记录对齐，simulate 停发 5s 后再拉一次并生成 `monitor_report_<mode>.txt`（混淆矩阵、Accuracy/Precision/Recall/F1、攻击类型分布）和 `monitor_detail_<mode>.csv`。
 
-`simulate_4.py` 跳过 Kafka/bridge，直接 `django.setup()` 导入 NetSentinel 后端的 `vigil.services`（目录默认 `/home/soar009/github/NetSentinel/backend`，可用环境变量 `NETSENTINEL_BACKEND_DIR` 覆盖），把 `simulate4.csv`（由 `gen_simulate4_csv.py` 将特征 CSV 与 `20000_test_attack_label.csv` 合并生成）的预聚合流特征批量送入模型。
+`simulate_4.py` 跳过 Kafka/bridge，直接 `django.setup()` 导入 NetSentinel 后端的 `vigil.services`（默认取同一仓库的 `apps/backend`；在运行目录 `/srv/netsentinel/lab` 里运行时用环境变量 `NETSENTINEL_BACKEND_DIR` 指定，例如 `/srv/netsentinel/prod/apps/backend`），把 `simulate4.csv`（由 `gen_simulate4_csv.py` 将特征 CSV 与 `20000_test_attack_label.csv` 合并生成）的预聚合流特征批量送入模型。
 
 ---
 
 ## 7. 外部依赖
 
-检测模型与后端不在本仓库，位于 `/home/soar009/github/NetSentinel/backend`（Django 项目，`vigil` 应用），需要单独启动在 `:8080`。本仓库只负责环境、流量生成、采集和评估。
+检测模型与后端在同一仓库的 `apps/backend/`（Django 项目，`vigil` 应用），生产实例运行在 `:8080`。`lab/` 只负责环境、流量生成、采集和评估。
 
 本仓库用到的后端接口：
 
 | 接口 | 使用方 |
 |------|--------|
-| `POST /api/vigil/detect/batch/`（JWT） | `kafka/vigil_bridge.py` |
+| `POST /api/vigil/detect/batch/`（JWT） | `collect/vigil_bridge.py` |
 | `GET /api/vigil/records/`（JWT，支持 `time_from`/`limit`/`offset`） | `simulation/monitor/monitor.py` |
-| `ws/detector/push/`（Bearer = 后端 `VIGIL_BRIDGE_TOKEN`） | `detector/detector-deployment.yaml` 中的检测器 Pod |
+| `ws/detector/push/`（Bearer = 后端 `VIGIL_BRIDGE_TOKEN`） | `../detector/k8s/detector-deployment.yaml` 中的检测器 Pod |
 | Python 模块 `vigil.services` | `simulation/simulate_4.py` |
 
-后端已不再提供 `ws/vigil/` WebSocket 推送（NetSentinel 提交 bf011ca 删除），检测结果只能从数据库 / `records` 接口读取。
+后端已不再提供 `ws/vigil/` WebSocket 推送（NetSentinel 原仓库提交 bf011ca 删除），检测结果只能从数据库 / `records` 接口读取。
 
-后端相关配置（`backend/backend/settings.py`，可用环境变量覆盖）：
+后端相关配置（`apps/backend/backend/settings.py`，可用环境变量覆盖）：
 
 - `VIGIL_MODELS`：要加载的模型类列表，默认 `vigil.ml.models.ads_ml_model.AdsMLModel`
 - `VIGIL_ADS_ML_CONFIG`：AdsMLModel 的配置文件，默认 `vigil/ml/ads_ml/config.yaml`；模型目录在启动时解析软链接，切换版本需重启后端
@@ -364,29 +358,16 @@ sudo NETSENTINEL_TOKEN=<JWT> bash simulation/run.sh [1|2|3]
 | Hubble 看不到伪造源 IP 的流量 | 源 IP 是否已绑定到 `virbr-k8s`；必要时 apply `host-firewall-ccnp.yaml` |
 | 发包报权限错误 | 发包脚本需要 root |
 
-注意：`03-deploy-5nodes.sh` Step 12 会尝试改写项目根目录下的 `handle_addr.py`、`send_request.py`、`kafka_read.py`，但这些文件已分别移到 `traffic/` 和 `kafka/`，所以这一步会直接跳过。重新部署后若 nginx 的 MetalLB IP 变了，需要手动更新 `traffic/send_request.py` 中的 `DESTINATION_IP`。
+注意：重新部署后若 nginx 的 MetalLB IP 变了，`03-deploy-5nodes.sh` Step 12 会提示，需要手动更新 `traffic/send_request.py` 中的 `DESTINATION_IP`。
 
 ---
 
-## 9. 版本管理
+## 9. 版本管理与运行目录
 
-**纳入 Git 的内容：**
+代码在 knettf 仓库的 `lab/` 下，用 Git 管理；运行时的数据只放在运行目录 `/srv/netsentinel/lab`，不进仓库。
 
-- 根目录：`README.md`、`pyproject.toml`、`uv.lock`、`.python-version`、`requirements.txt`、`.gitignore`
-- `kubeadm-cluster/`、`kafka-svc/`、`cilium-vector/`、`detector/`、`ingress-controller/`、`hubble-scripts/`
-- `cluster-setup/` 中仅 `targets.yaml`、`host-firewall-ccnp.yaml`
-- `kafka/`、`traffic/`、`traffic_request/`、`simulation/` 中的脚本与说明（不含数据和运行产物）
+- 改代码：在自己的仓库检出里改 `lab/`，提交、合并到 `merge-dev`
+- 更新运行目录：`bash lab/sync-to-srv.sh`（rsync，不会覆盖或删除运行目录里的数据、`.env`、`.venv`）
+- `lab/.gitignore` 排除：`*.csv`、`*.log`、`*.pid`、`*.done`、`logs/`、`.env`、`.venv/`、`replay/record_send_uuid.txt`、`simulation/monitor/monitor_report_*.txt`
 
-**被 `.gitignore` 排除、只存在于本机的内容：**
-
-| 类别 | 内容 |
-|------|------|
-| 脚本/文档目录 | `dataset/`（含 `dataset_collector.py`、`aggregate_flows.py`、`run_dataset_collection.sh`、`test_50_packets.sh`）、`docs/`、`logs/` |
-| 旧脚本 | `cluster-setup/init.sh`、`init-5nodes.sh`、`minikube-check.sh` |
-| 数据 | 所有 `*.csv`（根目录 `flows*.csv`、`simulation/` 与 `traffic_request/` 下的测试集和结果等） |
-| 运行产物 | `*.log`、`*.pid`、`*.done`、`traffic_request/record_send_uuid.txt`、`simulation/monitor/monitor_report_*.txt` |
-| 环境 | `.env`、`.venv/`、`.vscode/`、`.claude`、`__pycache__/` |
-
-`dataset/` 和 `docs/` 虽然包含脚本和文档，但目前不在 Git 中，需要另外备份。
-
-`traffic_request/scripts/start_send.sh`、`start_read.sh` 在 `PATH` 中找不到 `uv` 时会回退到写死的 `/home/soar009/.local/bin/uv`，换用户运行时需确保 `uv` 在 `PATH` 中。
+`replay/scripts/start_send.sh`、`start_read.sh` 在 `PATH` 中找不到 `uv` 时会回退到写死的 `/home/soar009/.local/bin/uv`，换用户运行时需确保 `uv` 在 `PATH` 中。

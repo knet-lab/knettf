@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>账号与令牌</h1>
     <div class="meta">网页上只能新建和删除用户（管理后台 Users），其余操作都要用命令行。<br>
-      下面的命令都在后端目录里执行：<code class="vp">cd /srv/netsentinel/prod/backend</code></div>
+      下面的命令都在后端目录里执行：<code class="vp">cd /srv/netsentinel/prod/apps/backend</code></div>
 
     <section id="users">
       <h2>用户</h2>
@@ -22,7 +22,7 @@
       <div class="task"><h4><span class="n">1</span>重新生成</h4>
         <div class="do"><div><pre class="on-prod"><code>../.venv/bin/python manage.py generate_bridge_token --write-env
 sudo systemctl restart netsentinel</code></pre></div></div>
-        <div class="why"><div>token 写进 <code>backend/backend/.env</code>，后端只在启动时读一次，所以要重启。</div></div>
+        <div class="why"><div>token 写进 <code>apps/backend/backend/.env</code>，后端只在启动时读一次，所以要重启。</div></div>
         <div class="res"><div><code>.env</code> 里的值变了，服务 active。</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>同步给入口 B（部署了才需要）</h4>

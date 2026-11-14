@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>4 检测链路与模型</h1>
     <div class="meta">读完你能：讲清楚一条 Hubble 事件怎样变成数据库里的一条检测记录；知道 35 个特征各是什么、怎么算的；读懂模型的四个步骤；会换模型、加模型、排查“没有新数据”。<br>
-      涉及文件：<span class="tag tag-n">N</span> <code>backend/vigil/</code>、<code>detector/</code>；<span class="tag tag-k">K</span> <code>cilium-vector/vector-5nodes.yaml</code>、<code>kafka/vigil_bridge.py</code>、<code>dataset/aggregate_flows.py</code>。</div>
+      涉及文件：<span class="tag tag-n">N</span> <code>apps/backend/vigil/</code>、<code>detector/</code>；<span class="tag tag-k">K</span> <code>lab/manifests/vector-5nodes.yaml</code>、<code>lab/collect/vigil_bridge.py</code>、<code>dataset/aggregate_flows.py</code>。</div>
 
     <section id="event">
       <h2>4.1 起点：一条 Hubble flow 事件</h2>
@@ -28,7 +28,7 @@
       <p>把 Kafka 里的事件变成检测记录有三种方式，<b>同一时间只能开一种</b>，否则同一条流会被记录多次。</p>
       <div class="table-wrap"><table>
         <tr><th></th><th>入口 A（默认，在用）</th><th>入口 B（可选）</th><th>入口 C（可选）</th></tr>
-        <tr><td>代码</td><td><span class="tag tag-n">N</span> <code>backend/vigil/bridge.py</code></td><td><span class="tag tag-n">N</span> <code>detector/detector.py</code>（镜像 <code>soar009/netsentinel-detector</code>）</td><td><span class="tag tag-k">K</span> <code>kafka/vigil_bridge.py</code></td></tr>
+        <tr><td>代码</td><td><span class="tag tag-n">N</span> <code>apps/backend/vigil/bridge.py</code></td><td><span class="tag tag-n">N</span> <code>detector/detector.py</code>（镜像 <code>soar009/netsentinel-detector</code>）</td><td><span class="tag tag-k">K</span> <code>lab/collect/vigil_bridge.py</code></td></tr>
         <tr><td>在哪运行</td><td>后端进程内的两个线程</td><td>集群内 Pod（命名空间 <code>netsentinel</code>）</td><td>宿主机上手动运行的脚本</td></tr>
         <tr><td>Kafka group</td><td><code>vigil-bridge</code>，从 latest 开始</td><td><code>vigil-detector</code></td><td>脚本参数</td></tr>
         <tr><td>聚合方式</td><td>每次 poll 到的一批消息立即聚合</td><td>累计 <code>PKT_BATCH_SIZE</code>（默认 1 万）个包后聚合</td><td>按 5 元组维护状态，<code>--window</code> 秒无新包则结束这条流</td></tr>
@@ -100,7 +100,7 @@ _HOST_GW     = 192.168.100.1</code></pre>
       </table></div>
       <div class="danger"><b>五处必须同步</b>：这 35 个名字和含义在以下位置各写了一遍，改任何一处都要改其他四处：<br>
         ① <code>bridge.py compute_flow()</code> ② <code>ml/models/base.py DetectionInput</code> ③ <code>ml/models/runner.py flow_from_dict()</code>（int / float 字段集合）④ <code>serializers.py FlowInputSerializer</code> ⑤ <code>ml/ads_ml/main.py main()</code> 的参数表。<br>
-        还有 <span class="tag tag-k">K</span> 侧的 <code>dataset/aggregate_flows.py</code>、<code>kafka/vigil_bridge.py</code> 和 <code>detector/detector.py</code>，以及训练流水线里的 <code>ebpf_35_features</code>。</div>
+        还有 <span class="tag tag-k">K</span> 侧的 <code>dataset/aggregate_flows.py</code>、<code>lab/collect/vigil_bridge.py</code> 和 <code>detector/detector.py</code>，以及训练流水线里的 <code>ebpf_35_features</code>。</div>
     </section>
 
     <section id="service">
@@ -127,7 +127,7 @@ def detect_batch(flows, model_name=None):
     <section id="model">
       <h2>4.6 模型：ads_ml（OCSVM + 余弦复核 + 零样本学习）</h2>
       <h3>文件</h3>
-      <p>代码（<code>main.py</code>、<code>utils/</code>）在 <code>backend/vigil/ml/ads_ml/</code>；线上用的模型文件在版本目录 <code class="vp">/srv/netsentinel/models/ads_ml/current</code>（见 <a href="#newmodel">4.11</a>），表里的 <code>trained/</code> 指那里的文件。</p>
+      <p>代码（<code>main.py</code>、<code>utils/</code>）在 <code>apps/backend/vigil/ml/ads_ml/</code>；线上用的模型文件在版本目录 <code class="vp">/srv/netsentinel/models/ads_ml/current</code>（见 <a href="#newmodel">4.11</a>），表里的 <code>trained/</code> 指那里的文件。</p>
       <div class="table-wrap"><table>
         <tr><th>文件</th><th>内容</th></tr>
         <tr><td><code>config.yaml</code></td><td>三个模型文件的路径（相对 config.yaml 所在目录）</td></tr>
@@ -234,7 +234,7 @@ docker exec pg psql -U vigil vigil -c "create table if not exists vigil_detectio
       <h2>4.9 入口 B：集群内检测器</h2>
       <h3>构建：<code>detector/build.sh</code></h3>
       <ol>
-        <li><code>rsync -a --delete</code> 把 <code>backend/vigil/ml/ads_ml/</code>（排除 <code>__pycache__</code>、<code>results/</code>）同步到 <code>detector/ads_ml/</code>。</li>
+        <li><code>rsync -a --delete</code> 把 <code>apps/backend/vigil/ml/ads_ml/</code>（排除 <code>__pycache__</code>、<code>results/</code>）同步到 <code>detector/ads_ml/</code>。</li>
         <li><code>docker build -t soar009/netsentinel-detector:latest</code>：基于 <code>python:3.12-slim</code>，用 uv 装 <code>requirements.txt</code>，复制 <code>config.yaml</code>、<code>trained/</code>、<code>utils/</code>、<code>detector.py</code>。</li>
         <li><code>docker push</code> 到 Docker Hub（需已 <code>docker login</code>）。</li>
       </ol>
@@ -248,22 +248,22 @@ docker exec pg psql -U vigil vigil -c "create table if not exists vigil_detectio
       <h3>与入口 A 的差异（重要）</h3>
       <div class="note"><code>detector.py</code> 的 <code>_infer()</code> <b>不是</b>调用 <code>ads_ml/main.py</code>，而是自己重写的简化版：异常判断用 <code>decision_function</code> 按训练集最小最大值归一化后与 <code>REVIEW_THRESHOLD</code> 比较，没有余弦复核；ZSL 用 <code>prototypes.values()</code> 直接算相似度（假设原型文件是 <code>{名字: 向量}</code> 结构，而当前文件是 <code>{名字: {"prototypes": [...]}}</code>）。所以 A、B 的结果不可直接对比，部署 B 前要先在本地验证它能跑通。后端收到 B 的结果时 <code>model_name</code> 一律记为 <code>ads_ml_ocsvm</code>。</div>
       <h3>部署步骤</h3>
-<pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/NetSentinel</span>/detector &amp;&amp; bash build.sh
+<pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/detector &amp;&amp; bash build.sh
 kubectl create ns netsentinel --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n netsentinel create secret generic detector-secret \
   --from-literal=django-token="$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env | cut -d= -f2-)" \
   --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f /srv/netsentinel/knetsentinel/detector/detector-deployment.yaml
+kubectl apply -f detector/k8s/detector-deployment.yaml
 kubectl -n netsentinel logs deploy/netsentinel-detector -f     <span class="c"># 应看到 connected to Django</span></code></pre>
       <p>同时要关掉入口 A（注释 <code>vigil/apps.py</code> 的 <code>bridge.start()</code> 并重启后端），否则重复入库。后端日志里看到 <code>detector pod connected</code> 和 <code>detector push: saved N result(s)</code> 即正常；WebSocket 被以 4401 关闭 = token 不一致。</p>
     </section>
 
     <section id="entryc">
-      <h2>4.10 入口 C：宿主机脚本 <span class="tag tag-k">K</span> <code>kafka/vigil_bridge.py</code></h2>
+      <h2>4.10 入口 C：宿主机脚本 <span class="tag tag-k">K</span> <code>lab/collect/vigil_bridge.py</code></h2>
       <p>按 5 元组维护 <code>FlowState</code>，一条流超过 <code>--window</code>（默认 5 秒）没有新包就结束，凑够 <code>--batch-size</code>（默认 20）条就 <code>POST {backend}/api/vigil/detect/batch/</code>。切流方式与训练数据一致，适合做对比实验。</p>
-<pre class="on-prod"><code>cd /srv/netsentinel/knetsentinel
+<pre class="on-prod"><code>cd /srv/netsentinel/lab
 TOKEN=$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">/srv/netsentinel/prod</span>/backend/backend/.env | cut -d= -f2-)   <span class="c"># 10 年有效的 JWT</span>
-uv run python kafka/vigil_bridge.py --backend http://localhost:8080 --token "$TOKEN" --window 5 --batch-size 20</code></pre>
+uv run python lab/collect/vigil_bridge.py --backend http://localhost:8080 --token "$TOKEN" --window 5 --batch-size 20</code></pre>
       <p>同样要先关入口 A。</p>
     </section>
 
@@ -275,7 +275,7 @@ uv run python kafka/vigil_bridge.py --backend http://localhost:8080 --token "$TO
 mkdir -p v2-20261101/trained                                   <span class="c"># 版本名自定，建议 v序号-日期</span>
 cp 新的文件 v2-20261101/trained/                                <span class="c"># ebpf_ocsvm_pipeline.joblib、*_prototypes_*.joblib、训练集 CSV</span>
 cp current/config.yaml v2-20261101/                              <span class="c"># 文件名变了就改这份 config.yaml</span>
-cd /srv/netsentinel/prod/backend &amp;&amp; ../.venv/bin/python manage.py check_model --config /srv/netsentinel/models/ads_ml/v2-20261101/config.yaml
+cd /srv/netsentinel/prod/apps/backend &amp;&amp; ../.venv/bin/python manage.py check_model --config /srv/netsentinel/models/ads_ml/v2-20261101/config.yaml
 ln -sfn v2-20261101 /srv/netsentinel/models/ads_ml/current
 sudo systemctl restart netsentinel
 sudo journalctl -u netsentinel --since '-1 min' | grep 'AdsMLModel loaded from'</code></pre>
@@ -288,7 +288,7 @@ sudo journalctl -u netsentinel --since '-1 min' | grep 'AdsMLModel loaded from'<
       </ul>
       <h3>新增一个模型（与现有模型并行）</h3>
       <ol>
-        <li>在 <code>backend/vigil/ml/models/</code> 下写一个继承 <code>BaseDetectionModel</code> 的类，实现 <code>name</code>（唯一，会存进记录的 <code>model_name</code>）和 <code>predict()</code>；参考 <code>example_threshold.py</code>。需要模型文件就像 <code>AdsMLModel</code> 一样接收 <code>config_path</code>，在构造函数里加载一次。</li>
+        <li>在 <code>apps/backend/vigil/ml/models/</code> 下写一个继承 <code>BaseDetectionModel</code> 的类，实现 <code>name</code>（唯一，会存进记录的 <code>model_name</code>）和 <code>predict()</code>；参考 <code>example_threshold.py</code>。需要模型文件就像 <code>AdsMLModel</code> 一样接收 <code>config_path</code>，在构造函数里加载一次。</li>
         <li>检查接口：<code>../.venv/bin/python manage.py check_model --model vigil.ml.models.my_model.MyModel</code></li>
         <li>代码走 PR 和 <code>release.sh -backend</code> 上线。</li>
         <li>在线上 <code>.env</code> 里加：<code>VIGIL_MODELS=vigil.ml.models.ads_ml_model.AdsMLModel,vigil.ml.models.my_model.MyModel</code>，重启。</li>

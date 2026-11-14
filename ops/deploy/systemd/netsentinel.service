@@ -7,7 +7,7 @@ Wants=network-online.target
 User=netsentinel
 Group=netsentinel
 UMask=0002
-WorkingDirectory=/srv/netsentinel/prod/backend
+WorkingDirectory=/srv/netsentinel/prod/apps/backend
 Environment=DJANGO_SETTINGS_MODULE=backend.settings
 ExecStart=/srv/netsentinel/prod/.venv/bin/uvicorn backend.asgi:application --host 0.0.0.0 --port 8080
 Restart=always

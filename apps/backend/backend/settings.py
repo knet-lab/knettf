@@ -24,7 +24,7 @@ env.read_env(Path(__file__).resolve().parent / '.env')
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# 开发默认值；生产在 /srv/netsentinel/prod/backend/backend/.env 里覆盖
+# 开发默认值；生产在 /srv/netsentinel/prod/apps/backend/backend/.env 里覆盖
 SECRET_KEY = env.str('SECRET_KEY', default='django-insecure-wyu1ejh8&6i7q*ra*&bd^)5__gd#7tm!29gn%*!wq!6v(ml+sf')
 
 # SECURITY WARNING: don't run with debug turned on in production!

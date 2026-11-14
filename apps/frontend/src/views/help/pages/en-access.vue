@@ -66,11 +66,11 @@ sudo journalctl -u netsentinel -f</code></pre>
   class B,C gh
   class D prod</pre>
       <ol>
-        <li><b>PR + review</b>: commit and push on branch <code>NEWUSER</code> in <code>/home/NEWUSER/github/NetSentinel</code>, open a PR into <code>merge-dev</code>; the other person reviews and approves, then it is merged.</li>
+        <li><b>PR + review</b>: commit and push on branch <code>NEWUSER</code> in <code>/home/NEWUSER/github/knettf</code>, open a PR into <code>merge-dev</code>; the other person reviews and approves, then it is merged.</li>
         <li><b>release.sh</b>: <code>/srv/netsentinel/release.sh -frontend | -backend | -all</code> fast-forwards <code>prod</code> to <code>merge-dev</code>.</li>
         <li><b>deploy.sh</b>: <code>git pull</code> in <code>/srv/netsentinel/prod</code> with the runner's own GitHub key, build, restart.</li>
       </ol>
-      <p>knetsentinel is the same up to merge-dev; then <code>master</code> is fast-forwarded and <code>/srv/netsentinel/knetsentinel</code> pulled (see Deploying Changes). Review happens only on the PR. So, in order: your GitHub key → clone and create your branch → commit identity → test commit.</p>
+      <p>The lab (<code>lab/</code>, formerly knetsentinel) is in the same repository and goes through the same PR; after merging, run <code>bash lab/sync-to-srv.sh</code> from your checkout to update <code>/srv/netsentinel/lab</code> (see Deploying Changes). Review happens only on the PR. So, in order: your GitHub key → clone and create your branch → commit identity → test commit.</p>
       <div class="task"><h4><span class="n">1</span>Join knet-lab and give the server your GitHub key</h4>
         <div class="do"><div>Any Owner invites your GitHub username at <code>https://github.com/orgs/knet-lab/people</code>; accept at <code>https://github.com/orgs/knet-lab/invitation</code>. Then, logged in as yourself on the server:<pre><code>ssh-keygen -t ed25519 -N "" -C "your-github-email" -f /home/NEWUSER/.ssh/github_ssh_key
 printf 'Host github.com\n    HostName github.com\n    User git\n    IdentityFile /home/NEWUSER/.ssh/github_ssh_key\n    IdentitiesOnly yes\n' &gt;&gt; /home/NEWUSER/.ssh/config
@@ -82,22 +82,16 @@ ssh -T git@github.com</code></pre>The key gets its own name instead of the defau
       </div>
       <div class="task"><h4><span class="n">2</span>Clone into your development directory and create your branch</h4>
         <div class="do"><div><pre><code>mkdir -p /home/NEWUSER/github
-git clone git@github.com:knet-lab/NetSentinel.git /home/NEWUSER/github/NetSentinel
-git clone git@github.com:knet-lab/knetsentinel.git /home/NEWUSER/github/knetsentinel
-git -C /home/NEWUSER/github/NetSentinel switch -c NEWUSER origin/merge-dev
-git -C /home/NEWUSER/github/NetSentinel push -u origin NEWUSER
-git -C /home/NEWUSER/github/knetsentinel switch -c NEWUSER origin/merge-dev
-git -C /home/NEWUSER/github/knetsentinel push -u origin NEWUSER</code></pre></div></div>
-        <div class="why"><div>Code is only edited here, never in <code>/srv/netsentinel/prod</code> or <code>/srv/netsentinel/knetsentinel</code>. The <code>netsentinel</code> group (log in again afterwards) lets you release into <code>/srv</code>.</div></div>
+git clone git@github.com:knet-lab/knettf.git /home/NEWUSER/github/knettf
+git -C /home/NEWUSER/github/knettf switch -c NEWUSER origin/merge-dev
+git -C /home/NEWUSER/github/knettf push -u origin NEWUSER</code></pre></div></div>
+        <div class="why"><div>Code is only edited here, never in <code>/srv/netsentinel/prod</code> or <code>/srv/netsentinel/lab</code>. The <code>netsentinel</code> group (log in again afterwards) lets you release into <code>/srv</code>.</div></div>
         <div class="res"><div>Both repositories cloned; your branch exists on GitHub.</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>Set your commit identity</h4>
-        <div class="do"><div><pre><code>git -C /home/NEWUSER/github/NetSentinel  config user.name  "your-github-username"
-git -C /home/NEWUSER/github/NetSentinel  config user.email "your-verified-github-email"
-git -C /home/NEWUSER/github/knetsentinel config user.name  "your-github-username"
-git -C /home/NEWUSER/github/knetsentinel config user.email "your-verified-github-email"
-git -C /home/NEWUSER/github/NetSentinel  config --local --get-regexp user
-git -C /home/NEWUSER/github/knetsentinel config --local --get-regexp user</code></pre></div></div>
+        <div class="do"><div><pre><code>git -C /home/NEWUSER/github/knettf  config user.name  "your-github-username"
+git -C /home/NEWUSER/github/knettf  config user.email "your-verified-github-email"
+git -C /home/NEWUSER/github/knettf  config --local --get-regexp user
         <div class="why"><div>The identity is set in your own two development repositories only, so it affects nothing else in your account. Never set one in the shared directories under <code>/srv/netsentinel</code>: they are only pulled, never committed in.</div></div>
         <div class="res"><div>The last two commands print your name and email. A test commit pushed on a temporary branch shows you as the author on GitHub.</div></div>
       </div>
@@ -119,7 +113,7 @@ git -C /srv/netsentinel/prod push --dry-run origin origin/prod:prod     # dry ru
         <tr><td>3</td><td><code>sudo systemctl is-active netsentinel cloudflared-knettf</code></td><td><code>active</code></td></tr>
         <tr><td>4</td><td><code>kubectl get nodes</code></td><td>5 nodes <code>Ready</code></td></tr>
         <tr><td>5</td><td><code>ssh -T git@github.com</code></td><td><code>Hi your-name!</code></td></tr>
-        <tr><td>6</td><td>Commit and push a test branch in both repositories</td><td>GitHub shows you as the author</td></tr>
+        <tr><td>6</td><td>Commit and push a test branch</td><td>GitHub shows you as the author</td></tr>
         <tr><td>7</td><td><code>git -C /srv/netsentinel/prod fetch origin</code> as yourself</td><td>Succeeds</td></tr>
       </table></div>
     </section>

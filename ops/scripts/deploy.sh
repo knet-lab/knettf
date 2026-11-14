@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # NetSentinel 部署脚本
-# 用法: scripts/deploy.sh [-frontend] [-backend] [-all]
+# 用法: ops/scripts/deploy.sh [-frontend] [-backend] [-all]
 #   -frontend  pnpm install + pnpm build → 重启 netsentinel（WhiteNoise 启动时才扫描 dist）
 #   -backend   uv sync → manage.py check → collectstatic → migrate(default) → 重启 netsentinel → 检查 8080
 #   -all       两者都做（先后端，再前端）
@@ -10,7 +10,7 @@
 # vigil 库（PostgreSQL）不会自动 migrate：大表 ALTER 可能很慢，有未应用的迁移时只提示。
 set -euo pipefail
 
-DEV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROOT="${NETSENTINEL_PROD:-/srv/netsentinel/prod}"
 BRANCH=prod
 PY="$ROOT/.venv/bin/python"
@@ -60,7 +60,7 @@ deploy_backend() {
   command -v uv >/dev/null || die "找不到 uv"
   uv sync --frozen --project "$ROOT"
 
-  cd "$ROOT/backend"
+  cd "$ROOT/apps/backend"
   log "后端：manage.py check"
   "$PY" manage.py check
 
@@ -71,7 +71,7 @@ deploy_backend() {
   "$PY" manage.py migrate --noinput
 
   if "$PY" manage.py showmigrations vigil --database=vigil 2>/dev/null | grep -q "\[ \]"; then
-    printf '\033[1;33m! vigil 库有未应用的迁移，请确认后手动执行:\n  cd %s/backend && %s manage.py migrate --database=vigil\033[0m\n' "$ROOT" "$PY"
+    printf '\033[1;33m! vigil 库有未应用的迁移，请确认后手动执行:\n  cd %s/apps/backend && %s manage.py migrate --database=vigil\033[0m\n' "$ROOT" "$PY"
   fi
 
 }
@@ -99,10 +99,10 @@ deploy_frontend() {
     [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
     command -v pnpm >/dev/null || die "找不到 pnpm（检查 nvm / node 是否安装）"
   fi
-  cd "$ROOT/frontend"
+  cd "$ROOT/apps/frontend"
   pnpm install --frozen-lockfile
   pnpm build
-  echo "✓ 前端已构建到 frontend/dist"
+  echo "✓ 前端已构建到 apps/frontend/dist"
 }
 
 sync_code

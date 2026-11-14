@@ -3,7 +3,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ADS_ML_SRC="$SCRIPT_DIR/../backend/vigil/ml/ads_ml"
+ADS_ML_SRC="$SCRIPT_DIR/../apps/backend/vigil/ml/ads_ml"
 
 echo "syncing ads_ml..."
 rsync -a --delete \

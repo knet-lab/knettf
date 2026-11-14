@@ -23,9 +23,9 @@ die()  { echo "  ❌ $*"; exit 1; }
 
 trap 'echo ""; echo "❌ 出错。集群和已部署资源保留，修复后重新运行 bash 03-deploy-5nodes.sh"' ERR
 
-KAFKA_YAML="/srv/netsentinel/knetsentinel/kafka-svc/kafka-5nodes.yaml"
-VECTOR_YAML="/srv/netsentinel/knetsentinel/cilium-vector/vector-5nodes.yaml"
-KNETSENTINEL_DIR="/srv/netsentinel/knetsentinel"
+LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # 本脚本在 lab/cluster/ 下
+KAFKA_YAML="${LAB_DIR}/manifests/kafka-5nodes.yaml"
+VECTOR_YAML="${LAB_DIR}/manifests/vector-5nodes.yaml"
 
 # ══════════════════════════════════════════════
 # Step 1: 前置检查
@@ -309,9 +309,9 @@ echo "${KAFKA_EXTERNAL_IPS[0]}  kafka-svc.default.svc.cluster.local" \
 ok "/etc/hosts 更新完成"
 
 # ══════════════════════════════════════════════
-# Step 12: 更新 knetsentinel 配置文件
+# Step 12: 写入 lab/.env
 # ══════════════════════════════════════════════
-log "Step 12: 更新 knetsentinel 配置"
+log "Step 12: 写入 lab/.env"
 
 # 集群外 bootstrap：4个 broker 的 MetalLB IP:9094
 BOOTSTRAP_EXTERNAL=""
@@ -320,7 +320,7 @@ for i in $(seq 0 3); do
 done
 BOOTSTRAP_EXTERNAL="${BOOTSTRAP_EXTERNAL%,}"
 
-cat > "${KNETSENTINEL_DIR}/.env" << ENVEOF
+cat > "${LAB_DIR}/.env" << ENVEOF
 BOOTSTRAP_SERVERS=${BOOTSTRAP_EXTERNAL}
 GROUP_ID=ebpf-log-consumer-group
 AUTO_OFFSET_RESET=earliest
@@ -328,34 +328,7 @@ TOPICS='["ebpf-net-logs"]'
 ENVEOF
 ok ".env 已更新"
 
-if [ -f "${KNETSENTINEL_DIR}/handle_addr.py" ]; then
-  sed -i \
-    -e "s|MINIKUBE_BRIDGE_INTERFACE = .*|MINIKUBE_BRIDGE_INTERFACE = \"virbr-k8s\"|g" \
-    -e "s|base_ip = \"192\.168\.[0-9]*\.\"|base_ip = \"192.168.100.\"|g" \
-    "${KNETSENTINEL_DIR}/handle_addr.py"
-  ok "handle_addr.py 已更新"
-else
-  info "handle_addr.py 不存在，跳过"
-fi
-
-if [ -f "${KNETSENTINEL_DIR}/send_request.py" ]; then
-  sed -i \
-    -e "s|destination_ip = '.*'|destination_ip = '${NGINX_IP}'|g" \
-    -e "s|destination_port = [0-9]*|destination_port = 80|g" \
-    "${KNETSENTINEL_DIR}/send_request.py"
-  ok "send_request.py 已更新 → dst=${NGINX_IP}:80"
-else
-  info "send_request.py 不存在，跳过"
-fi
-
-if [ -f "${KNETSENTINEL_DIR}/kafka_read.py" ]; then
-  sed -i \
-    -e "s|DESTINATION_IP = '.*'|DESTINATION_IP = '${KAFKA_EXTERNAL_IPS[0]}'|g" \
-    "${KNETSENTINEL_DIR}/kafka_read.py"
-  ok "kafka_read.py 已更新"
-else
-  info "kafka_read.py 不存在，跳过"
-fi
+info "nginx 的 MetalLB IP 是 ${NGINX_IP}；若和 traffic/send_request.py 里的 DESTINATION_IP 不同，需要手动改"
 
 # ══════════════════════════════════════════════
 # 完成摘要

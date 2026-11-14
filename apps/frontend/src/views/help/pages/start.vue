@@ -30,8 +30,8 @@
       <p>代码分在两个 GitHub 仓库里，都在实验室的 GitHub 组织 <code>knet-lab</code> 下：</p>
       <div class="table-wrap"><table>
         <tr><th>仓库</th><th>内容</th><th>服务器上的目录</th></tr>
-        <tr><td><b>NetSentinel</b></td><td>网站本身（前端 + 后端 + 检测模型）</td><td>开发目录 <code>/home/NEWUSER/github/NetSentinel</code>；线上目录 <code>/srv/netsentinel/prod</code></td></tr>
-        <tr><td><b>knetsentinel</b></td><td>实验集群的搭建脚本和发流量的脚本</td><td>开发目录 <code>/home/NEWUSER/github/knetsentinel</code>；运行目录 <code>/srv/netsentinel/knetsentinel</code></td></tr>
+        <tr><td><b>NetSentinel</b></td><td>网站本身（前端 + 后端 + 检测模型）</td><td>开发目录 <code>/home/NEWUSER/github/knettf</code>；线上目录 <code>/srv/netsentinel/prod</code></td></tr>
+        <tr><td><b>knetsentinel</b></td><td>实验集群的搭建脚本和发流量的脚本</td><td>开发目录 <code>/home/NEWUSER/github/knettf/lab</code>；运行目录 <code>/srv/netsentinel/lab</code></td></tr>
       </table></div>
       <p>网站有<b>两份</b>：开发目录用来改代码和试验，线上目录是用户实际在用的。改好的代码经 GitHub PR 审查合并后，用 <code>/srv/netsentinel/release.sh</code> 发布到线上，不能直接在线上目录里改。具体做法在项目手册「改动上线」里。</p>
     </section>

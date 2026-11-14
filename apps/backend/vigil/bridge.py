@@ -1,7 +1,7 @@
 """
 vigil/bridge.py — Kafka → in-memory flow aggregation → local detect API
 
-Flow aggregation logic mirrors knetsentinel/dataset/aggregate_flows.py
+Flow aggregation logic mirrors lab/dataset/aggregate_flows.py
 so the feature set is identical to DetectionInput / FLOW_FIELDS.
 """
 

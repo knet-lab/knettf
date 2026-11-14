@@ -7,7 +7,7 @@
       <h2>9.1 安全问题（站点在公网，优先处理）</h2>
       <div class="table-wrap"><table>
         <tr><th>问题</th><th>位置</th><th>影响</th><th>建议</th></tr>
-        <tr><td>数据库密码默认值写在代码里；<code>CORS_ALLOW_ALL_ORIGINS</code>（SECRET_KEY / DEBUG / ALLOWED_HOSTS 已从 .env 读，线上已关 DEBUG）</td><td><code>backend/settings.py</code></td><td>能读仓库的人知道 PostgreSQL 密码；任何站点可跨域调用 API</td><td>改 PostgreSQL 密码并只写进线上 .env（<code>VIGIL_DB_PASSWORD</code>）；限定 CORS 来源</td></tr>
+        <tr><td>数据库密码默认值写在代码里；<code>CORS_ALLOW_ALL_ORIGINS</code>（SECRET_KEY / DEBUG / ALLOWED_HOSTS 已从 .env 读，线上已关 DEBUG）</td><td><code>apps/backend/settings.py</code></td><td>能读仓库的人知道 PostgreSQL 密码；任何站点可跨域调用 API</td><td>改 PostgreSQL 密码并只写进线上 .env（<code>VIGIL_DB_PASSWORD</code>）；限定 CORS 来源</td></tr>
         <tr><td>默认账号弱口令</td><td><code>kcore/management/commands/users_init.py</code></td><td>admin/admin123 公网可登录</td><td>立即改密码</td></tr>
         <tr><td>任何人可注册</td><td><code>UserList</code> POST 为 <code>AllowAny</code></td><td>陌生人可拿到普通账号，进而看全部检测数据</td><td>改为 <code>IsAdminUser</code></td></tr>
         <tr><td>Pod 日志 WebSocket 无鉴权</td><td><code>kcore/consumers.py PodLogConsumer</code></td><td>知道集群 ID 即可读任意 Pod 日志，且不检查 owner</td><td>从 query 取 token 校验，再 <code>check_owner</code></td></tr>
@@ -29,7 +29,7 @@
         <tr><td>扫描、Apply 同步执行</td><td>autotf views</td><td>一分钟级的 HTTP 请求，经 Cloudflare 可能超时（约 100 秒）</td><td>改为后台任务 + 轮询（依赖里已有 celery，未使用）</td></tr>
         <tr><td>Terraform 不保留 state</td><td><code>ApplyService</code> 临时目录</td><td>重复 Apply 重复建资源，无法 destroy</td><td>按配置持久化工作目录或配置远程 backend</td></tr>
         <tr><td>rotate_partitions 只回扫 7 天</td><td><code>vigil/management/commands/rotate_partitions.py</code></td><td>漏跑超过 7 天的旧分区永远不会删</td><td>查询 <code>pg_inherits</code> 删除所有早于截止日的分区</td></tr>
-        <tr><td>kafka-controller 是裸 Pod + emptyDir</td><td><code>/srv/netsentinel/knetsentinel/kafka-svc/kafka-5nodes.yaml</code></td><td>被删或节点故障 → Kafka 只能重建</td><td>改 StatefulSet + PVC</td></tr>
+        <tr><td>kafka-controller 是裸 Pod + emptyDir</td><td><code>/srv/netsentinel/lab/manifests/kafka-5nodes.yaml</code></td><td>被删或节点故障 → Kafka 只能重建</td><td>改 StatefulSet + PVC</td></tr>
         <tr><td>VM 不自启、iptables 不持久</td><td>libvirt、02 脚本</td><td>宿主机重启后需手工恢复</td><td><code>virsh autostart</code>、<code>iptables-persistent</code></td></tr>
         <tr><td>每个节点的 Vector 都从 relay 拉全集群事件</td><td><code>vector-5nodes.yaml</code></td><td>Kafka 里同一事件可能有多份</td><td>改为单副本 Deployment，或每个节点只读本地 Hubble</td></tr>
       </table></div>

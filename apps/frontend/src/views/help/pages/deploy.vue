@@ -2,18 +2,18 @@
   <div v-pre>
         <h1>改动上线</h1>
     <div class="meta">改了代码或配置之后，怎么让它在线上生效、会影响谁、怎么确认成功。<br>
-      流程固定为：在开发目录 <code class="vn">/home/NEWUSER/github/NetSentinel</code> 的<b>个人分支</b>上改、<code>git commit</code>、<code>git push</code> → 在 GitHub 开 PR 合并到 <code>merge-dev</code> → 对方审核后合并 → 运行 <code>/srv/netsentinel/release.sh</code>，把 <code>merge-dev</code> 原样快进到 <code>prod</code> 并调用 <code>scripts/deploy.sh</code>，部署脚本把 GitHub 上的 <code>prod</code> 拉到线上目录 <code class="vp">/srv/netsentinel/prod</code> 再构建、重启。两个目录的分工见 <a href="/help/index#envs">开发与生产</a>。其他改动按后面几节逐项做。</div>
+      流程固定为：在开发目录 <code class="vn">/home/NEWUSER/github/knettf</code> 的<b>个人分支</b>上改、<code>git commit</code>、<code>git push</code> → 在 GitHub 开 PR 合并到 <code>merge-dev</code> → 对方审核后合并 → 运行 <code>/srv/netsentinel/release.sh</code>，把 <code>merge-dev</code> 原样快进到 <code>prod</code> 并调用 <code>ops/scripts/deploy.sh</code>，部署脚本把 GitHub 上的 <code>prod</code> 拉到线上目录 <code class="vp">/srv/netsentinel/prod</code> 再构建、重启。两个目录的分工见 <a href="/help/index#envs">开发与生产</a>。其他改动按后面几节逐项做。</div>
 
     <section id="branches">
       <h2>分支与协作规则</h2>
       <ol>
-        <li><b>跟上 merge-dev</b>：在开发目录 <code>/home/NEWUSER/github/NetSentinel</code> 执行 <code>git switch NEWUSER</code>、<code>git pull origin merge-dev</code>。</li>
+        <li><b>跟上 merge-dev</b>：在开发目录 <code>/home/NEWUSER/github/knettf</code> 执行 <code>git switch NEWUSER</code>、<code>git pull origin merge-dev</code>。</li>
         <li><b>改代码并提交</b>：本地测试后 <code>git commit</code>，<code>git push origin NEWUSER</code>。</li>
         <li><b>开 PR</b>：GitHub 上 base 选 <code>merge-dev</code>，compare 选 <code>NEWUSER</code>，Reviewers 选另一位 owner。</li>
         <li><b>审查</b>：对方在 Files changed 逐行看，Review changes 选 Approve 或 Request changes。要改就在原分支继续 commit、push，PR 自动更新，再审一次。</li>
         <li><b>合并</b>：Approve 后作者点 Merge pull request，提交进入 <code>merge-dev</code>。</li>
         <li><b>发布</b>：在服务器上运行 <code>/srv/netsentinel/release.sh -frontend</code>（或 <code>-backend</code> / <code>-all</code>）。它列出 <code>origin/prod..origin/merge-dev</code> 之间的提交，输入 <code>y</code> 后把 <code>prod</code> 快进到 <code>merge-dev</code>（不产生新提交）。</li>
-        <li><b>部署</b>：<code>release.sh</code> 接着调用 <code>scripts/deploy.sh</code>，在 <code class="vp">/srv/netsentinel/prod</code> 里用运行者自己的 GitHub 密钥 <code>git pull --ff-only</code>，构建 / 迁移，重启 <code>netsentinel</code>，确认 HTTP 200。</li>
+        <li><b>部署</b>：<code>release.sh</code> 接着调用 <code>ops/scripts/deploy.sh</code>，在 <code class="vp">/srv/netsentinel/prod</code> 里用运行者自己的 GitHub 密钥 <code>git pull --ff-only</code>，构建 / 迁移，重启 <code>netsentinel</code>，确认 HTTP 200。</li>
       </ol>
       <p>⑤ 下次开始干活时回到 ①：<code>git pull origin merge-dev</code> 会带回 PR 的合并提交和对方的改动。</p>
       <div class="table-wrap"><table>
@@ -48,7 +48,7 @@
       <h2>上线前</h2>
       <div class="note">分支：每人一个个人分支（如 <code>NEWUSER</code>），只在自己的分支上 commit；<code>merge-dev</code> 只通过 PR 合并；<code>prod</code> 只从 <code>merge-dev</code> 快进，不在上面做任何修改。没有 main 分支。</div>
       <div class="task"><h4><span class="n">1</span>在个人分支上验证并提交</h4>
-        <div class="do"><div><pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/NetSentinel</span> && git switch <span class="vn">NEWUSER</span>
+        <div class="do"><div><pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span> && git switch <span class="vn">NEWUSER</span>
 git pull origin merge-dev                 # 先合进别人已合并的改动
 git status && git diff
 git add -A && git commit -m "模块：说明"
@@ -57,28 +57,29 @@ git push origin <span class="vn">NEWUSER</span></code></pre>提交前先在开�
         <div class="res"><div>只有你这次的改动。<code>dist/</code>、<code>.venv/</code>、<code>node_modules/</code>、<code>db.sqlite3</code>、<code>.env</code> 不提交。</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>开 PR 合并到 merge-dev</h4>
-        <div class="do"><div>GitHub 上 knet-lab/NetSentinel → Pull requests → New：base 选 <code>merge-dev</code>，compare 选你的分支。对方看过后合并。</div></div>
+        <div class="do"><div>GitHub 上 knet-lab/knettf → Pull requests → New：base 选 <code>merge-dev</code>，compare 选你的分支。对方看过后合并。</div></div>
         <div class="why"><div><code>merge-dev</code> 是两个人改动的汇合点，只通过 PR 进入，每次合并都有记录、有人看过。</div></div>
         <div class="res"><div>PR 显示 Merged，<code>merge-dev</code> 上出现这次的提交。</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>把 merge-dev 发布到 prod</h4>
-        <div class="do"><div><pre class="on-prod"><code>/srv/netsentinel/release.sh -frontend    # 或 -backend / -all；不带参数只快进 prod、不部署</code></pre><code>release.sh</code> 是服务器上的工具，<b>不在 Git 里</b>（<code>.gitignore</code> 已排除，不要复制进仓库提交）。它依次：<code>git fetch</code> → 检查 prod 能否快进到 merge-dev → 列出这次要发布的提交，输入 <code>y</code> 确认 → <code>git push origin origin/merge-dev:prod</code> → 调用 <code class="vp">/srv/netsentinel/prod</code><code>/scripts/deploy.sh</code>（只接受一个参数，原样传入，即下一节的部署）。push 和 deploy.sh 里的 pull 都用<b>运行者自己的</b> GitHub 密钥。注意：<code>deploy.sh</code> 在 pull <b>之前</b>就已经开始运行，执行的是线上目录里旧的那份；如果这次提交改了 <code>scripts/deploy.sh</code> 本身，新版本从下一次发布才生效。。等价的手动做法：<pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/NetSentinel</span> && git fetch origin
+        <div class="do"><div><pre class="on-prod"><code>/srv/netsentinel/release.sh -frontend    # 或 -backend / -all；不带参数只快进 prod、不部署</code></pre><code>release.sh</code> 是服务器上的工具，<b>不在 Git 里</b>（<code>.gitignore</code> 已排除，不要复制进仓库提交）。它依次：<code>git fetch</code> → 检查 prod 能否快进到 merge-dev → 列出这次要发布的提交，输入 <code>y</code> 确认 → <code>git push origin origin/merge-dev:prod</code> → 调用 <code class="vp">/srv/netsentinel/prod</code><code>/scripts/deploy.sh</code>（只接受一个参数，原样传入，即下一节的部署）。push 和 deploy.sh 里的 pull 都用<b>运行者自己的</b> GitHub 密钥。注意：<code>deploy.sh</code> 在 pull <b>之前</b>就已经开始运行，执行的是线上目录里旧的那份；如果这次提交改了 <code>ops/scripts/deploy.sh</code> 本身，新版本从下一次发布才生效。。等价的手动做法：<pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span> && git fetch origin
 git log --oneline origin/prod..origin/merge-dev   # 这次要发布的提交
 git push origin origin/merge-dev:prod             # 只能快进，不能快进时会被拒绝</code></pre></div></div>
         <div class="why"><div><code>prod</code> 和 <code>merge-dev</code> 是同一串提交，发布时不产生新提交、不改代码，上线的就是 merge-dev 上确认过的那个版本。部署脚本只认 GitHub 上的 <code>prod</code>：线上目录 <code class="vp">/srv/netsentinel/prod</code> 停在 <code>prod</code> 分支，从 GitHub 执行 <code>git pull --ff-only</code>（用运行者自己的 GitHub 密钥）。运行者必须在 <code>netsentinel</code> 组里；线上目录有本地改动或不在 <code>prod</code> 分支时脚本拒绝部署。出了问题用 <code>git log</code> 查是哪次改动，在个人分支上 <code>git revert</code> 后照常走 1–3 步。</div></div>
         <div class="res"><div>输出 <code>... -&gt; prod</code>。<span class="bad">rejected (non-fast-forward)</span>：有人直接改了 prod，先查清楚，不要 force push。</div></div>
       </div>
-      <div class="note"><span class="tag tag-k">K</span> knetsentinel 走同样的流程：在开发目录 <code>/home/NEWUSER/github/knetsentinel</code> 的个人分支上改 → PR 合并到 <code>merge-dev</code> → 把 <code>master</code> 快进到 merge-dev，并更新运行目录：<pre><code>git -C /srv/netsentinel/knetsentinel push origin origin/merge-dev:master
-git -C /srv/netsentinel/knetsentinel pull --ff-only origin master</code></pre>不要直接在 <code>/srv/netsentinel/knetsentinel</code> 里改代码。数据（<code>dataset/</code>、<code>logs/</code>、<code>*.csv</code>）和 minikube 旧脚本不在 Git 里，只在运行目录。</div>
+      <div class="note"><span class="tag tag-k">K</span> 实验环境 <code>lab/</code> 在同一个仓库，走同样的 PR 流程。合并到 <code>merge-dev</code> 后，在自己的开发目录里同步到运行目录：<pre><code>cd /home/NEWUSER/github/knettf &amp;&amp; git switch merge-dev &amp;&amp; git pull --ff-only
+bash lab/sync-to-srv.sh -n     # 先看会改哪些文件
+bash lab/sync-to-srv.sh</code></pre>只同步 Git 里的文件，运行目录里的数据（<code>dataset/*.csv</code>、<code>logs/</code>、<code>.env</code>、<code>.venv</code>）不会被覆盖或删除。不要直接在 <code>/srv/netsentinel/lab</code> 里改代码。</div>
     </section>
 
     <section id="script">
       <h2>前端 / 后端代码：用发布脚本</h2>
-      <p>下面每一步都在 PR 合并到 <code>merge-dev</code> 之后运行。<code>release.sh</code> 先把 prod 快进到 merge-dev，再把参数原样交给 <code class="vp">/srv/netsentinel/prod</code><code>/scripts/deploy.sh</code>。只想按当前 prod 重新构建（不发布新提交）时直接运行 <code>/srv/netsentinel/prod/scripts/deploy.sh -frontend</code> 等。</p>
+      <p>下面每一步都在 PR 合并到 <code>merge-dev</code> 之后运行。<code>release.sh</code> 先把 prod 快进到 merge-dev，再把参数原样交给 <code class="vp">/srv/netsentinel/prod</code><code>/scripts/deploy.sh</code>。只想按当前 prod 重新构建（不发布新提交）时直接运行 <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend</code> 等。</p>
 
       <div class="task"><h4><span class="n">1</span>改了前端代码（含 <code>src/views/help/pages/</code> 下的手册）</h4>
         <div class="do"><div><pre class="on-prod"><code>/srv/netsentinel/release.sh -frontend      # PR 合并到 merge-dev 之后</code></pre>脚本在 <code class="vp">/srv/netsentinel/prod</code> 里 <code>git pull</code> → <code>pnpm install --frozen-lockfile</code> → <code>pnpm build</code> → 重启 <code>netsentinel</code>。</div></div>
-        <div class="why"><div>浏览器拿到的是 <code>frontend/dist/</code> 里构建好的文件，不是 <code>src/</code> 源码，不构建改动就不会出现。<code>--frozen-lockfile</code> 保证依赖版本和 <code>pnpm-lock.yaml</code> 一致。线上 <code>DEBUG=False</code>，WhiteNoise 只在进程启动时扫描一次 dist，新构建的文件（文件名带新哈希）要<b>重启后</b>才能被访问，所以脚本最后会重启服务，副作用同下面后端那一步。</div></div>
+        <div class="why"><div>浏览器拿到的是 <code>apps/frontend/dist/</code> 里构建好的文件，不是 <code>src/</code> 源码，不构建改动就不会出现。<code>--frozen-lockfile</code> 保证依赖版本和 <code>pnpm-lock.yaml</code> 一致。线上 <code>DEBUG=False</code>，WhiteNoise 只在进程启动时扫描一次 dist，新构建的文件（文件名带新哈希）要<b>重启后</b>才能被访问，所以脚本最后会重启服务，副作用同下面后端那一步。</div></div>
         <div class="res"><div>最后输出 <code>✓ netsentinel active，HTTP 200</code>。浏览器按 <span class="kbd">Ctrl</span>+<span class="kbd">F5</span> 强制刷新即可看到。<br><span class="bad">构建失败</span>：多半是 TypeScript 类型错误，按报错的文件和行号修改。线上不受影响，旧的 dist 还在。</div></div>
       </div>
 
@@ -104,7 +105,7 @@ docker exec pg pg_dump -U vigil -Fc vigil &gt; /srv/netsentinel/backups/vigil_$(
         <div class="res"><div>生成备份文件，大小不为 0。</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>在开发目录生成迁移并检查 SQL</h4>
-        <div class="do"><div><pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/NetSentinel</span>/backend
+        <div class="do"><div><pre class="on-dev"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/backend
 ../.venv/bin/python manage.py makemigrations
 ../.venv/bin/python manage.py sqlmigrate &lt;app&gt; &lt;编号&gt;</code></pre></div></div>
         <div class="why"><div>执行之前先看清楚会跑什么 SQL，尤其是删列、改类型这类不可逆的操作。vigil 的 <code>DetectionRecord</code> 是 <code>managed=False</code>，改字段只会生成<b>不执行 SQL</b> 的状态迁移（<code>sqlmigrate</code> 显示 <code>(no-op)</code>），真正改表要在同一个迁移里手写 <code>RunSQL</code>（<code>ALTER TABLE vigil_detectionrecord ...</code> 会自动作用于所有分区）。</div></div>
@@ -129,7 +130,7 @@ sudo systemctl start netsentinel</code></pre></div></div>
         <div class="res"><div>服务 active，返回 200。</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>前端依赖</h4>
-        <div class="do"><div><pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/NetSentinel</span>/frontend && pnpm add &lt;包&gt;     # 提交、push、PR 合并后：
+        <div class="do"><div><pre class="on-both"><code>cd <span class="vn">/home/NEWUSER/github/knettf</span>/frontend && pnpm add &lt;包&gt;     # 提交、push、PR 合并后：
 /srv/netsentinel/release.sh -frontend</code></pre></div></div>
         <div class="why"><div><code>pnpm add</code> 会同时修改 <code>package.json</code> 和 <code>pnpm-lock.yaml</code>，两个文件都要提交，否则下一个人用 frozen-lockfile 安装时会报错。</div></div>
         <div class="res"><div>构建成功，<code>git status</code> 里能看到两个文件都有改动。</div></div>
@@ -146,11 +147,11 @@ sudo systemctl start netsentinel</code></pre></div></div>
       <h2>其他改动对照表</h2>
       <div class="table-wrap"><table>
         <tr><th>改了什么</th><th>怎么做</th><th>为什么 / 结果</th></tr>
-        <tr><td>线上 <code class="vp">/srv/netsentinel/prod/backend/backend/.env</code></td><td>直接编辑（不进 Git）→ <code>sudo systemctl restart netsentinel</code></td><td>环境变量只在进程启动时读一次；重启后用 <a href="/help/health">健康检查</a> 第 1 步确认</td></tr>
+        <tr><td>线上 <code class="vp">/srv/netsentinel/prod/apps/backend/backend/.env</code></td><td>直接编辑（不进 Git）→ <code>sudo systemctl restart netsentinel</code></td><td>环境变量只在进程启动时读一次；重启后用 <a href="/help/health">健康检查</a> 第 1 步确认</td></tr>
         <tr><td>systemd unit 文件</td><td><code>sudo systemctl daemon-reload</code> → restart</td><td>不 reload 的话 systemd 还在用旧定义；<code>systemctl cat netsentinel</code> 可确认</td></tr>
         <tr><td>cloudflared 配置</td><td><code>sudo systemctl restart cloudflared-knettf</code></td><td>公网会中断几秒</td></tr>
         <tr><td>Kafka 地址变了</td><td>改 <code>vigil/bridge.py</code> 的 <code>KAFKA_BOOTSTRAP</code>（入口 B 改 ConfigMap）→ PR → <code>release.sh -backend</code></td><td>地址是写死在代码里的；成功后日志有 <code>bridge starting</code> 且没有 <code>bridge error</code></td></tr>
-        <tr><td>Vector 配置</td><td><code>kubectl apply -f /srv/netsentinel/knetsentinel/cilium-vector/vector-5nodes.yaml</code> → <code>kubectl -n kube-system rollout restart ds/vector</code></td><td>重启期间的 Hubble 事件丢失，不会补发</td></tr>
+        <tr><td>Vector 配置</td><td><code>kubectl apply -f /srv/netsentinel/lab/manifests/vector-5nodes.yaml</code> → <code>kubectl -n kube-system rollout restart ds/vector</code></td><td>重启期间的 Hubble 事件丢失，不会补发</td></tr>
         <tr><td>单个 Kafka broker</td><td><code>kubectl delete pod kafka-broker-N</code>，等它 Running 了再处理下一个</td><td>min.insync.replicas=2，同时停两个以上会导致写入失败；数据在 PVC 上，不会丢</td></tr>
         <tr><td>Kafka controller</td><td><b>不要删</b></td><td>它是裸 Pod + emptyDir，删了不会重建，元数据丢失，只能 <a href="/help/power#rebuild-kafka">重建 Kafka</a></td></tr>
         <tr><td>hubble-relay / Cilium</td><td><code>kubectl -n kube-system rollout restart deploy/hubble-relay</code>（或 <code>ds/cilium</code>）</td><td>Vector 5 秒后自动重连；重启 Cilium 网络会短暂抖动</td></tr>

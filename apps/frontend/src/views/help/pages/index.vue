@@ -2,7 +2,7 @@
   <div v-pre>
         <h1>1 系统总览</h1>
     <div class="meta">开发参考的第一页：系统由哪两个项目组成、数据怎么流动、东西放在哪、从零搭起来的顺序、两个项目之间的契约。改代码之前先读这一页。<br>
-      <span class="tag tag-k">K</span> = knetsentinel（<code>/srv/netsentinel/knetsentinel</code>），<span class="tag tag-n">N</span> = NetSentinel（开发目录 <code class="vn">/home/NEWUSER/github/NetSentinel</code>，线上目录 <code class="vp">/srv/netsentinel/prod</code>），<span class="tag tag-b">K+N</span> = 两边都涉及。改代码在 <code class="vn">/home/NEWUSER/github/NetSentinel</code>，看线上数据、日志、模型在 <code class="vp">/srv/netsentinel/prod</code>，见 <a href="#envs">开发与生产</a>。<code>NEWUSER</code> 换成你的 Linux 用户名，见 <a href="/help/prepare">接手准备</a>。</div>
+      <span class="tag tag-k">K</span> = knetsentinel（<code>/srv/netsentinel/lab</code>），<span class="tag tag-n">N</span> = NetSentinel（开发目录 <code class="vn">/home/NEWUSER/github/knettf</code>，线上目录 <code class="vp">/srv/netsentinel/prod</code>），<span class="tag tag-b">K+N</span> = 两边都涉及。改代码在 <code class="vn">/home/NEWUSER/github/knettf</code>，看线上数据、日志、模型在 <code class="vp">/srv/netsentinel/prod</code>，见 <a href="#envs">开发与生产</a>。<code>NEWUSER</code> 换成你的 Linux 用户名，见 <a href="/help/prepare">接手准备</a>。</div>
 
     <section id="what">
       <h2>1.1 这个系统做什么</h2>
@@ -55,7 +55,7 @@
       <p>另外两条与流量无关的链路：</p>
       <ul>
         <li><b>集群管理</b>：浏览器 → <code>/api/kcore/...</code> → 后端用你登记的 kubeconfig 调 Kubernetes API → 结果返回网页。Pod 日志走 WebSocket <code>/ws/clusters/&lt;id&gt;/pods/&lt;ns&gt;/&lt;pod&gt;/logs/</code>。</li>
-        <li><b>Terraform 扫描</b>：浏览器上传 <code>.tf</code> → 后端存到 <code>backend/terraform/</code> → 扫描时复制到临时目录，依次调用 5 个命令行工具，解析它们的 JSON / SARIF 输出 → 汇总成报告存进 SQLite。</li>
+        <li><b>Terraform 扫描</b>：浏览器上传 <code>.tf</code> → 后端存到 <code>apps/backend/terraform/</code> → 扫描时复制到临时目录，依次调用 5 个命令行工具，解析它们的 JSON / SARIF 输出 → 汇总成报告存进 SQLite。</li>
       </ul>
     </section>
 
@@ -78,12 +78,12 @@
   classDef u fill:#fffbea,stroke:#d69e2e,color:#1a202c</pre>
       <div class="table-wrap"><table>
         <tr><th>入口</th><th>代码</th><th>怎么消费 Kafka</th><th>在哪推理、怎么写库</th></tr>
-        <tr><td><b>A</b>（默认，随后端自动启动）</td><td><span class="tag tag-n">N</span> <code>backend/vigil/bridge.py</code></td><td>外部地址 <code>.200-.203:9094</code>，group <code>vigil-bridge</code>，offset latest</td><td>线程内聚合 → <code>flow_queue</code> → drainer → <code>services.detect_batch()</code></td></tr>
+        <tr><td><b>A</b>（默认，随后端自动启动）</td><td><span class="tag tag-n">N</span> <code>apps/backend/vigil/bridge.py</code></td><td>外部地址 <code>.200-.203:9094</code>，group <code>vigil-bridge</code>，offset latest</td><td>线程内聚合 → <code>flow_queue</code> → drainer → <code>services.detect_batch()</code></td></tr>
         <tr><td><b>B</b>（集群内 Pod）</td><td><span class="tag tag-n">N</span> <code>detector/detector.py</code>，镜像 <code>soar009/netsentinel-detector</code></td><td>group <code>vigil-detector</code></td><td>Pod 内自己推理，经 WebSocket <code>ws/detector/push/</code>（Bearer <code>VIGIL_BRIDGE_TOKEN</code>）交给后端写库</td></tr>
-        <tr><td><b>C</b>（宿主机脚本）</td><td><span class="tag tag-k">K</span> <code>kafka/vigil_bridge.py</code></td><td>按 5 元组聚合 30 个特征</td><td><code>POST /api/vigil/detect/batch/</code>（JWT），由后端推理写库</td></tr>
+        <tr><td><b>C</b>（宿主机脚本）</td><td><span class="tag tag-k">K</span> <code>lab/collect/vigil_bridge.py</code></td><td>按 5 元组聚合 30 个特征</td><td><code>POST /api/vigil/detect/batch/</code>（JWT），由后端推理写库</td></tr>
       </table></div>
       <div class="note"><b>不要同时开两条以上入口</b>：A、B、C 各自独立消费 Kafka 并写库，同一条流会被重复记录。入口 A 无开关，只要后端以 uvicorn 启动就会运行（判断逻辑见 <code>vigil/apps.py</code> 的 <code>_should_start_bridge()</code>）。</div>
-      <p>离线评估另有一条旁路：<code>K simulation/simulate_4.py</code> 直接 <code>django.setup()</code> 导入 <code>N backend</code> 的 <code>vigil.services</code>，把 CSV 中的流特征批量送入模型。这是两个项目之间唯一的代码级耦合，路径写死为 <code>../../github/NetSentinel/backend</code>。</p>
+      <p>离线评估另有一条旁路：<code>K simulation/simulate_4.py</code> 直接 <code>django.setup()</code> 导入 <code>N backend</code> 的 <code>vigil.services</code>，把 CSV 中的流特征批量送入模型。这是两个项目之间唯一的代码级耦合，路径写死为 <code>../../github/knettf/backend</code>。</p>
     </section>
 
     <section id="machine">
@@ -123,26 +123,26 @@
         <tr><th>东西</th><th>位置</th><th>说明</th></tr>
         <tr><td>网页（公网）</td><td><code>https://knettf.com</code></td><td>cloudflared 隧道 → 本机 <code>localhost:8080</code></td></tr>
         <tr><td>网页（本机 / 内网）</td><td><code>http://localhost:8080</code>、<code>http://&lt;宿主机 IP&gt;:8080</code></td><td>同一个后端进程，既提供 API 也提供前端页面</td></tr>
-        <tr><td>后端源码</td><td><code class="vn">/home/NEWUSER/github/NetSentinel/backend/</code></td><td>Django 项目，<code>manage.py</code> 在这里；线上运行的是 <code class="vp">/srv/netsentinel/prod/backend/</code> 里同一份代码的已提交版本</td></tr>
-        <tr><td>前端源码</td><td><code class="vn">/home/NEWUSER/github/NetSentinel/frontend/src/</code></td><td>Vue 3 + TypeScript + Element Plus</td></tr>
-        <tr><td>前端构建产物</td><td><code class="vp">/srv/netsentinel/prod/frontend/dist/</code></td><td><code>deploy.sh -frontend</code> 在 <code class="vp">/srv/netsentinel/prod</code> 里构建；后端直接从这里提供页面</td></tr>
-        <tr><td>手册源文件</td><td><code class="vn">/home/NEWUSER/github/NetSentinel/frontend/src/views/help/pages/</code></td><td>每页一个 Vue 组件，由 <code>HelpView.vue</code> 按 <code>/help/&lt;页&gt;</code> 加载</td></tr>
-        <tr><td>Python 环境</td><td><code class="vn">/home/NEWUSER/github/NetSentinel/.venv/</code>（开发）、<code class="vp">/srv/netsentinel/prod/.venv/</code>（线上）</td><td>都用 <code>uv sync</code> 按 <code>uv.lock</code> 生成，Python 3.12</td></tr>
-        <tr><td>default 数据库</td><td><code class="vp">/srv/netsentinel/prod/backend/db.sqlite3</code>（开发用 <code class="vn">/home/NEWUSER/github/NetSentinel/backend/db.sqlite3</code>）</td><td>SQLite：用户、集群、Terraform 配置、扫描报告</td></tr>
+        <tr><td>后端源码</td><td><code class="vn">/home/NEWUSER/github/knettf/backend/</code></td><td>Django 项目，<code>manage.py</code> 在这里；线上运行的是 <code class="vp">/srv/netsentinel/prod/apps/backend/</code> 里同一份代码的已提交版本</td></tr>
+        <tr><td>前端源码</td><td><code class="vn">/home/NEWUSER/github/knettf/frontend/src/</code></td><td>Vue 3 + TypeScript + Element Plus</td></tr>
+        <tr><td>前端构建产物</td><td><code class="vp">/srv/netsentinel/prod/apps/frontend/dist/</code></td><td><code>deploy.sh -frontend</code> 在 <code class="vp">/srv/netsentinel/prod</code> 里构建；后端直接从这里提供页面</td></tr>
+        <tr><td>手册源文件</td><td><code class="vn">/home/NEWUSER/github/knettf/frontend/src/views/help/pages/</code></td><td>每页一个 Vue 组件，由 <code>HelpView.vue</code> 按 <code>/help/&lt;页&gt;</code> 加载</td></tr>
+        <tr><td>Python 环境</td><td><code class="vn">/home/NEWUSER/github/knettf/.venv/</code>（开发）、<code class="vp">/srv/netsentinel/prod/.venv/</code>（线上）</td><td>都用 <code>uv sync</code> 按 <code>uv.lock</code> 生成，Python 3.12</td></tr>
+        <tr><td>default 数据库</td><td><code class="vp">/srv/netsentinel/prod/apps/backend/db.sqlite3</code>（开发用 <code class="vn">/home/NEWUSER/github/knettf/backend/db.sqlite3</code>）</td><td>SQLite：用户、集群、Terraform 配置、扫描报告</td></tr>
         <tr><td>vigil 数据库</td><td>Docker 容器 <code>pg</code>，<code>127.0.0.1:5432</code>，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>，用户 <code>vigil</code></td><td>PostgreSQL：检测记录（按天分区）</td></tr>
         <tr><td>模型文件</td><td><code class="vp">/srv/netsentinel/models/ads_ml/current</code>（指向当前版本目录）</td><td>OCSVM 流水线、攻击原型、训练数据</td></tr>
         <tr><td>后端服务定义</td><td><code>deploy/systemd/netsentinel.service</code></td><td>装到 <code>/etc/systemd/system/</code> 的系统服务，以 <code>netsentinel</code> 账户运行</td></tr>
-        <tr><td>集群脚本</td><td><code>/srv/netsentinel/knetsentinel/kubeadm-cluster/</code></td><td>00 清理 / 01 建 VM / 02 装集群 / 03 部署数据管道</td></tr>
+        <tr><td>集群脚本</td><td><code>/srv/netsentinel/lab/cluster/</code></td><td>00 清理 / 01 建 VM / 02 装集群 / 03 部署数据管道</td></tr>
         <tr><td>集群凭证</td><td><code>/home/NEWUSER/.kube/config</code></td><td>宿主机上 <code>kubectl</code> 用它；登记集群时把它的内容贴到网页上</td></tr>
         <tr><td>VM 磁盘</td><td><code>/home/vm-images/</code></td><td>5 个 qcow2 + Ubuntu 22.04 cloud image</td></tr>
       </table></div>
       <h3>项目目录以外的相关位置</h3>
       <div class="table-wrap"><table>
         <tr><th>位置 / 对象</th><th>内容</th><th>归属</th></tr>
-        <tr><td><code>/etc/systemd/system/netsentinel.service</code></td><td>系统服务，以 <code>netsentinel</code> 账户运行 uvicorn <code>backend.asgi:application</code> :8080，WorkingDirectory=<code class="vp">/srv/netsentinel/prod/backend/</code>，<code>Restart=always</code>，MemoryMax=3G，已 enable</td><td><span class="tag tag-n">N</span></td></tr>
+        <tr><td><code>/etc/systemd/system/netsentinel.service</code></td><td>系统服务，以 <code>netsentinel</code> 账户运行 uvicorn <code>backend.asgi:application</code> :8080，WorkingDirectory=<code class="vp">/srv/netsentinel/prod/apps/backend/</code>，<code>Restart=always</code>，MemoryMax=3G，已 enable</td><td><span class="tag tag-n">N</span></td></tr>
         <tr><td><code>/etc/systemd/system/cloudflared-knettf.service</code><br><code>/etc/cloudflared/knettf/config.yml</code></td><td>knettf.com 公网隧道，以 <code>netsentinel</code> 账户运行</td><td><span class="tag tag-n">N</span></td></tr>
         <tr><td>Docker 容器 <code>pg</code></td><td>PostgreSQL :5432，restart=<code>unless-stopped</code>；库 / 用户 <code>vigil</code>；数据卷 <code>/home/docker-data/volumes/fe9ba015…/_data</code></td><td><span class="tag tag-n">N</span></td></tr>
-        <tr><td><code>/etc/cron.d/netsentinel</code></td><td><code class="vp">0 0 * * * netsentinel /srv/netsentinel/prod/.venv/bin/python /srv/netsentinel/prod/backend/manage.py rotate_partitions --database vigil &gt;&gt; /srv/netsentinel/logs/rotate_partitions.log</code>（必须用 <code class="vp">/srv/netsentinel/prod</code>：<code class="vn">/home/NEWUSER/github/NetSentinel</code> 的默认库是 vigil_dev）</td><td><span class="tag tag-n">N</span></td></tr>
+        <tr><td><code>/etc/cron.d/netsentinel</code></td><td><code class="vp">0 0 * * * netsentinel /srv/netsentinel/prod/.venv/bin/python /srv/netsentinel/prod/apps/backend/manage.py rotate_partitions --database vigil &gt;&gt; /srv/netsentinel/logs/rotate_partitions.log</code>（必须用 <code class="vp">/srv/netsentinel/prod</code>：<code class="vn">/home/NEWUSER/github/knettf</code> 的默认库是 vigil_dev）</td><td><span class="tag tag-n">N</span></td></tr>
         <tr><td><code>/usr/bin/terraform</code>、<code>tflint</code>、<code>tfsec</code>、<code>trivy</code>、<code>/srv/netsentinel/tools/checkov/bin/checkov</code></td><td>autotf 扫描与 apply 依赖的外部二进制</td><td><span class="tag tag-n">N</span></td></tr>
         <tr><td><code>/home/vm-images/</code></td><td>★ k8s-master / node1~4 的 qcow2 + Ubuntu 22.04 cloud image</td><td><span class="tag tag-k">K</span></td></tr>
         <tr><td>libvirt（<code>qemu:///system</code>）</td><td>网络 <code>virbr-k8s</code>（autostart=yes）、VM <code>k8s-master</code>、<code>k8s-node1~4</code>（autostart=<b>否</b>）</td><td><span class="tag tag-k">K</span></td></tr>
@@ -155,19 +155,19 @@
 
     <section id="envs">
       <h2>1.6 开发与生产</h2>
-      <p>同一台宿主机上有两份 NetSentinel：<code class="vn">/home/NEWUSER/github/NetSentinel</code> 是开发目录（平时改代码的地方），<code class="vp">/srv/netsentinel/prod</code> 是线上目录（归 <code>netsentinel</code> 账户和组，GitHub knet-lab/NetSentinel 的 clone，停在 prod 分支，只放 GitHub 上 prod 的代码）。两边的数据库、<code>.env</code>、<code>.venv</code>、<code>dist</code> 完全分开。</p>
+      <p>同一台宿主机上有两份 NetSentinel：<code class="vn">/home/NEWUSER/github/knettf</code> 是开发目录（平时改代码的地方），<code class="vp">/srv/netsentinel/prod</code> 是线上目录（归 <code>netsentinel</code> 账户和组，GitHub knet-lab/knettf 的 clone，停在 prod 分支，只放 GitHub 上 prod 的代码）。两边的数据库、<code>.env</code>、<code>.venv</code>、<code>dist</code> 完全分开。</p>
       <div class="table-wrap"><table>
-        <tr><th></th><th>开发 <code class="vn">/home/NEWUSER/github/NetSentinel</code></th><th>线上 <code class="vp">/srv/netsentinel/prod</code></th></tr>
-        <tr><td>后端</td><td><code class="vn">cd /home/NEWUSER/github/NetSentinel/backend &amp;&amp; ../.venv/bin/python manage.py runserver 8090</code></td><td>systemd <code>netsentinel</code>，uvicorn :8080</td></tr>
-        <tr><td>前端</td><td><code class="vn">cd /home/NEWUSER/github/NetSentinel/frontend &amp;&amp; pnpm dev</code> → <code>http://localhost:5173</code>（代理到 :8090）</td><td><code class="vp">/srv/netsentinel/prod/frontend/dist</code>，<code>https://knettf.com</code></td></tr>
-        <tr><td>DEBUG</td><td>开（默认值）</td><td>关（<code class="vp">/srv/netsentinel/prod/backend/backend/.env</code> 里 <code>DEBUG=False</code>）</td></tr>
-        <tr><td>default 库</td><td><code class="vn">/home/NEWUSER/github/NetSentinel/backend/db.sqlite3</code></td><td><code class="vp">/srv/netsentinel/prod/backend/db.sqlite3</code></td></tr>
+        <tr><th></th><th>开发 <code class="vn">/home/NEWUSER/github/knettf</code></th><th>线上 <code class="vp">/srv/netsentinel/prod</code></th></tr>
+        <tr><td>后端</td><td><code class="vn">cd /home/NEWUSER/github/knettf/backend &amp;&amp; ../.venv/bin/python manage.py runserver 8090</code></td><td>systemd <code>netsentinel</code>，uvicorn :8080</td></tr>
+        <tr><td>前端</td><td><code class="vn">cd /home/NEWUSER/github/knettf/frontend &amp;&amp; pnpm dev</code> → <code>http://localhost:5173</code>（代理到 :8090）</td><td><code class="vp">/srv/netsentinel/prod/apps/frontend/dist</code>，<code>https://knettf.com</code></td></tr>
+        <tr><td>DEBUG</td><td>开（默认值）</td><td>关（<code class="vp">/srv/netsentinel/prod/apps/backend/backend/.env</code> 里 <code>DEBUG=False</code>）</td></tr>
+        <tr><td>default 库</td><td><code class="vn">/home/NEWUSER/github/knettf/backend/db.sqlite3</code></td><td><code class="vp">/srv/netsentinel/prod/apps/backend/db.sqlite3</code></td></tr>
         <tr><td>vigil 库</td><td><code>vigil_dev</code>（默认值）</td><td><code>vigil</code>（<code>.env</code> 里 <code>VIGIL_DB_NAME=vigil</code>）</td></tr>
         <tr><td>Kafka consumer group</td><td><code>vigil-bridge-dev</code>（开发 <code>.env</code> 设置）</td><td><code>vigil-bridge</code>（默认值）</td></tr>
         <tr><td>定时任务</td><td>无</td><td><code>/etc/cron.d/netsentinel</code> 每天 0 点 <code>rotate_partitions</code></td></tr>
       </table></div>
-      <p>上线流程：在 <code class="vn">/home/NEWUSER/github/NetSentinel</code> 的个人分支上改代码、<code>git commit</code>、<code>git push</code> → GitHub 上开 PR 合并到 <code>merge-dev</code>（对方审核）→ <code>/srv/netsentinel/release.sh -all</code>（或 <code>-frontend</code> / <code>-backend</code>）把 <code>prod</code> 快进到 <code>merge-dev</code> 并部署。部署脚本在 <code class="vp">/srv/netsentinel/prod</code> 里从 GitHub <code>git pull</code> prod、<code>uv sync</code>、构建、迁移、重启，流程图见 <a href="/help/deploy#branches">改动上线</a>。没合并进 merge-dev 并发布到 prod 的改动不会上线。运行 <code>deploy.sh</code> 的账户必须在 <code>netsentinel</code> 组里（加组后要重新登录）。</p>
-      <div class="note"><b>规则</b>：不要在 <code class="vp">/srv/netsentinel/prod</code> 里改代码或 commit（下次部署 <code>git pull --ff-only</code> 会失败）；查线上数据、日志、模型结果、跑运维命令（改密码、补分区等）用 <code class="vp">/srv/netsentinel/prod</code>；开发调试只用 <code class="vn">/home/NEWUSER/github/NetSentinel</code>。开发后端一定要带 <code>vigil-bridge-dev</code> 这个 group，否则会和线上分走 Kafka 分区，线上漏收流量。</div>
+      <p>上线流程：在 <code class="vn">/home/NEWUSER/github/knettf</code> 的个人分支上改代码、<code>git commit</code>、<code>git push</code> → GitHub 上开 PR 合并到 <code>merge-dev</code>（对方审核）→ <code>/srv/netsentinel/release.sh -all</code>（或 <code>-frontend</code> / <code>-backend</code>）把 <code>prod</code> 快进到 <code>merge-dev</code> 并部署。部署脚本在 <code class="vp">/srv/netsentinel/prod</code> 里从 GitHub <code>git pull</code> prod、<code>uv sync</code>、构建、迁移、重启，流程图见 <a href="/help/deploy#branches">改动上线</a>。没合并进 merge-dev 并发布到 prod 的改动不会上线。运行 <code>deploy.sh</code> 的账户必须在 <code>netsentinel</code> 组里（加组后要重新登录）。</p>
+      <div class="note"><b>规则</b>：不要在 <code class="vp">/srv/netsentinel/prod</code> 里改代码或 commit（下次部署 <code>git pull --ff-only</code> 会失败）；查线上数据、日志、模型结果、跑运维命令（改密码、补分区等）用 <code class="vp">/srv/netsentinel/prod</code>；开发调试只用 <code class="vn">/home/NEWUSER/github/knettf</code>。开发后端一定要带 <code>vigil-bridge-dev</code> 这个 group，否则会和线上分走 Kafka 分区，线上漏收流量。</div>
     </section>
 
 
@@ -177,13 +177,13 @@
       <div class="table-wrap"><table>
         <tr><th>#</th><th>阶段</th><th>项目</th><th>命令 / 操作</th><th>前置条件</th><th>产出（被后续步骤依赖）</th><th>顺序错了会怎样</th></tr>
         <tr><td>0</td><td>宿主机准备</td><td>—</td><td>KVM 可用、sudo、≥420GB 磁盘、外网、kubectl / helm / docker / uv / pnpm / terraform 等工具</td><td>—</td><td>运行环境</td><td>后续脚本中途失败</td></tr>
-        <tr><td>1</td><td>建 VM</td><td><span class="tag tag-k">K</span></td><td><code>bash kubeadm-cluster/01-setup-vms.sh</code></td><td>0</td><td>网桥 <code>virbr-k8s</code>、5 台 VM、SSH 可登录</td><td>—</td></tr>
-        <tr><td>2</td><td>装集群</td><td><span class="tag tag-k">K</span></td><td><code>bash kubeadm-cluster/02-setup-cluster.sh</code></td><td>1：VM 可 SSH 且能出网</td><td><code>/home/NEWUSER/.kube/config</code>、5 节点 Ready、Cilium/Hubble、MetalLB 池 .200-.250、默认 StorageClass</td><td>先装 MetalLB 再装 Cilium：节点 NotReady，MetalLB 无法调度；IP 池过早 apply 会被 webhook 拒绝（重跑 02 即可）</td></tr>
-        <tr><td>3</td><td>数据管道</td><td><span class="tag tag-k">K</span></td><td><code>bash kubeadm-cluster/03-deploy-5nodes.sh</code></td><td>2：MetalLB、local-path、hubble-relay 就绪（脚本会先检查）</td><td>Kafka 外部地址 .200-.203:9094、topic <code>ebpf-net-logs</code> 有数据、<code>/srv/netsentinel/knetsentinel/.env</code>、<code>/etc/hosts</code></td><td>ConfigMap 晚于 broker 建立：broker 拿不到外部地址而启动失败；Vector 早于 Kafka：写入失败不断重试</td></tr>
-        <tr><td>4</td><td>靶机与策略</td><td><span class="tag tag-k">K</span></td><td><code>kubectl apply -f cluster-setup/targets.yaml</code>；<code>host-firewall-ccnp.yaml</code></td><td>2（MetalLB）</td><td>靶机 .210-.214；宿主机流量可被 Hubble 看到</td><td>缺 targets：<code>simulation/</code> 发包无目标</td></tr>
-        <tr><td>5</td><td>后端依赖与数据库</td><td><span class="tag tag-n">N</span></td><td><code>uv sync</code>；确认容器 <code>pg</code> 运行（库 / 用户 vigil）；<code>manage.py migrate</code>；<code>manage.py migrate --database=vigil</code></td><td>0；<code>backend/backend/.env</code> 中有 <code>ENVIRONMENT</code></td><td><code>db.sqlite3</code> 表结构；<code>vigil_detectionrecord</code> 分区表 + 91 个分区</td><td>漏了 vigil 迁移：检测写库全部失败；pg 未启动：migrate 报连接错误</td></tr>
-        <tr><td>6</td><td>初始化数据</td><td><span class="tag tag-n">N</span></td><td><code>manage.py users_init</code> → <code>autotf_init</code> → <code>generate_bridge_token --write-env</code></td><td>5（表已建）</td><td>admin 等账号、5 个扫描工具、<code>VIGIL_BRIDGE_TOKEN</code> 写入 <code>backend/backend/.env</code></td><td>autotf_init 时扫描工具未安装：版本记为 unknown，扫描时报 tool not found；token 在服务启动后才生成：需重启服务才能读到</td></tr>
-        <tr><td>7</td><td>前端构建</td><td><span class="tag tag-n">N</span></td><td><code>cd frontend &amp;&amp; pnpm install &amp;&amp; pnpm build</code></td><td>0（Node / pnpm）</td><td><code>frontend/dist/</code></td><td>缺 dist：网页白屏 / 报错，但 API 可用</td></tr>
+        <tr><td>1</td><td>建 VM</td><td><span class="tag tag-k">K</span></td><td><code>bash lab/cluster/01-setup-vms.sh</code></td><td>0</td><td>网桥 <code>virbr-k8s</code>、5 台 VM、SSH 可登录</td><td>—</td></tr>
+        <tr><td>2</td><td>装集群</td><td><span class="tag tag-k">K</span></td><td><code>bash lab/cluster/02-setup-cluster.sh</code></td><td>1：VM 可 SSH 且能出网</td><td><code>/home/NEWUSER/.kube/config</code>、5 节点 Ready、Cilium/Hubble、MetalLB 池 .200-.250、默认 StorageClass</td><td>先装 MetalLB 再装 Cilium：节点 NotReady，MetalLB 无法调度；IP 池过早 apply 会被 webhook 拒绝（重跑 02 即可）</td></tr>
+        <tr><td>3</td><td>数据管道</td><td><span class="tag tag-k">K</span></td><td><code>bash lab/cluster/03-deploy-5nodes.sh</code></td><td>2：MetalLB、local-path、hubble-relay 就绪（脚本会先检查）</td><td>Kafka 外部地址 .200-.203:9094、topic <code>ebpf-net-logs</code> 有数据、<code>/srv/netsentinel/lab/.env</code>、<code>/etc/hosts</code></td><td>ConfigMap 晚于 broker 建立：broker 拿不到外部地址而启动失败；Vector 早于 Kafka：写入失败不断重试</td></tr>
+        <tr><td>4</td><td>靶机与策略</td><td><span class="tag tag-k">K</span></td><td><code>kubectl apply -f lab/cluster/targets.yaml</code>；<code>host-firewall-ccnp.yaml</code></td><td>2（MetalLB）</td><td>靶机 .210-.214；宿主机流量可被 Hubble 看到</td><td>缺 targets：<code>simulation/</code> 发包无目标</td></tr>
+        <tr><td>5</td><td>后端依赖与数据库</td><td><span class="tag tag-n">N</span></td><td><code>uv sync</code>；确认容器 <code>pg</code> 运行（库 / 用户 vigil）；<code>manage.py migrate</code>；<code>manage.py migrate --database=vigil</code></td><td>0；<code>apps/backend/backend/.env</code> 中有 <code>ENVIRONMENT</code></td><td><code>db.sqlite3</code> 表结构；<code>vigil_detectionrecord</code> 分区表 + 91 个分区</td><td>漏了 vigil 迁移：检测写库全部失败；pg 未启动：migrate 报连接错误</td></tr>
+        <tr><td>6</td><td>初始化数据</td><td><span class="tag tag-n">N</span></td><td><code>manage.py users_init</code> → <code>autotf_init</code> → <code>generate_bridge_token --write-env</code></td><td>5（表已建）</td><td>admin 等账号、5 个扫描工具、<code>VIGIL_BRIDGE_TOKEN</code> 写入 <code>apps/backend/backend/.env</code></td><td>autotf_init 时扫描工具未安装：版本记为 unknown，扫描时报 tool not found；token 在服务启动后才生成：需重启服务才能读到</td></tr>
+        <tr><td>7</td><td>前端构建</td><td><span class="tag tag-n">N</span></td><td><code>cd frontend &amp;&amp; pnpm install &amp;&amp; pnpm build</code></td><td>0（Node / pnpm）</td><td><code>apps/frontend/dist/</code></td><td>缺 dist：网页白屏 / 报错，但 API 可用</td></tr>
         <tr><td>8</td><td>启动服务</td><td><span class="tag tag-n">N</span></td><td><code>sudo systemctl enable --now netsentinel cloudflared-knettf</code>；安装 <code>/etc/cron.d/netsentinel</code>（<code>rotate_partitions</code>）</td><td>5、6、7</td><td>:8080 页面与 API；公网访问；每日分区</td><td>没装 cron：约 1 天后分区用完，检测无法入库</td></tr>
         <tr><td>9</td><td>联通</td><td><span class="tag tag-b">K+N</span></td><td>确认 Kafka 有数据 → <code>sudo systemctl restart netsentinel</code> → 前端添加集群（粘贴 <code>/home/NEWUSER/.kube/config</code>）</td><td>3 和 8</td><td>入口 A 开始消费并入库；<code>/kcore</code> 可管理集群</td><td>后端先于 Kafka 启动：bridge 线程报错退出，必须在 Kafka 就绪后重启后端</td></tr>
         <tr><td>10</td><td>入口 B（可选）</td><td><span class="tag tag-b">K+N</span></td><td><code>N: bash detector/build.sh</code> → <code>K: kubectl create ns netsentinel</code> → 创建 Secret <code>detector-secret</code>（值 = <code>VIGIL_BRIDGE_TOKEN</code>）→ <code>kubectl apply -f detector/detector-deployment.yaml</code></td><td>3、6（token）、8（WS 地址可达）</td><td>集群内检测器推送结果</td><td>Secret 早于 token 生成或 token 后来重新生成：WS 以 4401 拒绝连接。与入口 A 同时运行会重复入库</td></tr>
@@ -197,23 +197,23 @@
       <h2>1.8 跨项目契约（改一端必须查另一端）</h2>
       <div class="table-wrap"><table>
         <tr><th>契约</th><th>knetsentinel 侧</th><th>NetSentinel 侧</th><th>改动时注意</th></tr>
-        <tr><td>Kafka topic 名与地址</td><td><code>cilium-vector/vector-5nodes.yaml</code>（sink topic）、<code>.env</code></td><td><code>vigil/bridge.py</code> 常量 <code>KAFKA_BOOTSTRAP</code>、<code>KAFKA_TOPIC</code>（写死）；<code>detector.py</code> 环境变量</td><td>MetalLB 分配的 .200-.203 若变化，入口 A 必须改代码并重启</td></tr>
+        <tr><td>Kafka topic 名与地址</td><td><code>lab/manifests/vector-5nodes.yaml</code>（sink topic）、<code>.env</code></td><td><code>vigil/bridge.py</code> 常量 <code>KAFKA_BOOTSTRAP</code>、<code>KAFKA_TOPIC</code>（写死）；<code>detector.py</code> 环境变量</td><td>MetalLB 分配的 .200-.203 若变化，入口 A 必须改代码并重启</td></tr>
         <tr><td>Hubble 流事件 JSON 结构</td><td>Vector <code>exec hubble observe --output=json</code></td><td><code>bridge.py</code> 读取 <code>flow.IP / l4 / traffic_direction / verdict / is_reply / time</code></td><td>升级 Hubble 版本后需验证字段</td></tr>
-        <tr><td>35 个流特征</td><td><code>dataset/aggregate_flows.py</code>、<code>kafka/vigil_bridge.py</code>、<code>docs/features.md</code></td><td><code>vigil/serializers.py FlowInputSerializer</code>、<code>ml/models/base.py DetectionInput</code>、<code>runner.py flow_from_dict</code>、<code>bridge.py compute_flow</code></td><td>五处必须同名同义；见 <a href="/help/db#features">特征表</a></td></tr>
+        <tr><td>35 个流特征</td><td><code>dataset/aggregate_flows.py</code>、<code>lab/collect/vigil_bridge.py</code>、<code>docs/features.md</code></td><td><code>vigil/serializers.py FlowInputSerializer</code>、<code>ml/models/base.py DetectionInput</code>、<code>runner.py flow_from_dict</code>、<code>bridge.py compute_flow</code></td><td>五处必须同名同义；见 <a href="/help/db#features">特征表</a></td></tr>
         <tr><td>标签规则</td><td>攻击源 .20-.29 → 1、正常源 .50-.64 → 0</td><td><code>bridge.py _hubble_to_packet()</code> 同样规则</td><td><code>simulation/</code> 用的 .170-.184 不在规则内，label 为空</td></tr>
         <tr><td>检测器推送</td><td>Secret <code>detector-secret</code>（key <code>django-token</code>）→ 环境变量 <code>DJANGO_TOKEN</code></td><td><code>DetectorPushConsumer._auth()</code> 与 <code>settings.VIGIL_BRIDGE_TOKEN</code> 做<b>字符串全等</b>比较</td><td>两边必须是同一个字符串；不是校验 JWT 签名</td></tr>
-        <tr><td>REST 批量检测</td><td><code>kafka/vigil_bridge.py --token &lt;JWT&gt;</code></td><td><code>POST /api/vigil/detect/batch/</code></td><td>JWT access 默认 2 小时过期；长期运行用 <code>generate_bridge_token</code> 生成 10 年 token</td></tr>
+        <tr><td>REST 批量检测</td><td><code>lab/collect/vigil_bridge.py --token &lt;JWT&gt;</code></td><td><code>POST /api/vigil/detect/batch/</code></td><td>JWT access 默认 2 小时过期；长期运行用 <code>generate_bridge_token</code> 生成 10 年 token</td></tr>
         <tr><td>评估监听 WebSocket</td><td><code>simulation/monitor/monitor.py</code> 连接 <code>ws://localhost:8080/ws/vigil/</code></td><td><b>后端没有这个路由</b>（只有 <code>ws/detector/push/</code> 和 Pod 日志）</td><td>monitor 目前连不上；需在 <code>vigil/routing.py</code> 补广播 consumer 或改 monitor 轮询 REST</td></tr>
         <tr><td>离线导入</td><td><code>simulation/simulate_4.py</code></td><td><code>vigil.services.detect_batch(flows, model_name)</code></td><td>移动目录或改函数签名都会破坏</td></tr>
-        <tr><td>模型文件</td><td>—</td><td><code>backend/vigil/ml/ads_ml/</code> → <code>detector/build.sh</code> rsync 到 <code>detector/ads_ml/</code></td><td>改模型后入口 A 重启后端，入口 B 重新 build + rollout</td></tr>
+        <tr><td>模型文件</td><td>—</td><td><code>apps/backend/vigil/ml/ads_ml/</code> → <code>detector/build.sh</code> rsync 到 <code>detector/ads_ml/</code></td><td>改模型后入口 A 重启后端，入口 B 重新 build + rollout</td></tr>
       </table></div>
     </section>
 
     <section id="tree">
       <h2>1.9 目录树</h2>
       <p>★ 表示数据或状态，删除前必须备份；☆ 表示构建或运行时生成，可以重新生成。</p>
-      <details><summary><span class="tag tag-n">N</span> /home/NEWUSER/github/NetSentinel（<code>/srv/netsentinel/prod</code> 结构相同）</summary>
-<ul class="ftree"><li><code class="dir">/home/NEWUSER/github/NetSentinel/</code>
+      <details><summary><span class="tag tag-n">N</span> /home/NEWUSER/github/knettf（<code>/srv/netsentinel/prod</code> 结构相同）</summary>
+<ul class="ftree"><li><code class="dir">/home/NEWUSER/github/knettf/</code>
 <ul>
 <li><code>pyproject.toml · uv.lock · .python-version</code><span>后端 Python 依赖（uv，Python 3.12）</span></li>
 <li><code class="dir">.venv/</code><span>☆ 虚拟环境（uv sync 生成）；线上 systemd 执行 <span class="vp">/srv/netsentinel/prod</span>/.venv/bin/uvicorn</span></li>
@@ -286,30 +286,30 @@
 <li><code>p.md · p1.md · policy.md</code><span>笔记</span></li>
 </ul></li></ul>
       </details>
-      <details><summary><span class="tag tag-k">K</span> /srv/netsentinel/knetsentinel</summary>
-<ul class="ftree"><li><code class="dir">/srv/netsentinel/knetsentinel/</code>
+      <details><summary><span class="tag tag-k">K</span> /srv/netsentinel/lab</summary>
+<ul class="ftree"><li><code class="dir">/srv/netsentinel/lab/</code>
 <ul>
 <li><code>pyproject.toml · uv.lock · .python-version</code></li>
 <li><code class="dir">.venv/</code><span>☆ 发包 / 采集用环境（scapy、confluent-kafka、aiohttp、websockets）</span></li>
 <li><code>.env</code><span>★ Kafka 外部地址 BOOTSTRAP_SERVERS / GROUP_ID / TOPICS（03 脚本重写）</span></li>
 <li><code>README.md</code><span>最完整的环境说明（19KB）</span></li>
-<li><code class="dir">kubeadm-cluster/</code><span>★ 集群生命周期脚本</span><ul>
+<li><code class="dir">lab/cluster/</code><span>★ 集群生命周期脚本</span><ul>
 <li><code>00-clear.sh</code><span>不可逆清理：VM、网桥、磁盘、cloud image、kubeconfig、/etc/hosts、known_hosts</span></li>
 <li><code>01-setup-vms.sh</code><span>网桥 virbr-k8s（DHCP MAC→IP 绑定）+ 5 台 VM + cloud-init</span></li>
 <li><code>02-setup-cluster.sh</code><span>宿主机 NAT、containerd、kubeadm v1.28、Cilium/Hubble、MetalLB、local-path</span></li>
 <li><code>03-deploy-5nodes.sh</code><span>Kafka KRaft + Vector + my-nginx + port-forward + /etc/hosts + .env</span></li>
 <li><code>host-info.sh · host-info.log</code><span>宿主机诊断</span></li>
 </ul></li>
-<li><code>kafka-svc/kafka-5nodes.yaml</code><span>1 controller（master，emptyDir）+ 4 broker（StatefulSet，10Gi PVC）</span></li>
-<li><code class="dir">cilium-vector/</code><span>vector-5nodes.yaml（在用）· vector.yaml（旧 minikube）</span></li>
-<li><code class="dir">cluster-setup/</code><span>targets.yaml（靶机 .210-.214）· host-firewall-ccnp.yaml · 旧 minikube 脚本</span></li>
+<li><code>lab/manifests/kafka-5nodes.yaml</code><span>1 controller（master，emptyDir）+ 4 broker（StatefulSet，10Gi PVC）</span></li>
+<li><code class="dir">lab/manifests/</code><span>vector-5nodes.yaml（在用）· vector.yaml（旧 minikube）</span></li>
+<li><code class="dir">lab/cluster/</code><span>targets.yaml（靶机 .210-.214）· host-firewall-ccnp.yaml · 旧 minikube 脚本</span></li>
 <li><code>detector/detector-deployment.yaml</code><span>入口 B 的 Deployment（命名空间 netsentinel）</span></li>
 <li><code>ingress-controller/my-nginx-ingress.yaml</code></li>
 <li><code>hubble-scripts/last_record.sh</code></li>
 <li><code class="dir">traffic/</code><span>发包：send_request · send_normal_scapy · spoof_attack · handle_addr · run_traffic_only.sh</span></li>
 <li><code class="dir">dataset/</code><span>★ dataset.csv · dataset_v1.csv + dataset_collector · aggregate_flows · run_dataset_collection.sh</span></li>
 <li><code class="dir">kafka/</code><span>kafka_read · kafka_read_csv · vigil_bridge（入口 C）· run_*.sh · *.log</span></li>
-<li><code class="dir">traffic_request/</code><span>★ CSV 重放：scripts/ · ip_mapping.json · read_result.csv · record_send_uuid.txt</span></li>
+<li><code class="dir">lab/replay/</code><span>★ CSV 重放：scripts/ · ip_mapping.json · read_result.csv · record_send_uuid.txt</span></li>
 <li><code class="dir">simulation/</code><span>★ run.sh · simulate_1~4.py · gen_simulate4_csv.py · monitor/ · 测试 CSV</span></li>
 <li><code class="dir">docs/</code><span>features.md（特征定义）· kafka_read.md · spoof_attack_summary.md</span></li>
 <li><code class="dir">logs/</code><span>历史运行日志</span></li>

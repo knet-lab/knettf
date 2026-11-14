@@ -1,2 +1,2 @@
 # /etc/cron.d/netsentinel：以 netsentinel 账户运行
-0 0 * * * netsentinel /srv/netsentinel/prod/.venv/bin/python /srv/netsentinel/prod/backend/manage.py rotate_partitions --database vigil >> /srv/netsentinel/logs/rotate_partitions.log 2>&1
+0 0 * * * netsentinel /srv/netsentinel/prod/.venv/bin/python /srv/netsentinel/prod/apps/backend/manage.py rotate_partitions --database vigil >> /srv/netsentinel/logs/rotate_partitions.log 2>&1

@@ -145,7 +145,7 @@ uv --version
 
 ### 初始化项目虚拟环境
 
-在 `traffic_request/` 目录下初始化（只需执行一次）：
+在 `replay/` 目录下初始化（只需执行一次）：
 
 ```bash
 cd /path/to/traffic_request

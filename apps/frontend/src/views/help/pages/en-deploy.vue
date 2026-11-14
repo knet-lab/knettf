@@ -1,7 +1,7 @@
 <template>
   <div v-pre lang="en">
     <h1>Deploying Changes</h1>
-    <div class="meta">Always: edit and commit on your personal branch in <code>/home/NEWUSER/github/NetSentinel</code>, push, open a PR into <code>merge-dev</code> and have the other person review it. After the merge run <code>/srv/netsentinel/release.sh -frontend</code> (or <code>-backend</code> / <code>-all</code>): it fast-forwards <code>prod</code> to <code>merge-dev</code> and runs <code>scripts/deploy.sh</code>, which pulls GitHub <code>prod</code> into <code>/srv/netsentinel/prod</code>, builds and restarts. Your account must be in the <code>netsentinel</code> group.</div>
+    <div class="meta">Always: edit and commit on your personal branch in <code>/home/NEWUSER/github/knettf</code>, push, open a PR into <code>merge-dev</code> and have the other person review it. After the merge run <code>/srv/netsentinel/release.sh -frontend</code> (or <code>-backend</code> / <code>-all</code>): it fast-forwards <code>prod</code> to <code>merge-dev</code> and runs <code>ops/scripts/deploy.sh</code>, which pulls GitHub <code>prod</code> into <code>/srv/netsentinel/prod</code>, builds and restarts. Your account must be in the <code>netsentinel</code> group.</div>
 
     <section id="branches">
       <h2>Branches and collaboration</h2>
@@ -16,13 +16,13 @@
         <tr><td><code>prod</code></td><td>Only <code>git push origin origin/merge-dev:prod</code> — no commits, no PRs, no force push</td><td>The version running in production</td></tr>
       </table></div>
       <div class="note">Branch protection (Rulesets) is not enforced on this free private repository, so these rules are kept by agreement. Never use <code>git push -f</code>; without it, a non-fast-forward push to prod is rejected. Review happens once, on the PR into merge-dev (Reviewers → Files changed → Review changes → Approve). Check the PR says <b>into merge-dev</b>. Ignore GitHub's “Compare &amp; pull request” banner for prod. To publish after a PR is merged, run <code>/srv/netsentinel/release.sh -frontend</code> (or <code>-backend</code> / <code>-all</code>; no argument = fast-forward only): it lists the commits, asks for <code>y</code>, fast-forwards prod and runs <code>deploy.sh</code>. The script lives only on the server and is git-ignored. To roll back, <code>git revert</code> on your branch and go through the same flow.</div>
-      <div class="note">knetsentinel follows the same flow: work on your personal branch in <code>/home/NEWUSER/github/knetsentinel</code> → PR into <code>merge-dev</code> → fast-forward <code>master</code> and update the run directory: <code>git -C /srv/netsentinel/knetsentinel push origin origin/merge-dev:master</code>, then <code>git -C /srv/netsentinel/knetsentinel pull --ff-only origin master</code>. Never edit code in <code>/srv/netsentinel/knetsentinel</code>; its data (<code>dataset/</code>, <code>logs/</code>, <code>*.csv</code>) is not in Git.</div>
+      <div class="note">The lab (<code>lab/</code>) lives in the same repository and follows the same PR flow. After merging into <code>merge-dev</code>, update the run directory from your own checkout: <code>git switch merge-dev &amp;&amp; git pull --ff-only</code>, then <code>bash lab/sync-to-srv.sh -n</code> (preview) and <code>bash lab/sync-to-srv.sh</code>. Only Git-tracked files are copied; data in <code>/srv/netsentinel/lab</code> (<code>*.csv</code>, <code>logs/</code>, <code>.env</code>, <code>.venv</code>) is never overwritten or deleted. Never edit code in <code>/srv/netsentinel/lab</code>.</div>
     </section>
 
     <section id="code">
       <h2>Frontend and backend code</h2>
       <div class="task"><h4><span class="n">1</span>Test and commit</h4>
-        <div class="do"><div><pre class="on-dev"><code>cd /home/NEWUSER/github/NetSentinel
+        <div class="do"><div><pre class="on-dev"><code>cd /home/NEWUSER/github/knettf
 git status
 git add -A
 git commit -m "what changed"</code></pre></div></div>
@@ -43,13 +43,13 @@ git commit -m "what changed"</code></pre></div></div>
     <section id="db">
       <h2>Database model changes</h2>
       <div class="task"><h4><span class="n">1</span>Back up first</h4>
-        <div class="do"><div><pre class="on-prod"><code>sqlite3 /srv/netsentinel/prod/backend/db.sqlite3 ".backup '/srv/netsentinel/backups/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"
+        <div class="do"><div><pre class="on-prod"><code>sqlite3 /srv/netsentinel/prod/apps/backend/db.sqlite3 ".backup '/srv/netsentinel/backups/db_backup_$(date +%Y%m%d_%H%M%S).sqlite3'"
 docker exec pg pg_dump -U vigil -Fc vigil > /srv/netsentinel/backups/vigil_$(date +%F).dump</code></pre></div></div>
         <div class="why"><div>A migration that fails halfway can leave tables half-changed.</div></div>
         <div class="res"><div>Backup files exist and are not empty.</div></div>
       </div>
       <div class="task"><h4><span class="n">2</span>Create and inspect the migration</h4>
-        <div class="do"><div><pre class="on-dev"><code>cd /home/NEWUSER/github/NetSentinel/backend
+        <div class="do"><div><pre class="on-dev"><code>cd /home/NEWUSER/github/knettf/backend
 ../.venv/bin/python manage.py makemigrations
 ../.venv/bin/python manage.py sqlmigrate APP NUMBER</code></pre></div></div>
         <div class="why"><div>Read the SQL before running it, especially column drops or type changes.</div></div>
@@ -57,7 +57,7 @@ docker exec pg pg_dump -U vigil -Fc vigil > /srv/netsentinel/backups/vigil_$(dat
       </div>
       <div class="task"><h4><span class="n">3</span>Apply in production</h4>
         <div class="do"><div><pre class="on-prod"><code>/srv/netsentinel/release.sh -backend
-cd /srv/netsentinel/prod/backend && ../.venv/bin/python manage.py migrate --database=vigil
+cd /srv/netsentinel/prod/apps/backend && ../.venv/bin/python manage.py migrate --database=vigil
 sudo systemctl restart netsentinel</code></pre></div></div>
         <div class="why"><div>The <code>vigil</code> database is never migrated automatically: altering its large table locks writes. Do it when no experiment is running.</div></div>
         <div class="res"><div><code>manage.py showmigrations</code> shows all <code>[X]</code>; the site returns 200.</div></div>
@@ -68,9 +68,9 @@ sudo systemctl restart netsentinel</code></pre></div></div>
       <h2>Other changes</h2>
       <div class="table-wrap"><table>
         <tr><th>Changed</th><th>Do</th></tr>
-        <tr><td>Python dependency</td><td><code>cd /home/NEWUSER/github/NetSentinel && uv add PACKAGE</code>, commit, PR, then <code>/srv/netsentinel/release.sh -backend</code></td></tr>
-        <tr><td>Frontend dependency</td><td><code>cd /home/NEWUSER/github/NetSentinel/frontend && pnpm add PACKAGE</code>, commit <code>package.json</code> and <code>pnpm-lock.yaml</code>, PR, then <code>/srv/netsentinel/release.sh -frontend</code></td></tr>
-        <tr><td>Production <code>.env</code></td><td>Edit <code>/srv/netsentinel/prod/backend/backend/.env</code>, then <code>sudo systemctl restart netsentinel</code></td></tr>
+        <tr><td>Python dependency</td><td><code>cd /home/NEWUSER/github/knettf && uv add PACKAGE</code>, commit, PR, then <code>/srv/netsentinel/release.sh -backend</code></td></tr>
+        <tr><td>Frontend dependency</td><td><code>cd /home/NEWUSER/github/knettf/frontend && pnpm add PACKAGE</code>, commit <code>package.json</code> and <code>pnpm-lock.yaml</code>, PR, then <code>/srv/netsentinel/release.sh -frontend</code></td></tr>
+        <tr><td>Production <code>.env</code></td><td>Edit <code>/srv/netsentinel/prod/apps/backend/backend/.env</code>, then <code>sudo systemctl restart netsentinel</code></td></tr>
         <tr><td>systemd unit file</td><td><code>sudo systemctl daemon-reload</code>, then restart the service</td></tr>
         <tr><td>Model files</td><td>Create a new version directory under <code>/srv/netsentinel/models/ads_ml/</code>, run <code>manage.py check_model --config &lt;dir&gt;/config.yaml</code>, point the <code>current</code> symlink at it, restart. Roll back by pointing <code>current</code> at the old version and restarting.</td></tr>
       </table></div>

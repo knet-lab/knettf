@@ -1,7 +1,7 @@
 <template>
   <div v-pre>
         <h1>7 API 逐接口说明</h1>
-    <div class="meta">基址：本机 <code>http://localhost:8080</code>，公网 <code>https://knettf.com</code>（cloudflared）。全部路由定义在 <code>backend/backend/urls.py</code> 及各 app 的 <code>urls.py</code>；WebSocket 路由在 <code>backend/asgi.py</code>。</div>
+    <div class="meta">基址：本机 <code>http://localhost:8080</code>，公网 <code>https://knettf.com</code>（cloudflared）。全部路由定义在 <code>apps/backend/backend/urls.py</code> 及各 app 的 <code>urls.py</code>；WebSocket 路由在 <code>apps/backend/asgi.py</code>。</div>
 
     <section id="conv">
       <h2>7.1 通用约定</h2>
@@ -68,7 +68,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
         <tr><td><span class="m m-ws">WS</span></td><td><code>/ws/clusters/&lt;id&gt;/pods/&lt;ns&gt;/&lt;pod&gt;/logs/</code></td><td>Pod 日志实时流</td><td><b>无鉴权</b></td><td><code>kcore.PodLogConsumer</code></td></tr>
         <tr><td><span class="m m-ws">WS</span></td><td><code>/ws/detector/push/</code></td><td>集群检测器推送结果</td><td>Bearer = <code>VIGIL_BRIDGE_TOKEN</code></td><td><code>vigil.DetectorPushConsumer</code></td></tr>
         <tr><td>—</td><td><code>/admin/</code></td><td>Django Admin</td><td>superuser</td><td><code>django.contrib.admin</code></td></tr>
-        <tr><td>—</td><td>其余非 <code>api/ admin/ static/ ws/</code> 路径</td><td>返回 <code>frontend/dist/index.html</code>（Vue 路由接管）</td><td>公开</td><td><code>urls.spa_view</code></td></tr>
+        <tr><td>—</td><td>其余非 <code>api/ admin/ static/ ws/</code> 路径</td><td>返回 <code>apps/frontend/dist/index.html</code>（Vue 路由接管）</td><td>公开</td><td><code>urls.spa_view</code></td></tr>
       </table></div>
     </section>
 
@@ -88,7 +88,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
 
     <section id="kcore-user">
       <h2>7.4 kcore · 用户</h2>
-      <p>代码：<code>backend/kcore/views.py</code>（UserMe / UserList / UserDetail）→ <code>services.UserService</code> → 模型 <code>User</code>。用户对象输出字段（<code>UserResponseSerializer</code>）：<code>id, username, email, is_staff</code>。</p>
+      <p>代码：<code>apps/backend/kcore/views.py</code>（UserMe / UserList / UserDetail）→ <code>services.UserService</code> → 模型 <code>User</code>。用户对象输出字段（<code>UserResponseSerializer</code>）：<code>id, username, email, is_staff</code>。</p>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-get">GET</span><code>/api/kcore/users/me/</code><span class="perm">登录</span></div>
         <pre><code>{ "status":"success","code":0,"message":"Success",
@@ -149,12 +149,12 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
 
     <section id="autotf">
       <h2>7.7 autotf · Terraform</h2>
-      <p>代码：<code>backend/autotf/views.py</code> → <code>services.py</code>（TerraformConfigService / TerraformToolService / ScanReportService / ScanService / ApplyService）。</p>
+      <p>代码：<code>apps/backend/autotf/views.py</code> → <code>services.py</code>（TerraformConfigService / TerraformToolService / ScanReportService / ScanService / ApplyService）。</p>
       <h3>配置对象</h3>
       <p>列表（<code>TerraformConfigListSerializer</code>）：<code>id, name, is_scanned, created_at, updated_at, report, last_apply_at, last_apply_status, last_apply_output</code>；详情多一个 <code>file</code>（文件路径）。<code>report</code> 为摘要 <code>{id, status, tools[], scanned_at}</code> 或 <code>null</code>。</p>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-post">POST</span><code>/api/autotf/users/&lt;pk&gt;/tf-configs/</code><span class="perm">本人或管理员</span></div>
-        <p><code>multipart/form-data</code>：<code>name</code>、<code>file</code>（.tf）。文件保存到 <code>backend/terraform/</code>。同一用户下 name 唯一。</p>
+        <p><code>multipart/form-data</code>：<code>name</code>、<code>file</code>（.tf）。文件保存到 <code>apps/backend/terraform/</code>。同一用户下 name 唯一。</p>
         <pre><code>curl -X POST -H "Authorization: Bearer $TOKEN" -F name=demo -F file=@main.tf \
   http://localhost:8080/api/autotf/users/1/tf-configs/</code></pre>
       </div>
@@ -183,7 +183,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-post">POST</span><code>/api/autotf/tf-configs/&lt;pk&gt;/apply/</code><span class="perm">本人或管理员</span></div>
         <p>前置检查（不满足返回 400）：已有报告；报告状态为 <code>done</code>；<code>summary.high == 0</code>。随后在临时目录执行 <code>TF_BIN init -input=false</code>（超时 120s）和 <code>TF_BIN apply -auto-approve -input=false</code>（超时 300s），结果写入 <code>last_apply_status / last_apply_output / last_apply_at</code>。</p>
-        <div class="danger">临时目录用完即删，<b>terraform state 不保留</b>：每次 apply 都视为全新部署，无法 destroy 或增量变更。<code>TF_BIN</code> 由 <code>backend/backend/.env</code> 的 <code>ENVIRONMENT</code> 决定（<code>linux_development</code> → <code>/usr/bin/terraform</code>）。</div>
+        <div class="danger">临时目录用完即删，<b>terraform state 不保留</b>：每次 apply 都视为全新部署，无法 destroy 或增量变更。<code>TF_BIN</code> 由 <code>apps/backend/backend/.env</code> 的 <code>ENVIRONMENT</code> 决定（<code>linux_development</code> → <code>/usr/bin/terraform</code>）。</div>
       </div>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-get">GET</span><span class="m m-delete">DELETE</span><code>/api/autotf/tf-configs/&lt;pk&gt;/report/</code><span class="perm">本人或管理员</span></div>
@@ -210,7 +210,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
 
     <section id="vigil">
       <h2>7.8 vigil · 流量检测</h2>
-      <p>代码：<code>backend/vigil/views.py</code> → <code>services.py</code> → <code>ml/models/runner.py</code>（模型推理）→ <code>ml/cilium/policy.py</code>（动作建议）→ <code>models.DetectionRecord</code>（写 PostgreSQL）。</p>
+      <p>代码：<code>apps/backend/vigil/views.py</code> → <code>services.py</code> → <code>ml/models/runner.py</code>（模型推理）→ <code>ml/cilium/policy.py</code>（动作建议）→ <code>models.DetectionRecord</code>（写 PostgreSQL）。</p>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-post">POST</span><code>/api/vigil/detect/</code><span class="perm">登录</span></div>
         <p>请求体是一条流的 35 个特征（<code>FlowInputSerializer</code>，必填只有 <code>src_ip</code>、<code>dst_ip</code>、<code>protocol</code>，其余缺省为 0），可选 <code>label</code>（"0"/"1"/""）、<code>model</code>（指定模型名，不填则跑全部已注册模型）。字段列表见 <a href="/help/db#features">特征表</a>。</p>
@@ -234,7 +234,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
       </div>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-post">POST</span><code>/api/vigil/detect/batch/</code><span class="perm">登录</span></div>
-        <p>请求：<code>{"flows":[{...},{...}], "model": null}</code>。在一个数据库事务内逐条执行 <code>detect_flow</code>，任何一条出错整批回滚。响应同上，<code>results</code> 为所有流的结果拼接。入口 C（<code>K kafka/vigil_bridge.py</code>）调用此接口。</p>
+        <p>请求：<code>{"flows":[{...},{...}], "model": null}</code>。在一个数据库事务内逐条执行 <code>detect_flow</code>，任何一条出错整批回滚。响应同上，<code>results</code> 为所有流的结果拼接。入口 C（<code>K lab/collect/vigil_bridge.py</code>）调用此接口。</p>
       </div>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-get">GET</span><code>/api/vigil/records/</code><span class="perm">登录</span></div>
@@ -278,7 +278,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
       </div>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-ws">WS</span><code>/ws/detector/push/</code><span class="perm">Header <code>Authorization: Bearer &lt;VIGIL_BRIDGE_TOKEN&gt;</code></span></div>
-        <p>入口 B 使用。token 与 <code>settings.VIGIL_BRIDGE_TOKEN</code>（来自 <code>backend/backend/.env</code>）字符串不一致或未配置时，以 code <b>4401</b> 关闭连接。</p>
+        <p>入口 B 使用。token 与 <code>settings.VIGIL_BRIDGE_TOKEN</code>（来自 <code>apps/backend/backend/.env</code>）字符串不一致或未配置时，以 code <b>4401</b> 关闭连接。</p>
         <p>客户端发送：</p>
         <pre><code>{ "results": [ { "src_ip": "...", "dst_ip": "...", "src_port": 0, "dst_port": 80, "protocol": "TCP",
                  "is_attack": true, "confidence": 0.8, "attack_type": "DoS",
@@ -305,7 +305,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
         <tr><td><code>/admin/tf-configs</code></td><td><code>admin/TFConfigsView.vue</code></td><td><code>autotf/users/&lt;pk&gt;/tf-configs/</code>、<code>tf-configs/&lt;pk&gt;/</code></td><td>管理员</td></tr>
         <tr><td><code>/admin/tf-tools</code></td><td><code>admin/TFToolsView.vue</code></td><td><code>autotf/tf-tools/</code>、<code>tf-tools/&lt;id&gt;/</code></td><td>管理员</td></tr>
       </table></div>
-      <p>开发模式 <code>pnpm dev</code> 时，Vite 把 <code>/api</code>、<code>/ws</code> 代理到 <code>127.0.0.1:8080</code>（<code>vite.config.ts</code>）。生产由后端直接提供 <code>frontend/dist</code>。</p>
+      <p>开发模式 <code>pnpm dev</code> 时，Vite 把 <code>/api</code>、<code>/ws</code> 代理到 <code>127.0.0.1:8080</code>（<code>vite.config.ts</code>）。生产由后端直接提供 <code>apps/frontend/dist</code>。</p>
     </section>
   </div>
 </template>
