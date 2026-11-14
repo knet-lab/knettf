@@ -1,0 +1,18 @@
+[Unit]
+Description=NetSentinel auto deploy (GitHub main → /srv/netsentinel)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=netsentinel
+Group=netsentinel
+UMask=0002
+Environment=PATH=/srv/netsentinel/tools/bin:/srv/netsentinel/tools/node-v22.21.1/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/srv/netsentinel
+# lab-repo 不归 netsentinel 所有，git 需要放行
+Environment=GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=*
+ExecStart=/srv/netsentinel/prod/ops/scripts/auto-deploy.sh
+StandardOutput=append:/srv/netsentinel/logs/auto-deploy.log
+StandardError=append:/srv/netsentinel/logs/auto-deploy.log
+TimeoutStartSec=20min
