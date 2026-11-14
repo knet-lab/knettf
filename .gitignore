@@ -89,4 +89,4 @@ chat.md
 release.sh
 # 旧的模型目录（已迁到 vigil/detection/ads_ml + /srv/netsentinel/models），本地残留不进仓库
 apps/backend/vigil/ml/
-detector/ads_ml/
+docs/archive/detector/ads_ml/

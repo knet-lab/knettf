@@ -52,7 +52,7 @@
         <tr><td><code>AUTH_USER_MODEL</code></td><td><code>kcore.User</code></td><td>自定义用户表 <code>kcore_user</code></td></tr>
         <tr><td><code>REST_FRAMEWORK</code></td><td>认证 JWT；默认权限 <code>IsAuthenticated</code>；异常处理 <code>common.exceptions.exception_handler</code></td><td>所以没特别声明的接口都要登录</td></tr>
         <tr><td><code>SIMPLE_JWT</code></td><td>access 2 小时，refresh 7 天，头 <code>Bearer</code></td><td></td></tr>
-        <tr><td><code>VIGIL_BRIDGE_TOKEN</code></td><td>env</td><td>入口 B 检测器 WebSocket 的共享密钥</td></tr>
+        <tr><td><code>VIGIL_BRIDGE_TOKEN</code></td><td>env</td><td>vigil-bridge 服务账号的长期 JWT；也是保留未用的 <code>ws/detector/push/</code> 的共享密钥</td></tr>
         <tr><td><code>VIGIL_KAFKA_GROUP_ID</code></td><td>env；默认 <code>vigil-bridge</code>，开发设 <code>vigil-bridge-dev</code></td><td>bridge 的 Kafka consumer group，见 <a href="#start">进程是怎么起来的</a></td></tr>
         <tr><td><code>CORS_ALLOW_ALL_ORIGINS</code></td><td><code>True</code></td><td></td></tr>
         <tr><td><code>CSRF_TRUSTED_ORIGINS</code></td><td>trycloudflare、localhost:8080，加上 env <code>CSRF_EXTRA_ORIGINS</code>（线上 <code>https://knettf.com</code>）</td><td>只影响 Django admin 这类 session 表单</td></tr>
@@ -211,7 +211,7 @@ docker exec -it pg psql -U vigil vigil            <span class="c"># 进入 psql�
         <tr><td><code>serializers.py</code></td><td><code>FlowInputSerializer</code>（35 特征 + 可选 <code>model</code>、<code>aggregation_ms</code>、<code>label</code>）、<code>BatchFlowInputSerializer</code>（<code>flows</code> + <code>model</code>）、<code>DetectionRecordSerializer</code>（全字段）</td></tr>
         <tr><td><code>models.py</code></td><td><code>DetectionRecord</code>，<code>managed = False</code>（表由手写 SQL 建）</td></tr>
         <tr><td><code>migrations/0001_initial.py</code></td><td>RunSQL：建分区父表 + 3 个索引 + 91 个日分区</td></tr>
-        <tr><td><code>consumers.py</code> / <code>routing.py</code></td><td>入口 B：<code>ws/detector/push/</code>，Bearer 共享密钥</td></tr>
+        <tr><td><code>consumers.py</code> / <code>routing.py</code></td><td><code>ws/detector/push/</code>（原入口 B，已停用，保留未用），Bearer 共享密钥</td></tr>
         <tr><td><code>detection/</code></td><td><code>base.py</code>（输入输出数据类、抽象基类、<code>flow_from_dict</code>）、<code>registry.py</code>（注册表、<code>run_all</code> / <code>run_one</code>）、<code>ads_ml/</code>（AdsMLModel）、<code>example_threshold.py</code>（示例，未注册）</td></tr>
         <tr><td><code>ingest/</code></td><td><code>bridge.py</code>（Kafka 消费线程）、<code>features.py</code>（五元组聚合、35 个特征）</td></tr>
         <tr><td><code>response/</code></td><td><code>cilium.py</code>（生成 Cilium 封禁策略）</td></tr>

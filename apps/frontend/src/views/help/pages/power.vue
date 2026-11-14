@@ -161,7 +161,6 @@ kubectl apply -f /srv/netsentinel/lab/cluster/host-firewall-ccnp.yaml</code></pr
         <div class="do"><div><ol>
           <li><code>sudo systemctl start netsentinel</code></li>
           <li>登录网页 → 删掉旧的集群记录 → 用同样的名字重新添加，粘贴新的 <code>/home/NEWUSER/.kube/config</code>。</li>
-          <li>用了入口 B 的话，重建 Secret <code>detector-secret</code> 并部署检测器（<a href="/help/detect">检测链路</a> 入口 B 一节）。</li>
           <li>做一次 <a href="#verify">端到端验证</a>。</li>
         </ol></div></div>
         <div class="why"><div>集群的 CA 和证书全部换新，网页上存的旧 kubeconfig 已经失效，Kubernetes 页会全部报错。</div></div>
@@ -180,7 +179,7 @@ rm db.sqlite3 &amp;&amp; ../../.venv/bin/python manage.py migrate
 ../../.venv/bin/python manage.py autotf_init          # 注册 5 个扫描工具
 ../../.venv/bin/python manage.py generate_bridge_token --write-env
 sudo systemctl start netsentinel</code></pre>
-      <p><b>为什么要重新生成 token</b>：vigil-bridge 服务账号也跟着删掉了。<b>结果</b>：<code>autotf_clear</code> 会删除整个 <code>apps/backend/terraform/</code> 目录；部署了入口 B 的话，要同步更新 Secret <code>detector-secret</code>。</p>
+      <p><b>为什么要重新生成 token</b>：vigil-bridge 服务账号也跟着删掉了。<b>结果</b>：<code>autotf_clear</code> 会删除整个 <code>apps/backend/terraform/</code> 目录。</p>
 
       <h3 id="rebuild-vigil">重置 vigil 库（检测记录）</h3>
 <pre class="on-prod"><code>sudo systemctl stop netsentinel

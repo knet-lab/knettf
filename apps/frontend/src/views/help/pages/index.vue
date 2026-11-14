@@ -60,18 +60,16 @@
     </section>
 
     <section id="flow">
-      <h2>1.3 检测的三条入口</h2>
-      <p>流量最终都写进 PostgreSQL 表 <code>vigil_detectionrecord</code>，但有三条入口。<b>当前实际在运行的是入口 A</b>（后端日志中持续有 <code>vigil.bridge: queue: N flows → M attack(s)</code>）。</p>
+      <h2>1.3 检测入口</h2>
+      <p>流量最终都写进 PostgreSQL 表 <code>vigil_detectionrecord</code>，模型只部署在平台后端（集群只产生和采集流量），有两条入口。<b>当前实际在运行的是入口 A</b>（后端日志中持续有 <code>vigil.bridge: queue: N flows → M attack(s)</code>）。</p>
       <pre class="uml">flowchart LR
   K["Kafka<br>ebpf-net-logs"] --> A["入口 A<br>后端 bridge"]
-  K --> B["入口 B<br>集群内 Pod"]
   K --> C["入口 C<br>宿主机脚本"]
   A --> D[("vigil_detectionrecord")]
-  B --> D
   C --> D
   D --> W["前端 /vigil"]
   class K,C k
-  class A,B,D n
+  class A,D n
   class W u
   classDef k fill:#e6fffa,stroke:#2c7a7b,color:#1a202c
   classDef n fill:#ebf4ff,stroke:#2b6cb0,color:#1a202c
@@ -79,10 +77,9 @@
       <div class="table-wrap"><table>
         <tr><th>入口</th><th>代码</th><th>怎么消费 Kafka</th><th>在哪推理、怎么写库</th></tr>
         <tr><td><b>A</b>（默认，随后端自动启动）</td><td><span class="tag tag-n">N</span> <code>apps/backend/vigil/ingest/bridge.py</code></td><td>外部地址 <code>.200-.203:9094</code>，group <code>vigil-bridge</code>，offset latest</td><td>线程内聚合 → <code>flow_queue</code> → drainer → <code>services.detect_batch()</code></td></tr>
-        <tr><td><b>B</b>（集群内 Pod）</td><td><span class="tag tag-n">N</span> <code>detector/detector.py</code>，镜像 <code>soar009/netsentinel-detector</code></td><td>group <code>vigil-detector</code></td><td>Pod 内自己推理，经 WebSocket <code>ws/detector/push/</code>（Bearer <code>VIGIL_BRIDGE_TOKEN</code>）交给后端写库</td></tr>
         <tr><td><b>C</b>（宿主机脚本）</td><td><span class="tag tag-k">K</span> <code>lab/collect/vigil_bridge.py</code></td><td>按 5 元组聚合 30 个特征</td><td><code>POST /api/vigil/detect/batch/</code>（JWT），由后端推理写库</td></tr>
       </table></div>
-      <div class="note"><b>不要同时开两条以上入口</b>：A、B、C 各自独立消费 Kafka 并写库，同一条流会被重复记录。入口 A 无开关，只要后端以 uvicorn 启动就会运行（判断逻辑见 <code>vigil/apps.py</code> 的 <code>_should_start_bridge()</code>）。</div>
+      <div class="note"><b>不要同时开两条以上入口</b>：A、C 各自独立消费 Kafka 并写库，同一条流会被重复记录。入口 A 无开关，只要后端以 uvicorn 启动就会运行（判断逻辑见 <code>vigil/apps.py</code> 的 <code>_should_start_bridge()</code>）。</div>
       <p>离线评估另有一条旁路：<code>K simulation/simulate_4.py</code> 直接 <code>django.setup()</code> 导入 <code>N backend</code> 的 <code>vigil.services</code>，把 CSV 中的流特征批量送入模型。这是两个项目之间唯一的代码级耦合，路径写死为 <code>../../github/knettf/apps/backend</code>。</p>
     </section>
 
@@ -149,7 +146,6 @@
         <tr><td><code>/home/NEWUSER/.kube/config</code></td><td>宿主机访问集群的凭证（server 192.168.100.10:6443）</td><td><span class="tag tag-k">K</span></td></tr>
         <tr><td><code>/etc/hosts</code></td><td>k8s-master / node、<code>kafka-svc.default.svc.cluster.local</code></td><td><span class="tag tag-k">K</span></td></tr>
         <tr><td><code>/etc/sysctl.d/99-ipforward.conf</code>；iptables NAT/FORWARD</td><td>VM 出网；iptables 规则<b>未持久化</b></td><td><span class="tag tag-k">K</span></td></tr>
-        <tr><td>Docker Hub <code>soar009/netsentinel-detector:latest</code></td><td>入口 B 镜像</td><td><span class="tag tag-b">K+N</span></td></tr>
       </table></div>
     </section>
 
@@ -186,7 +182,7 @@
         <tr><td>7</td><td>前端构建</td><td><span class="tag tag-n">N</span></td><td><code>cd frontend &amp;&amp; pnpm install &amp;&amp; pnpm build</code></td><td>0（Node / pnpm）</td><td><code>apps/frontend/dist/</code></td><td>缺 dist：网页白屏 / 报错，但 API 可用</td></tr>
         <tr><td>8</td><td>启动服务</td><td><span class="tag tag-n">N</span></td><td><code>sudo systemctl enable --now netsentinel cloudflared-knettf</code>；安装 <code>/etc/cron.d/netsentinel</code>（<code>rotate_partitions</code>）</td><td>5、6、7</td><td>:8080 页面与 API；公网访问；每日分区</td><td>没装 cron：约 1 天后分区用完，检测无法入库</td></tr>
         <tr><td>9</td><td>联通</td><td><span class="tag tag-b">K+N</span></td><td>确认 Kafka 有数据 → <code>sudo systemctl restart netsentinel</code> → 前端添加集群（粘贴 <code>/home/NEWUSER/.kube/config</code>）</td><td>3 和 8</td><td>入口 A 开始消费并入库；<code>/kcore</code> 可管理集群</td><td>后端先于 Kafka 启动：bridge 线程报错退出，必须在 Kafka 就绪后重启后端</td></tr>
-        <tr><td>10</td><td>入口 B（可选）</td><td><span class="tag tag-b">K+N</span></td><td><code>N: bash detector/build.sh</code> → <code>K: kubectl create ns netsentinel</code> → 创建 Secret <code>detector-secret</code>（值 = <code>VIGIL_BRIDGE_TOKEN</code>）→ <code>kubectl apply -f detector/detector-deployment.yaml</code></td><td>3、6（token）、8（WS 地址可达）</td><td>集群内检测器推送结果</td><td>Secret 早于 token 生成或 token 后来重新生成：WS 以 4401 拒绝连接。与入口 A 同时运行会重复入库</td></tr>
+        <tr><td>10</td><td>（已删除）</td><td>—</td><td>原入口 B（集群内检测器）已停用，见 <a href="/help/detect#entryb">4.9</a></td><td>—</td><td>—</td><td>—</td></tr>
         <tr><td>11</td><td>验证与实验</td><td><span class="tag tag-k">K</span></td><td><code>uv sync</code> → <code>sudo .venv/bin/python3 traffic/spoof_attack.py --packets 200</code> → 查 <code>/vigil/log</code> 或 SQL</td><td>9（或 10）</td><td>检测记录、数据集、评估报告</td><td>—</td></tr>
       </table></div>
 
@@ -197,15 +193,14 @@
       <h2>1.8 跨项目契约（改一端必须查另一端）</h2>
       <div class="table-wrap"><table>
         <tr><th>契约</th><th>knetsentinel 侧</th><th>NetSentinel 侧</th><th>改动时注意</th></tr>
-        <tr><td>Kafka topic 名与地址</td><td><code>lab/manifests/vector-5nodes.yaml</code>（sink topic）、<code>.env</code></td><td><code>.env</code> 的 <code>VIGIL_KAFKA_BOOTSTRAP</code>、<code>VIGIL_KAFKA_TOPIC</code>；<code>detector.py</code> 环境变量</td><td>MetalLB 分配的 .200-.203 若变化，入口 A 改 <code>.env</code> 并重启</td></tr>
+        <tr><td>Kafka topic 名与地址</td><td><code>lab/manifests/vector-5nodes.yaml</code>（sink topic）、<code>.env</code></td><td><code>.env</code> 的 <code>VIGIL_KAFKA_BOOTSTRAP</code>、<code>VIGIL_KAFKA_TOPIC</code></td><td>MetalLB 分配的 .200-.203 若变化，入口 A 改 <code>.env</code> 并重启</td></tr>
         <tr><td>Hubble 流事件 JSON 结构</td><td>Vector <code>exec hubble observe --output=json</code></td><td><code>ingest/features.py</code> 读取 <code>flow.IP / l4 / traffic_direction / verdict / is_reply / time</code></td><td>升级 Hubble 版本后需验证字段</td></tr>
         <tr><td>35 个流特征</td><td><code>dataset/aggregate_flows.py</code>、<code>lab/collect/vigil_bridge.py</code>、<code>docs/features.md</code></td><td><code>vigil/serializers.py FlowInputSerializer</code>、<code>detection/base.py DetectionInput</code>、<code>detection/base.py flow_from_dict</code>、<code>ingest/features.py compute_flow</code></td><td>五处必须同名同义；见 <a href="/help/db#features">特征表</a></td></tr>
         <tr><td>标签规则</td><td>攻击源 .20-.29 → 1、正常源 .50-.64 → 0</td><td><code>ingest/features.py hubble_to_packet()</code> 同样规则</td><td><code>simulation/</code> 用的 .170-.184 不在规则内，label 为空</td></tr>
-        <tr><td>检测器推送</td><td>Secret <code>detector-secret</code>（key <code>django-token</code>）→ 环境变量 <code>DJANGO_TOKEN</code></td><td><code>DetectorPushConsumer._auth()</code> 与 <code>settings.VIGIL_BRIDGE_TOKEN</code> 做<b>字符串全等</b>比较</td><td>两边必须是同一个字符串；不是校验 JWT 签名</td></tr>
         <tr><td>REST 批量检测</td><td><code>lab/collect/vigil_bridge.py --token &lt;JWT&gt;</code></td><td><code>POST /api/vigil/detect/batch/</code></td><td>JWT access 默认 2 小时过期；长期运行用 <code>generate_bridge_token</code> 生成 10 年 token</td></tr>
-        <tr><td>评估监听 WebSocket</td><td><code>simulation/monitor/monitor.py</code> 连接 <code>ws://localhost:8080/ws/vigil/</code></td><td><b>后端没有这个路由</b>（只有 <code>ws/detector/push/</code> 和 Pod 日志）</td><td>monitor 目前连不上；需在 <code>vigil/routing.py</code> 补广播 consumer 或改 monitor 轮询 REST</td></tr>
+        <tr><td>评估监听 WebSocket</td><td><code>simulation/monitor/monitor.py</code> 连接 <code>ws://localhost:8080/ws/vigil/</code></td><td><b>后端没有这个路由</b>（只有未使用的 <code>ws/detector/push/</code> 和 Pod 日志）</td><td>monitor 目前连不上；需在 <code>vigil/routing.py</code> 补广播 consumer 或改 monitor 轮询 REST</td></tr>
         <tr><td>离线导入</td><td><code>simulation/simulate_4.py</code></td><td><code>vigil.services.detect_batch(flows, model_name)</code></td><td>移动目录或改函数签名都会破坏</td></tr>
-        <tr><td>模型文件</td><td>—</td><td><code>/srv/netsentinel/models/ads_ml/current</code> → <code>detector/build.sh</code> rsync 到 <code>detector/ads_ml/</code></td><td>改模型后入口 A 重启后端，入口 B 重新 build + rollout</td></tr>
+        <tr><td>模型文件</td><td>—</td><td><code>/srv/netsentinel/models/ads_ml/current</code>（<code>.env</code> 的 <code>VIGIL_ADS_ML_CONFIG</code>）</td><td>改模型后重启后端</td></tr>
       </table></div>
     </section>
 
@@ -251,7 +246,7 @@
 <li><code class="dir">vigil/</code><span>流量检测</span><ul>
 <li><code>apps.py</code><span>ready() 中启动 bridge 线程</span></li>
 <li><code>services.py</code><span>detect_flow / detect_batch / get_stats / list_models</span></li>
-<li><code>consumers.py · routing.py</code><span>入口 B：ws/detector/push/</span></li>
+<li><code>consumers.py · routing.py</code><span>ws/detector/push/（原入口 B，保留未用）</span></li>
 <li><code>views.py · serializers.py · urls.py · models.py（DetectionRecord, managed=False）</code></li>
 <li><code>migrations/0001_initial.py</code><span>手写 SQL：分区表 + 91 个日分区</span></li>
 <li><code>management/commands/ generate_bridge_token.py · rotate_partitions.py</code></li>
@@ -278,7 +273,6 @@
 </ul></li>
 <li><code class="dir">dist/</code><span>☆ pnpm build 产物，后端通过 WhiteNoise 直接提供</span></li>
 </ul></li>
-<li><code class="dir">detector/</code><span>入口 B 镜像：detector.py · Dockerfile · build.sh · requirements.txt · ads_ml/(☆ build 时同步)</span></li>
 <li><code>terraform/main.tf</code><span>Terraform 示例</span></li>
 <li><code class="dir">structure/</code><span>架构图 SVG、数据库图 HTML、设计文档 PDF</span></li>
 <li><code>p.md · p1.md · policy.md</code><span>笔记</span></li>
@@ -301,7 +295,6 @@
 <li><code>lab/manifests/kafka-5nodes.yaml</code><span>1 controller（master，emptyDir）+ 4 broker（StatefulSet，10Gi PVC）</span></li>
 <li><code class="dir">lab/manifests/</code><span>vector-5nodes.yaml（在用）· vector.yaml（旧 minikube）</span></li>
 <li><code class="dir">lab/cluster/</code><span>targets.yaml（靶机 .210-.214）· host-firewall-ccnp.yaml · 旧 minikube 脚本</span></li>
-<li><code>detector/detector-deployment.yaml</code><span>入口 B 的 Deployment（命名空间 netsentinel）</span></li>
 <li><code>ingress-controller/my-nginx-ingress.yaml</code></li>
 <li><code>hubble-scripts/last_record.sh</code></li>
 <li><code class="dir">traffic/</code><span>发包：send_request · send_normal_scapy · spoof_attack · handle_addr · run_traffic_only.sh</span></li>

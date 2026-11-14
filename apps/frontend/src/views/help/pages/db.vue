@@ -146,7 +146,7 @@
         <tr><td><code>src_ip</code> · <code>dst_ip</code></td><td>INET</td><td>是</td><td>五元组</td></tr>
         <tr><td><code>src_port</code> · <code>dst_port</code></td><td>INTEGER</td><td>是</td><td>五元组；ICMP 为 0</td></tr>
         <tr><td><code>protocol</code></td><td>VARCHAR(10)</td><td>是</td><td><code>TCP</code> / <code>UDP</code> / <code>ICMPv4</code> / <code>ICMPv6</code> / <code>OTHER</code></td></tr>
-        <tr><td><code>flow_input</code></td><td>JSONB</td><td>是</td><td>送入模型的完整特征（<code>asdict(DetectionInput)</code>）；入口 B 为检测器推送的原始 dict</td></tr>
+        <tr><td><code>flow_input</code></td><td>JSONB</td><td>是</td><td>送入模型的完整特征（<code>asdict(DetectionInput)</code>）</td></tr>
         <tr><td><code>model_name</code></td><td>VARCHAR(100)</td><td>是</td><td>当前只有 <code>ads_ml_ocsvm</code></td></tr>
         <tr><td><code>is_attack</code></td><td>BOOLEAN</td><td>是</td><td>OCSVM 判定（含余弦复核）</td></tr>
         <tr><td><code>confidence</code></td><td>DOUBLE</td><td>是</td><td>与最近攻击原型的余弦相似度；正常流为 0.0</td></tr>
@@ -196,7 +196,7 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
 
     <section id="features">
       <h2>8.6 35 个流特征（检测输入）</h2>
-      <p>一条“流”= 一个 Kafka 消费批次内同一五元组 <code>(src_ip, dst_ip, src_port, dst_port, protocol)</code> 的全部 Hubble 事件。字段在以下五处必须一致：<code>K dataset/aggregate_flows.py</code>、<code>K lab/collect/vigil_bridge.py</code>、<code>N vigil/ingest/features.py compute_flow()</code>、<code>N vigil/serializers.py FlowInputSerializer</code>、<code>N vigil/detection/base.py DetectionInput</code>（以及 <code>detector/detector.py</code>）。</p>
+      <p>一条“流”= 一个 Kafka 消费批次内同一五元组 <code>(src_ip, dst_ip, src_port, dst_port, protocol)</code> 的全部 Hubble 事件。字段在以下五处必须一致：<code>K dataset/aggregate_flows.py</code>、<code>K lab/collect/vigil_bridge.py</code>、<code>N vigil/ingest/features.py compute_flow()</code>、<code>N vigil/serializers.py FlowInputSerializer</code>、<code>N vigil/detection/base.py DetectionInput</code>。</p>
       <p>“模型使用”列：OCSVM 流水线实际只用 28 列；标“常量剔除”的列在训练集中恒定，被 <code>constant_cols</code> 去掉。</p>
       <div class="table-wrap"><table>
         <tr><th>#</th><th>字段</th><th>类型</th><th>计算方式（<code>compute_flow</code>）</th><th>模型使用</th></tr>

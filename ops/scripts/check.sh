@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # 本地代码检查：提交 / 开 PR 前在自己的仓库检出里运行
-# 用法: ops/scripts/check.sh [backend] [frontend] [lab] [detector]   不带参数 = 全部
+# 用法: ops/scripts/check.sh [backend] [frontend] [lab] [ops]   不带参数 = 全部
 # 只做静态检查和构建，不连 Kafka、不发包、不改数据库。
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 FAILED=()
-TARGETS=("$@"); [ ${#TARGETS[@]} -eq 0 ] && TARGETS=(backend frontend lab detector)
+TARGETS=("$@"); [ ${#TARGETS[@]} -eq 0 ] && TARGETS=(backend frontend lab ops)
 
 log()  { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 step() { local name="$1"; shift; if "$@"; then echo "  ✓ $name"; else echo "  ✗ $name"; FAILED+=("$name"); fi; }
@@ -37,12 +37,11 @@ for t in "${TARGETS[@]}"; do
       step "Python 语法"        check_py lab
       step "Shell 语法"         check_shell lab
       ;;
-    detector)
-      log "检测器（detector）"
-      step "Python 语法"        check_py detector
-      step "Shell 语法"         check_shell detector ops
+    ops)
+      log "运维脚本（ops）"
+      step "Shell 语法"         check_shell ops
       ;;
-    *) echo "未知目标: $t（可选 backend frontend lab detector）"; exit 2 ;;
+    *) echo "未知目标: $t（可选 backend frontend lab ops）"; exit 2 ;;
   esac
 done
 

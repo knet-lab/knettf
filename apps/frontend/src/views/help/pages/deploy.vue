@@ -77,7 +77,7 @@ bash /srv/netsentinel/lab/sync-to-srv.sh</code></pre>运行目录是一个只检
       <div class="task"><h4><span class="n">2</span>改了后端 Python 代码</h4>
         <div class="do"><div><pre class="on-prod"><code>/srv/netsentinel/prod/ops/scripts/deploy.sh -backend      # PR 合并到 main 之后</code></pre>脚本依次：<code>git pull</code> → <code>uv sync --frozen</code> → <code>manage.py check</code> → <code>collectstatic</code> → <code>migrate</code>（default 库）→ 重启 <code>netsentinel</code> → 最多等 20 秒，确认 8080 返回 200。</div></div>
         <div class="why"><div>Python 代码在进程启动时加载，不重启就还是旧代码。先 <code>check</code> 是为了在重启<b>之前</b>发现语法和配置错误，免得把服务重启成起不来的状态。vigil 库（PostgreSQL）<b>不会</b>自动 migrate：大表 ALTER 可能锁表很久，脚本只提示，由你确认后手动执行。</div></div>
-        <div class="res"><div>最后输出 <code>✓ netsentinel active，HTTP 200</code>。<br>副作用：所有 WebSocket 断开（页面和入口 B 检测器会自动重连）；<code>flow_queue</code> 里还没处理的批次丢失；bridge 从 Kafka 已提交的 offset 继续，不重复也不漏。<br><span class="bad">20 秒内没有 200</span>：脚本会打印最后 30 行日志并以失败退出，按其中的 Traceback 修好再跑一次。<br><span class="bad">提示 vigil 有未应用的迁移</span>：看下面“数据库结构”一节。</div></div>
+        <div class="res"><div>最后输出 <code>✓ netsentinel active，HTTP 200</code>。<br>副作用：所有 WebSocket 断开（页面会自动重连）；<code>flow_queue</code> 里还没处理的批次丢失；bridge 从 Kafka 已提交的 offset 继续，不重复也不漏。<br><span class="bad">20 秒内没有 200</span>：脚本会打印最后 30 行日志并以失败退出，按其中的 Traceback 修好再跑一次。<br><span class="bad">提示 vigil 有未应用的迁移</span>：看下面“数据库结构”一节。</div></div>
       </div>
 
       <div class="task"><h4><span class="n">3</span>前后端都改了</h4>
@@ -141,7 +141,7 @@ sudo systemctl start netsentinel</code></pre></div></div>
         <tr><td>线上 <code class="vp">/srv/netsentinel/prod/apps/backend/backend/.env</code></td><td>直接编辑（不进 Git）→ <code>sudo systemctl restart netsentinel</code></td><td>环境变量只在进程启动时读一次；重启后用 <a href="/help/health">健康检查</a> 第 1 步确认</td></tr>
         <tr><td>systemd unit 文件</td><td><code>sudo systemctl daemon-reload</code> → restart</td><td>不 reload 的话 systemd 还在用旧定义；<code>systemctl cat netsentinel</code> 可确认</td></tr>
         <tr><td>cloudflared 配置</td><td><code>sudo systemctl restart cloudflared-knettf</code></td><td>公网会中断几秒</td></tr>
-        <tr><td>Kafka 地址变了</td><td>改线上 <code>.env</code> 的 <code>VIGIL_KAFKA_BOOTSTRAP</code>（入口 B 改 ConfigMap）→ 重启后端</td><td>成功后日志有 <code>bridge starting</code> 且没有 <code>bridge error</code></td></tr>
+        <tr><td>Kafka 地址变了</td><td>改线上 <code>.env</code> 的 <code>VIGIL_KAFKA_BOOTSTRAP</code>→ 重启后端</td><td>成功后日志有 <code>bridge starting</code> 且没有 <code>bridge error</code></td></tr>
         <tr><td>Vector 配置</td><td><code>kubectl apply -f /srv/netsentinel/lab/manifests/vector-5nodes.yaml</code> → <code>kubectl -n kube-system rollout restart ds/vector</code></td><td>重启期间的 Hubble 事件丢失，不会补发</td></tr>
         <tr><td>单个 Kafka broker</td><td><code>kubectl delete pod kafka-broker-N</code>，等它 Running 了再处理下一个</td><td>min.insync.replicas=2，同时停两个以上会导致写入失败；数据在 PVC 上，不会丢</td></tr>
         <tr><td>Kafka controller</td><td><b>不要删</b></td><td>它是裸 Pod + emptyDir，删了不会重建，元数据丢失，只能 <a href="/help/power#rebuild-kafka">重建 Kafka</a></td></tr>

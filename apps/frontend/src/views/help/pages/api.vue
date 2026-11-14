@@ -66,7 +66,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
         <tr><td><span class="m m-get">GET</span></td><td><code>/api/vigil/stats/</code></td><td>统计汇总</td><td>登录</td><td><code>StatsView</code></td></tr>
         <tr><td><span class="m m-get">GET</span></td><td><code>/api/vigil/models/</code></td><td>已注册模型</td><td>登录</td><td><code>ModelsView</code></td></tr>
         <tr><td><span class="m m-ws">WS</span></td><td><code>/ws/clusters/&lt;id&gt;/pods/&lt;ns&gt;/&lt;pod&gt;/logs/</code></td><td>Pod 日志实时流</td><td><b>无鉴权</b></td><td><code>kcore.PodLogConsumer</code></td></tr>
-        <tr><td><span class="m m-ws">WS</span></td><td><code>/ws/detector/push/</code></td><td>集群检测器推送结果</td><td>Bearer = <code>VIGIL_BRIDGE_TOKEN</code></td><td><code>vigil.DetectorPushConsumer</code></td></tr>
+        <tr><td><span class="m m-ws">WS</span></td><td><code>/ws/detector/push/</code></td><td>原入口 B 检测器推送结果（已停用，保留未用）</td><td>Bearer = <code>VIGIL_BRIDGE_TOKEN</code></td><td><code>vigil.DetectorPushConsumer</code></td></tr>
         <tr><td>—</td><td><code>/admin/</code></td><td>Django Admin</td><td>superuser</td><td><code>django.contrib.admin</code></td></tr>
         <tr><td>—</td><td>其余非 <code>api/ admin/ static/ ws/</code> 路径</td><td>返回 <code>apps/frontend/dist/index.html</code>（Vue 路由接管）</td><td>公开</td><td><code>urls.spa_view</code></td></tr>
       </table></div>
@@ -278,7 +278,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
       </div>
       <div class="endpoint">
         <div class="endpoint-head"><span class="m m-ws">WS</span><code>/ws/detector/push/</code><span class="perm">Header <code>Authorization: Bearer &lt;VIGIL_BRIDGE_TOKEN&gt;</code></span></div>
-        <p>入口 B 使用。token 与 <code>settings.VIGIL_BRIDGE_TOKEN</code>（来自 <code>apps/backend/backend/.env</code>）字符串不一致或未配置时，以 code <b>4401</b> 关闭连接。</p>
+        <p>原入口 B（集群内检测器，已停用）使用，目前没有使用方。token 与 <code>settings.VIGIL_BRIDGE_TOKEN</code>（来自 <code>apps/backend/backend/.env</code>）字符串不一致或未配置时，以 code <b>4401</b> 关闭连接。</p>
         <p>客户端发送：</p>
         <pre><code>{ "results": [ { "src_ip": "...", "dst_ip": "...", "src_port": 0, "dst_port": 80, "protocol": "TCP",
                  "is_attack": true, "confidence": 0.8, "attack_type": "DoS",

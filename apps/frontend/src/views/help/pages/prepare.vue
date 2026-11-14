@@ -56,7 +56,7 @@ sudo install -o NEWUSER -g NEWUSER -m 600 /home/soar009/.kube/config /home/NEWUS
 
     <section id="github">
       <h2>2.2 GitHub：加入 knet-lab 组织</h2>
-      <p>仓库 <code>knet-lab/knettf</code> 在实验室组织 <code>knet-lab</code> 下，平台（<code>apps/</code>、<code>detector/</code>、<code>ops/</code>）和实验环境（<code>lab/</code>，原 knetsentinel）都在里面。<code>user.email</code> 只决定提交上<b>显示</b>谁，能不能 push 取决于你的 GitHub <b>账号</b>在不在组织里：</p>
+      <p>仓库 <code>knet-lab/knettf</code> 在实验室组织 <code>knet-lab</code> 下，平台（<code>apps/</code>、<code>ops/</code>）和实验环境（<code>lab/</code>，原 knetsentinel）都在里面。<code>user.email</code> 只决定提交上<b>显示</b>谁，能不能 push 取决于你的 GitHub <b>账号</b>在不在组织里：</p>
       <div class="table-wrap"><table>
         <tr><th>仓库</th><th>本地目录</th><th>远程地址</th></tr>
         <tr><td><code>knet-lab/knettf</code></td><td><code>/home/NEWUSER/github/knettf</code>（开发）；运行目录 <code>/srv/netsentinel/prod</code>（平台）、<code>/srv/netsentinel/lab</code>（实验环境，由 <code>lab/sync-to-srv.sh</code> 从 GitHub <code>main</code> 拉取）</td><td><code>git@github.com:knet-lab/knettf.git</code>（任务分支 → 网页 PR → <code>main</code>）</td></tr>

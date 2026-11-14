@@ -18,20 +18,12 @@
 
     <section id="token">
       <h2>服务令牌 VIGIL_BRIDGE_TOKEN</h2>
-      <p>它是 <code>vigil-bridge</code> 用户的 10 年期 JWT，有两个用途：调用所有需要登录的 REST 接口；入口 B 检测器推送结果时的共享密钥。</p>
+      <p>它是 <code>vigil-bridge</code> 用户的 10 年期 JWT，用途：脚本（如 <code>lab/collect/vigil_bridge.py</code>）调用需要登录的 REST 接口。</p>
       <div class="task"><h4><span class="n">1</span>重新生成</h4>
         <div class="do"><div><pre class="on-prod"><code>../../.venv/bin/python manage.py generate_bridge_token --write-env
 sudo systemctl restart netsentinel</code></pre></div></div>
         <div class="why"><div>token 写进 <code>apps/backend/backend/.env</code>，后端只在启动时读一次，所以要重启。</div></div>
         <div class="res"><div><code>.env</code> 里的值变了，服务 active。</div></div>
-      </div>
-      <div class="task"><h4><span class="n">2</span>同步给入口 B（部署了才需要）</h4>
-        <div class="do"><div><pre class="on-prod"><code>kubectl -n netsentinel create secret generic detector-secret \
-  --from-literal=django-token="$(grep ^VIGIL_BRIDGE_TOKEN= <span class="vp">/srv/netsentinel/prod</span>/apps/backend/backend/.env | cut -d= -f2-)" \
-  --dry-run=client -o yaml | kubectl apply -f -
-kubectl -n netsentinel rollout restart deploy/netsentinel-detector</code></pre></div></div>
-        <div class="why"><div>后端拿 Secret 里的值和自己的 token 做字符串全等比较，两边对不上，WebSocket 就会以 4401 拒绝连接。</div></div>
-        <div class="res"><div>检测器日志出现 <code>connected to Django</code>。</div></div>
       </div>
       <div class="danger"><b>泄露之后光重新生成是不够的</b>：JWT 是无状态的，旧 token 只要签名对、没过期就一直有效。要真正作废，只能停用 <code>vigil-bridge</code> 账号后重建，或者改 <code>SECRET_KEY</code>（所有人都要重新登录）。<br>
         不要删除 <code>vigil-bridge</code> 账号（除非马上重建），不要把 token、kubeconfig、<code>.env</code> 发到群聊或截图里。</div>
