@@ -163,7 +163,7 @@ kubectl apply -f cluster-setup/targets.yaml
 
 - `detector/detector-deployment.yaml`：在 `netsentinel` 命名空间部署 `soar009/netsentinel-detector`，消费 `ebpf-net-logs`，结果经 WebSocket 推到 `ws://knettf.com:8080/ws/detector/push/`（`knettf.com` 通过 hostAliases 指向宿主机 `192.168.100.1`）。需先创建 Secret `detector-secret`（key `django-token`）
 - `ingress-controller/my-nginx-ingress.yaml`：my-nginx 的 Ingress（需要 nginx ingress controller）
-- `cluster-setup/init-5nodes.sh`、`minikube-check.sh`：早期 **minikube（kvm2 driver）** 方案的部署/诊断脚本，已被 `kubeadm-cluster/` 取代
+- `cluster-setup/init.sh`、`init-5nodes.sh`、`minikube-check.sh`：早期 **minikube（kvm2 driver）** 方案的部署/诊断脚本，已被 `kubeadm-cluster/` 取代；仅存在于本机，**不纳入 Git**
 
 ### 4.5 部署验证
 
@@ -225,17 +225,17 @@ knetsentinel/
 ├── kubeadm-cluster/   # ★ 集群部署脚本 00~03 + host-info.sh
 ├── kafka-svc/         # Kafka KRaft 清单
 ├── cilium-vector/     # Vector DaemonSet 清单
-├── cluster-setup/     # 防火墙策略、靶机服务、旧 minikube 脚本
+├── cluster-setup/     # 防火墙策略、靶机服务（旧 minikube 脚本仅本机，不入 Git）
 ├── detector/          # 集群内检测器 Deployment
 ├── ingress-controller/
 ├── hubble-scripts/    # 从 cilium Pod 取最后一条 hubble 事件
 ├── traffic/           # 基础发包脚本
-├── dataset/           # 数据集采集与流聚合
+├── dataset/           # 数据集采集与流聚合（整个目录不入 Git，仅本机）
 ├── kafka/             # Kafka 读取、过滤、推送到检测后端
 ├── traffic_request/   # CSV 流量重放 + 采集流水线（有独立 README）
 ├── simulation/        # 端到端检测效果评估
-├── docs/              # 特征说明、kafka_read 使用说明
-└── logs/              # 历史运行日志
+├── docs/              # 特征说明、kafka_read 使用说明（不入 Git，仅本机）
+└── logs/              # 历史运行日志（不入 Git）
 ```
 
 ### 6.1 `traffic/` — 发包
@@ -250,6 +250,8 @@ knetsentinel/
 
 ### 6.2 `dataset/` — 数据集
 
+> 注意：`dataset/` 整个目录被 `.gitignore` 排除，以下脚本只存在于本机 `/srv/netsentinel/knetsentinel/dataset/`，从 Git 克隆的副本里没有（`traffic/run_traffic_only.sh` 依赖的 `dataset_collector.py` 也因此缺失）。
+
 ```bash
 sudo bash dataset/run_dataset_collection.sh [输出.csv]
 ```
@@ -257,7 +259,7 @@ sudo bash dataset/run_dataset_collection.sh [输出.csv]
 编排：后台启动 `dataset_collector.py`（普通用户）→ 发正常流量 → 发攻击流量 → 等 20s 排水 → 停止。默认目标 160000 条攻击、50000 条正常。
 
 - `dataset_collector.py`：按源 IP 打标签（`.20-.29`→1，`.50-.64`→0，其余丢弃），输出包级 CSV：`timestamp, verdict, direction, summary, src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, is_reply, trace_reason, label`
-- `aggregate_flows.py -i dataset.csv -o flows.csv -t 5`：按五元组 + 超时窗口聚合成 **30 个流级特征**（时长、包数/速率、IAT 统计、TCP 标志计数与比例、回包比例、放行/丢弃统计），详见 `docs/features.md`
+- `aggregate_flows.py -i dataset.csv -o flows.csv -t 5`：按五元组 + 超时窗口聚合成 **30 个流级特征**（时长、包数/速率、IAT 统计、TCP 标志计数与比例、回包比例、放行/丢弃统计），详见 `docs/features.md`（本机文件，不在 Git 中）
 
 ### 6.3 `kafka/` — 读取与推送
 
@@ -268,7 +270,7 @@ bash kafka/run_spoof_capture.sh    # 只抓 .20-.29 的 TCP → spoof_attack_cap
 python3 kafka/kafka_read_csv.py --output dataset.csv --max-attack 160000 --max-normal 50000
 ```
 
-`kafka_read.py` 的过滤参数：`--verdict --direction --protocol --src --dst --src-ns --dst-ns --src-pod --dst-pod --node --drop-only -n`，详见 `docs/kafka_read.md`。
+`kafka_read.py` 的过滤参数：`--verdict --direction --protocol --src --dst --src-ns --dst-ns --src-pod --dst-pod --node --drop-only -n`，详见 `docs/kafka_read.md`（本机文件，不在 Git 中）。
 
 **`vigil_bridge.py`**：消费 `ebpf-net-logs`，在内存中按五元组聚合为 30 特征流记录，批量 POST 到 NetSentinel 的 `/api/vigil/detect/batch/`：
 
@@ -333,4 +335,23 @@ sudo bash simulation/run.sh [1|2|3]
 
 ## 9. 版本管理
 
-`.gitignore` 排除了大部分目录（`kubeadm-cluster/`、`kafka-svc/`、`cilium-vector/`、`dataset/`、`kafka/`、`traffic*/`、`simulation/`、`detector/`、`docs/`、`logs/`、`*.csv`、`.env` 等），Git 只跟踪 `pyproject.toml`、`uv.lock`、`.python-version`、`requirements.txt` 和本 README。脚本和清单需要另外备份。
+**纳入 Git 的内容：**
+
+- 根目录：`README.md`、`pyproject.toml`、`uv.lock`、`.python-version`、`requirements.txt`、`.gitignore`
+- `kubeadm-cluster/`、`kafka-svc/`、`cilium-vector/`、`detector/`、`ingress-controller/`、`hubble-scripts/`
+- `cluster-setup/` 中仅 `targets.yaml`、`host-firewall-ccnp.yaml`
+- `kafka/`、`traffic/`、`traffic_request/`、`simulation/` 中的脚本与说明（不含数据和运行产物）
+
+**被 `.gitignore` 排除、只存在于本机的内容：**
+
+| 类别 | 内容 |
+|------|------|
+| 脚本/文档目录 | `dataset/`（含 `dataset_collector.py`、`aggregate_flows.py`、`run_dataset_collection.sh`、`test_50_packets.sh`）、`docs/`、`logs/` |
+| 旧脚本 | `cluster-setup/init.sh`、`init-5nodes.sh`、`minikube-check.sh` |
+| 数据 | 所有 `*.csv`（根目录 `flows*.csv`、`simulation/` 与 `traffic_request/` 下的测试集和结果等） |
+| 运行产物 | `*.log`、`*.pid`、`*.done`、`traffic_request/record_send_uuid.txt`、`simulation/monitor/monitor_report_*.txt` |
+| 环境 | `.env`、`.venv/`、`.vscode/`、`.claude`、`__pycache__/` |
+
+`dataset/` 和 `docs/` 虽然包含脚本和文档，但目前不在 Git 中，需要另外备份。
+
+`traffic_request/scripts/start_send.sh`、`start_read.sh` 在 `PATH` 中找不到 `uv` 时会回退到写死的 `/home/soar009/.local/bin/uv`，换用户运行时需确保 `uv` 在 `PATH` 中。
