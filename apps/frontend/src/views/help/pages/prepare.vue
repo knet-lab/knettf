@@ -125,7 +125,7 @@ git -C /home/NEWUSER/github/knettf push -u origin NEWUSER</code></pre>
       <p>提交身份写在<b>你自己的开发仓库</b>里（仓库内的 <code>.git/config</code>），只对这个仓库生效，不影响你账户下的其他项目：</p>
       <pre><code>git -C /home/NEWUSER/github/knettf  config user.name  "你的GitHub用户名"
 git -C /home/NEWUSER/github/knettf  config user.email "你在GitHub已验证的邮箱"   # 或 GitHub 提供的 数字+用户名@users.noreply.github.com
-git -C /home/NEWUSER/github/knettf  config --local --get-regexp user     # 应显示你的名字和邮箱
+git -C /home/NEWUSER/github/knettf  config --local --get-regexp user     # 应显示你的名字和邮箱</code></pre>
       <p>为什么只写在开发仓库：这个目录只有你自己用，写在这里最精确。邮箱必须是 GitHub 上已验证的，GitHub 才会把提交关联到你的账号。线上目录 <code>/srv/netsentinel/prod</code> 和 <code>/srv/netsentinel/lab</code> 是大家共用的运行目录，不提交，<b>不要</b>在里面设身份，否则谁在那里提交都会显示成同一个人。</p>
 
       <h3>第 4 步：试一次提交</h3>

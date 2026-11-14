@@ -86,13 +86,13 @@ git clone git@github.com:knet-lab/knettf.git /home/NEWUSER/github/knettf
 git -C /home/NEWUSER/github/knettf switch -c NEWUSER origin/merge-dev
 git -C /home/NEWUSER/github/knettf push -u origin NEWUSER</code></pre></div></div>
         <div class="why"><div>Code is only edited here, never in <code>/srv/netsentinel/prod</code> or <code>/srv/netsentinel/lab</code>. The <code>netsentinel</code> group (log in again afterwards) lets you release into <code>/srv</code>.</div></div>
-        <div class="res"><div>Both repositories cloned; your branch exists on GitHub.</div></div>
+        <div class="res"><div>Repository cloned; your branch exists on GitHub.</div></div>
       </div>
       <div class="task"><h4><span class="n">3</span>Set your commit identity</h4>
         <div class="do"><div><pre><code>git -C /home/NEWUSER/github/knettf  config user.name  "your-github-username"
 git -C /home/NEWUSER/github/knettf  config user.email "your-verified-github-email"
-git -C /home/NEWUSER/github/knettf  config --local --get-regexp user
-        <div class="why"><div>The identity is set in your own two development repositories only, so it affects nothing else in your account. Never set one in the shared directories under <code>/srv/netsentinel</code>: they are only pulled, never committed in.</div></div>
+git -C /home/NEWUSER/github/knettf  config --local --get-regexp user</code></pre></div></div>
+        <div class="why"><div>The identity is set in your own development repository only, so it affects nothing else in your account. Never set one in the shared directories under <code>/srv/netsentinel</code>: they are run directories, never committed in.</div></div>
         <div class="res"><div>The last two commands print your name and email. A test commit pushed on a temporary branch shows you as the author on GitHub.</div></div>
       </div>
       <div class="task"><h4><span class="n">4</span>Check that you can release (push prod, pull production)</h4>
