@@ -68,7 +68,7 @@ git push
 然后在 GitHub 网页上：
 
 1. 点 **Compare & pull request**，确认 `base: main ← compare: dev/<名字>`，**Create pull request**。
-2. 等 PR 页面上的检查 **check** 变绿（约 3 分钟）。没通过就本地修好再 `git push`，PR 会自动重新检查。
+2. 等 PR 页面上的检查 **check** 变绿（约 3 分钟）。没通过就本地修好再 `git push`，PR 会自动重新检查。PR 开着时继续 `git push` 的提交会自动加进这个 PR；合并只包含点击合并那一刻已有的提交，之后推的需要另开 PR。
 3. 合并按钮选 **Create a merge commit**（不要选 Squash / Rebase）→ **Merge pull request** → **Confirm merge**。
 4. **不要点 Delete branch**，个人分支下次接着用。
 
