@@ -7,7 +7,8 @@ import sys
 import time
 
 # ── Django 环境初始化 ─────────────────────────────────────────────────────────
-BACKEND_DIR = os.path.join(os.path.dirname(__file__), '../../github/NetSentinel/backend')
+# NetSentinel 后端 Django 项目目录，可用环境变量 NETSENTINEL_BACKEND_DIR 覆盖
+BACKEND_DIR = os.environ.get('NETSENTINEL_BACKEND_DIR', '/home/soar009/github/NetSentinel/backend')
 sys.path.insert(0, os.path.abspath(BACKEND_DIR))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
 

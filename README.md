@@ -5,7 +5,7 @@
 在单台宿主机上用 libvirt 起 5 台 VM 组成 K8s 集群，Cilium 以 eBPF 方式观测所有流量，Hubble 流事件经 Vector 写入 Kafka；宿主机通过绑定伪造源 IP 向集群发送正常 / 攻击流量，用于：
 
 - 采集带标签的数据集（包级 → 流级 30 特征）
-- 把流量实时送到 NetSentinel 检测后端（Vigil / OCSVM 模型）并评估检测效果
+- 把流量实时送到 NetSentinel 检测后端（Django `vigil` 应用，模型由 `VIGIL_MODELS` 配置，默认 `AdsMLModel`/OCSVM）并评估检测效果
 
 > 本仓库只用 **uv** 维护管理 Python 环境。
 
@@ -13,20 +13,36 @@
 
 ## 1. 整体架构
 
-```
-宿主机 (Ubuntu, KVM/libvirt)                               K8s 集群 (5 × VM, Ubuntu 22.04)
-┌──────────────────────────────┐   virbr-k8s 192.168.100.0/24   ┌────────────────────────────────────┐
-│ traffic/ simulation/         │  ───── 伪造源 IP 发包 ────────▶ │ nginx / targets 服务 (MetalLB IP)  │
-│ traffic_request/             │                                │            │                       │
-│  (scapy / curl / nc)         │                                │   Cilium eBPF (替代 kube-proxy)    │
-│                              │                                │            │                       │
-│ dataset/ kafka/              │ ◀── kubectl exec 消费 ──────── │   Hubble Relay :4245               │
-│  kafka-console-consumer      │                                │            │ hubble observe        │
-│                              │                                │   Vector DaemonSet (每节点)        │
-│ kafka/vigil_bridge.py ───────┼──▶ NetSentinel 后端 :8080      │            │                       │
-│ simulation/monitor ◀── WS ───┼─── (Django, 仓库外)             │   Kafka KRaft: 1 controller+4 broker│
-└──────────────────────────────┘                                │   topic: ebpf-net-logs             │
-                                                                └────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph HOST["宿主机（Ubuntu，KVM/libvirt）"]
+        direction TB
+        GEN["发包脚本<br/>traffic/ · simulation/ · traffic_request/<br/>scapy / curl / nc"]
+        COL["采集脚本<br/>dataset/ · kafka/"]
+        BRG["kafka/vigil_bridge.py"]
+        MON["simulation/monitor"]
+        NS["NetSentinel 后端 :8080<br/>Django vigil（仓库外）"]
+    end
+
+    subgraph K8S["K8s 集群（5 × VM，Ubuntu 22.04）"]
+        direction TB
+        SVC["nginx / targets 服务<br/>MetalLB IP"]
+        CIL["Cilium eBPF<br/>替代 kube-proxy"]
+        HUB["Hubble Relay :4245"]
+        VEC["Vector DaemonSet<br/>每节点 hubble observe"]
+        KAF[("Kafka KRaft<br/>1 controller + 4 broker<br/>topic: ebpf-net-logs")]
+        DET["detector Pod<br/>（可选）"]
+        SVC --> CIL --> HUB --> VEC --> KAF
+        KAF --> DET
+    end
+
+    GEN -- "伪造源 IP 发包<br/>virbr-k8s 192.168.100.0/24" --> SVC
+    KAF -- "kubectl exec<br/>kafka-console-consumer" --> COL
+    KAF -- "kubectl exec<br/>kafka-console-consumer" --> BRG
+    KAF -- "外部 listener :9094<br/>vigil/bridge.py" --> NS
+    BRG -- "POST /api/vigil/detect/batch/" --> NS
+    DET -- "ws/detector/push/" --> NS
+    NS -- "GET /api/vigil/records/" --> MON
 ```
 
 数据流：`数据包 → Cilium eBPF → Hubble → Vector(exec hubble observe --output=json) → Kafka ebpf-net-logs → 采集脚本 / 检测器`
@@ -203,7 +219,7 @@ uv run python <script.py>
 - 依赖声明在 `pyproject.toml`，`requirements.txt` 只是旧的子集，不再维护
 - 发包脚本需要 root（`ip addr add` + raw socket），用 `sudo .venv/bin/python3 ...` 或 `sudo $(which uv) run ...`
 - 采集脚本以普通用户运行即可，它们通过 `kubectl exec kafka-broker-0 -- kafka-console-consumer.sh` 读 Kafka，依赖本机 kubeconfig，**不直接连 Kafka 外部端口**
-- `kafka/vigil_bridge.py` 用到 `requests`，`simulation/monitor/monitor.py` 用到 `websocket-client`（PEP 723 内联声明，可 `uv run monitor.py` 自动安装），二者都不在 `pyproject.toml` 中
+- `kafka/vigil_bridge.py` 用到 `requests`，`simulation/monitor/monitor.py` 只用标准库；`requests` 不在 `pyproject.toml` 中
 
 ### `.env`
 
@@ -293,10 +309,11 @@ uv run traffic_request/scripts/aggregate.py --window 10000          # 每 N 行�
 
 ### 6.5 `simulation/` — 端到端检测评估
 
-需要先启动 NetSentinel 后端（`localhost:8080`，提供 `ws://localhost:8080/ws/vigil/`），并部署 4.4 中的 `targets` 靶机。
+需要先启动 NetSentinel 后端（`localhost:8080`），准备一个后端 JWT access token，并部署 4.4 中的 `targets` 靶机。
 
 ```bash
-sudo bash simulation/run.sh [1|2|3]
+sudo NETSENTINEL_TOKEN=<JWT> bash simulation/run.sh [1|2|3]
+# 后端不在 localhost:8080 时再加 NETSENTINEL_BACKEND=http://host:port
 ```
 
 | 模式 | 脚本 | 内容 |
@@ -305,15 +322,33 @@ sudo bash simulation/run.sh [1|2|3]
 | 2 | `simulate_2.py` | 正常 + 攻击混合（攻击源 `.170-.184`） |
 | 3 | `simulate_3.py` | 纯攻击，9 类：DoS / DDoS TCP SYN flood、TCP sequence prediction、DoS Get、Slowloris、Slow-body、Slow-read、Slow-range、Credentials hijacking |
 
-`run.sh` 先启动 `monitor/monitor.py` 连上 WebSocket，再运行 simulate 脚本；simulate 每发一条输出一行 `SEND|group|src|dst|port|type|ts` 到 `monitor/send.log`，monitor 将其与模型返回的检测结果对齐，生成 `monitor_report_<mode>.txt`（混淆矩阵、Accuracy/Precision/Recall/F1、攻击类型分布）和 `monitor_detail_<mode>.csv`。
+`run.sh` 先启动 `monitor/monitor.py`，再运行 simulate 脚本。monitor 每秒轮询一次 `GET /api/vigil/records/?time_from=<启动时间>`（JWT 认证），收集启动后落库的检测记录；simulate 每发一条输出一行 `SEND|group|src|dst|port|type|ts` 到 `monitor/send.log`，monitor 将其与检测记录对齐，simulate 停发 5s 后再拉一次并生成 `monitor_report_<mode>.txt`（混淆矩阵、Accuracy/Precision/Recall/F1、攻击类型分布）和 `monitor_detail_<mode>.csv`。
 
-`simulate_4.py` 跳过 Kafka/bridge，直接 `django.setup()` 导入 `../../github/NetSentinel/backend` 的 `vigil.services`，把 `simulate4.csv`（由 `gen_simulate4_csv.py` 将特征 CSV 与 `20000_test_attack_label.csv` 合并生成）的预聚合流特征批量送入模型。
+`simulate_4.py` 跳过 Kafka/bridge，直接 `django.setup()` 导入 NetSentinel 后端的 `vigil.services`（目录默认 `/home/soar009/github/NetSentinel/backend`，可用环境变量 `NETSENTINEL_BACKEND_DIR` 覆盖），把 `simulate4.csv`（由 `gen_simulate4_csv.py` 将特征 CSV 与 `20000_test_attack_label.csv` 合并生成）的预聚合流特征批量送入模型。
 
 ---
 
 ## 7. 外部依赖
 
-检测模型与后端不在本仓库，位于 `~/github/NetSentinel/backend`（Django，`vigil` 应用），需要单独启动在 `:8080`。本仓库只负责环境、流量生成、采集和评估。
+检测模型与后端不在本仓库，位于 `/home/soar009/github/NetSentinel/backend`（Django 项目，`vigil` 应用），需要单独启动在 `:8080`。本仓库只负责环境、流量生成、采集和评估。
+
+本仓库用到的后端接口：
+
+| 接口 | 使用方 |
+|------|--------|
+| `POST /api/vigil/detect/batch/`（JWT） | `kafka/vigil_bridge.py` |
+| `GET /api/vigil/records/`（JWT，支持 `time_from`/`limit`/`offset`） | `simulation/monitor/monitor.py` |
+| `ws/detector/push/`（Bearer = 后端 `VIGIL_BRIDGE_TOKEN`） | `detector/detector-deployment.yaml` 中的检测器 Pod |
+| Python 模块 `vigil.services` | `simulation/simulate_4.py` |
+
+后端已不再提供 `ws/vigil/` WebSocket 推送（NetSentinel 提交 bf011ca 删除），检测结果只能从数据库 / `records` 接口读取。
+
+后端相关配置（`backend/backend/settings.py`，可用环境变量覆盖）：
+
+- `VIGIL_MODELS`：要加载的模型类列表，默认 `vigil.ml.models.ads_ml_model.AdsMLModel`
+- `VIGIL_ADS_ML_CONFIG`：AdsMLModel 的配置文件，默认 `vigil/ml/ads_ml/config.yaml`；模型目录在启动时解析软链接，切换版本需重启后端
+- `VIGIL_KAFKA_GROUP_ID`：后端自带的 Kafka 消费桥（`vigil/bridge.py`，随后端启动）使用的 consumer group，默认 `vigil-bridge`
+- `VIGIL_BRIDGE_TOKEN`：`ws/detector/push/` 的认证 token
 
 ---
 

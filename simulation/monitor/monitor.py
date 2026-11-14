@@ -1,8 +1,11 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["websocket-client"]
+# dependencies = []
 # ///
-"""monitor.py — simulate send.log + WS 结果对比"""
+"""monitor.py — simulate send.log + 后端检测记录对比
+
+NetSentinel 后端已移除 ws/vigil/ 推送，改为轮询 GET /api/vigil/records/（JWT 认证）。
+"""
 
 import argparse
 import csv
@@ -14,9 +17,15 @@ import time
 from collections import defaultdict
 from datetime import datetime
 
-import websocket
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import timezone
 
-WS_URL     = "ws://localhost:8080/ws/vigil/"
+BACKEND    = os.environ.get("NETSENTINEL_BACKEND", "http://localhost:8080")
+RECORDS_API = "/api/vigil/records/"
+POLL_INTERVAL = 1.0
 REPORT_DIR = pathlib.Path(__file__).parent
 IDLE_STOP  = 5   # simulate 停发后等待秒数
 
@@ -75,65 +84,59 @@ def tail_thread(log_path: pathlib.Path, state: State, stop: threading.Event):
                 continue
 
 
-# ── WS 线程 ────────────────────────────────────────────────────────────────
+# ── 轮询线程 ──────────────────────────────────────────────────────────────
 
-def ws_thread(state: State, stop: threading.Event):
+def _fetch(backend: str, token: str, params: dict) -> dict:
+    url = backend.rstrip("/") + RECORDS_API + "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode())["data"]
+
+
+def _add_record(state: State, rec: dict) -> None:
+    rid = rec.get("id")
+    if rid in state.seen_ids:
+        return
+    state.seen_ids.add(rid)
+    state.results.append({
+        "src_ip":      rec.get("src_ip", ""),
+        "dst_ip":      rec.get("dst_ip", ""),
+        "dst_port":    int(rec.get("dst_port") or 0),
+        "is_attack":   bool(rec.get("is_attack")),
+        "attack_type": rec.get("attack_type") or "",
+        "confidence":  float(rec.get("confidence") or 0.0),
+        "agg_ms":      rec.get("aggregation_ms"),
+        "inf_ms":      rec.get("inference_ms"),
+        "created_at":  rec.get("created_at", ""),
+        "ts":          time.time(),
+    })
+
+
+def poll_once(state: State, backend: str, token: str, time_from: str) -> None:
+    offset = 0
+    while True:
+        data = _fetch(backend, token, {"time_from": time_from, "limit": 500, "offset": offset})
+        recs = data.get("records", [])
+        with state.lock:
+            for rec in recs:
+                _add_record(state, rec)
+        offset += len(recs)
+        if not recs or offset >= data.get("total", 0):
+            break
+
+
+def poll_thread(state: State, stop: threading.Event, backend: str, token: str, time_from: str):
     first_err = True
-
-    def on_open(ws_app):
-        nonlocal first_err
-        first_err = True
-        print(f"[monitor] WS 已连接 {WS_URL}", flush=True)
-
-    def on_message(ws_app, raw):
-        try:
-            msg = json.loads(raw)
-            if msg.get("type") == "ping":
-                return
-            rid = msg.get("record_id") or msg.get("id")
-            with state.lock:
-                if rid in state.seen_ids:
-                    return
-                state.seen_ids.add(rid)
-                state.results.append({
-                    "src_ip":      msg.get("src_ip", ""),
-                    "dst_ip":      msg.get("dst_ip", ""),
-                    "dst_port":    int(msg.get("dst_port") or 0),
-                    "is_attack":   bool(msg.get("is_attack")),
-                    "attack_type": msg.get("attack_type") or "",
-                    "confidence":  float(msg.get("confidence") or 0.0),
-                    "agg_ms":      msg.get("aggregation_ms"),
-                    "inf_ms":      msg.get("inference_ms"),
-                    "created_at":  msg.get("created_at", ""),
-                    "ts":          time.time(),
-                })
-            n = len(state.results)
-            print(f"  [WS] 已收 {n} 条  {int(time.time()-state.t0)}s", end="\r", flush=True)
-        except Exception:
-            pass
-
-    def on_error(ws_app, err):
-        nonlocal first_err
-        if first_err:
-            print(f"[monitor] WS 错误: {err}", flush=True)
-            first_err = False
-
-    def on_close(ws_app, *_):
-        pass
-
     while not stop.is_set():
         try:
-            app = websocket.WebSocketApp(
-                WS_URL,
-                on_open=on_open,
-                on_message=on_message,
-                on_error=on_error,
-                on_close=on_close,
-            )
-            app.run_forever(ping_interval=0)
-        except Exception:
-            pass
-        time.sleep(2)
+            poll_once(state, backend, token, time_from)
+            first_err = True
+            print(f"  [API] 已收 {len(state.results)} 条  {int(time.time()-state.t0)}s", end="\r", flush=True)
+        except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
+            if first_err:
+                print(f"[monitor] 拉取检测记录失败: {e}", flush=True)
+                first_err = False
+        stop.wait(POLL_INTERVAL)
 
 
 # ── 报告 ───────────────────────────────────────────────────────────────────
@@ -292,6 +295,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--log",  default=str(REPORT_DIR / "send.log"))
     p.add_argument("--mode", type=int, choices=[1, 2, 3], default=None)
+    p.add_argument("--backend", default=BACKEND, help="NetSentinel 后端地址（默认 $NETSENTINEL_BACKEND 或 http://localhost:8080）")
+    p.add_argument("--token", default=os.environ.get("NETSENTINEL_TOKEN"), help="JWT access token（默认 $NETSENTINEL_TOKEN）")
     args = p.parse_args()
 
     if args.mode is None:
@@ -305,12 +310,16 @@ def main():
     else:
         mode = args.mode
 
-    print(f"[monitor] 模式={mode}  等待 WS 连接...", flush=True)
+    if not args.token:
+        p.error("需要 JWT：--token <JWT> 或环境变量 NETSENTINEL_TOKEN")
 
     state = State()
+    time_from = datetime.fromtimestamp(state.t0, tz=timezone.utc).isoformat()
+    print(f"[monitor] 模式={mode}  轮询 {args.backend}{RECORDS_API}（created_at >= {time_from}）", flush=True)
+
     stop  = threading.Event()
 
-    threading.Thread(target=ws_thread,   args=(state, stop),                          daemon=True).start()
+    threading.Thread(target=poll_thread, args=(state, stop, args.backend, args.token, time_from), daemon=True).start()
     threading.Thread(target=tail_thread, args=(pathlib.Path(args.log), state, stop),  daemon=True).start()
 
     def _sig(*_):
@@ -319,6 +328,12 @@ def main():
     signal.signal(signal.SIGTERM, _sig)
 
     stop.wait()
+
+    # 最后再拉一次，补齐停发后落库的记录
+    try:
+        poll_once(state, args.backend, args.token, time_from)
+    except Exception as e:
+        print(f"\n[monitor] 最后一次拉取失败: {e}", flush=True)
 
     elapsed = int(time.time() - state.t0)
     print(f"\n[monitor] 生成报告...", flush=True)
