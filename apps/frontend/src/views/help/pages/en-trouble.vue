@@ -21,7 +21,7 @@
         <tr><td>White page / 404 for <code>/assets/*.js</code></td><td>Not built or not restarted → <code>/srv/netsentinel/prod/ops/scripts/deploy.sh -frontend</code> (redeploys current prod)</td></tr>
         <tr><td>Logged out right after sign-in</td><td>Session expired (7 days) → sign in again, clear the site's local storage</td></tr>
         <tr><td><code>bridge error</code> in the log</td><td>Kafka unreachable → fix Kafka, then <code>sudo systemctl restart netsentinel</code></td></tr>
-        <tr><td><code>drainer failed</code> + <code>no partition of relation</code></td><td>Missing day partition → <code>cd /srv/netsentinel/prod/apps/backend && ../.venv/bin/python manage.py rotate_partitions --database vigil</code></td></tr>
+        <tr><td><code>drainer failed</code> + <code>no partition of relation</code></td><td>Missing day partition → <code>cd /srv/netsentinel/prod/apps/backend && ../../.venv/bin/python manage.py rotate_partitions --database vigil</code></td></tr>
         <tr><td>Detection model empty</td><td>Model files missing or wrong scikit-learn version (must be 1.7.2)</td></tr>
         <tr><td>Kafka has no data</td><td><code>kubectl -n kube-system logs -l app=vector --tail=50</code>; hubble-relay port must be 4245</td></tr>
         <tr><td>Node NotReady</td><td><code>ssh k8s@192.168.100.11 'systemctl status kubelet containerd'</code> (use the node's address)</td></tr>

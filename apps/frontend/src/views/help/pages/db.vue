@@ -7,7 +7,7 @@
       <h2>8.1 两个数据库与路由</h2>
       <div class="table-wrap"><table>
         <tr><th>别名</th><th>引擎</th><th>位置</th><th>存放</th><th>连接方式</th></tr>
-        <tr><td><code>default</code></td><td>SQLite</td><td><code>apps/backend/db.sqlite3</code>（线上 <code class="vp">/srv/netsentinel/prod/apps/backend/</code>，开发 <code class="vn">/home/NEWUSER/github/knettf/backend/</code>，互不相通）</td><td>kcore、autotf、Django 内置（auth、admin、session、contenttypes、migrations）</td><td><code>sqlite3 apps/backend/db.sqlite3</code></td></tr>
+        <tr><td><code>default</code></td><td>SQLite</td><td><code>apps/backend/db.sqlite3</code>（线上 <code class="vp">/srv/netsentinel/prod/apps/backend/</code>，开发 <code class="vn">/home/NEWUSER/github/knettf/apps/backend/</code>，互不相通）</td><td>kcore、autotf、Django 内置（auth、admin、session、contenttypes、migrations）</td><td><code>sqlite3 apps/backend/db.sqlite3</code></td></tr>
         <tr><td><code>vigil</code></td><td>PostgreSQL</td><td>Docker 容器 <code>pg</code>，127.0.0.1:5432，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>（线上的副本，开发随便用），用户 <code>vigil</code> / 密码 <code>vigil123</code>；用哪个库由 .env 的 <code>VIGIL_DB_NAME</code> 决定</td><td>只有 <code>vigil_detectionrecord</code>（分区表）</td><td><code>docker exec -it pg psql -U vigil vigil</code></td></tr>
       </table></div>
       <p>路由规则（<code>apps/backend/backend/db_router.py AppRouter</code>）：</p>
