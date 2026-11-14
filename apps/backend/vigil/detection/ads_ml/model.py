@@ -2,20 +2,33 @@ import logging
 from dataclasses import asdict
 from pathlib import Path
 
-from .base import BaseDetectionModel, DetectionInput, DetectionResult
-from vigil.ml.ads_ml.main import _load_resources
-from vigil.ml.ads_ml.utils.data_preprocessing import preprocess_data
-from vigil.ml.ads_ml.utils.anomaly_detection import ad
-from vigil.ml.ads_ml.utils.zero_shot_learning import zero_shot_learning
+import joblib
+import pandas as pd
+import yaml
+
+from ..base import BaseDetectionModel, DetectionInput, DetectionResult
+from .anomaly import ad
+from .preprocessing import preprocess_data
+from .zero_shot import zero_shot_learning
 
 logger = logging.getLogger("vigil.ads_ml")
+
+
+def load_resources(config_path: Path):
+    """按 config.yaml 读取 pipeline、攻击原型、参考样本（路径相对 config.yaml 所在目录）。"""
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+    base = config_path.parent
+    pipeline   = joblib.load(base / config["model_paths"]["ocsvm_pipeline"])
+    prototypes = joblib.load(base / config["model_paths"]["prototypes"])
+    X_train    = pd.read_csv(base / config["training_data_used_for_cosine_verification"]["train_data"]).values
+    return pipeline, prototypes, X_train
 
 
 class AdsMLModel(BaseDetectionModel):
     """
     OCSVM + 余弦复核 + 零样本学习。
-    模型资源（pipeline、攻击原型、训练集）只在构造时加载一次，之后每条流直接推理，
-    不再走 ads_ml/main.py 的 main()（它每次都重新读文件并重写报告 CSV）。
+    模型资源（pipeline、攻击原型、参考样本）只在构造时加载一次，之后每条流直接推理。
     config_path 在加载时 resolve()：切换 current 软链接不影响正在运行的进程，重启后才换成新模型。
     """
 
@@ -24,7 +37,7 @@ class AdsMLModel(BaseDetectionModel):
             from django.conf import settings
             config_path = settings.VIGIL_ADS_ML_CONFIG
         self.config_path = Path(config_path).resolve()
-        self._pipeline, self._prototypes, self._X_train, _ = _load_resources(self.config_path)
+        self._pipeline, self._prototypes, self._X_train = load_resources(self.config_path)
         logger.info("AdsMLModel loaded from %s", self.config_path.parent)
 
     @property

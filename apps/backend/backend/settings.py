@@ -172,12 +172,17 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+# ── vigil ──────────────────────────────────────────────────────────────────────
+# ws/detector/push/ 的认证 token（只给集群内检测器用，见 docs/archive/detector）
 VIGIL_BRIDGE_TOKEN = env.str("VIGIL_BRIDGE_TOKEN", default=None)
+# Kafka：Hubble 流量事件。开发环境必须设 VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev，避免和线上抢分区
+VIGIL_KAFKA_BOOTSTRAP = env.str("VIGIL_KAFKA_BOOTSTRAP", default="192.168.100.200:9094,192.168.100.201:9094,192.168.100.202:9094,192.168.100.203:9094")
+VIGIL_KAFKA_TOPIC = env.str("VIGIL_KAFKA_TOPIC", default="ebpf-net-logs")
 VIGIL_KAFKA_GROUP_ID = env.str("VIGIL_KAFKA_GROUP_ID", default="vigil-bridge")
 # 要加载的检测模型（BaseDetectionModel 子类的完整路径，逗号分隔）；新增 / 替换模型只改这里
-VIGIL_MODELS = env.list("VIGIL_MODELS", default=["vigil.ml.models.ads_ml_model.AdsMLModel"])
-# ads_ml 模型的 config.yaml；模型文件路径相对它所在目录。线上指向 /srv/netsentinel/models/ads_ml/current/config.yaml
-VIGIL_ADS_ML_CONFIG = env.str("VIGIL_ADS_ML_CONFIG", default=str(BASE_DIR / "vigil" / "ml" / "ads_ml" / "config.yaml"))
+VIGIL_MODELS = env.list("VIGIL_MODELS", default=["vigil.detection.ads_ml.AdsMLModel"])
+# ads_ml 的模型文件只在服务器上（不进 Git）；开发和线上都读这一份
+VIGIL_ADS_ML_CONFIG = env.str("VIGIL_ADS_ML_CONFIG", default="/srv/netsentinel/models/ads_ml/current/config.yaml")
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True

@@ -49,8 +49,8 @@ class DetectorPushConsumer(AsyncWebsocketConsumer):
 
 def _save_results(results: list) -> list:
     from vigil.models import DetectionRecord
-    from vigil.ml.cilium import policy_for_result, apply_action
-    from vigil.ml.models.base import DetectionResult
+    from vigil.response import policy_for_result, apply_action
+    from vigil.detection import DetectionResult
     from dataclasses import asdict
 
     output = []

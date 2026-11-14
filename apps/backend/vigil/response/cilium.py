@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from vigil.ml.models.base import DetectionResult
+from vigil.detection.base import DetectionResult
 
 logger = logging.getLogger(__name__)
 

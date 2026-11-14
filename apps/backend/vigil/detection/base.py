@@ -1,6 +1,6 @@
 """
-Base interface for all AI detection models.
-Every model adapter must implement this abstract class.
+检测模型的统一接口：输入 DetectionInput（35 个流特征），输出 DetectionResult。
+新模型继承 BaseDetectionModel，并在 settings.VIGIL_MODELS 里登记。
 """
 
 from abc import ABC, abstractmethod
@@ -90,3 +90,33 @@ class BaseDetectionModel(ABC):
 
     def predict_batch(self, flows: list[DetectionInput]) -> list[DetectionResult]:
         return [self.predict(f) for f in flows]
+
+
+_INT_FIELDS = {
+    "src_port", "dst_port",
+    "total_packets", "fwd_packets", "bwd_packets",
+    "syn_count", "ack_count", "fin_count", "rst_count", "psh_count", "urg_count",
+    "reply_count", "forwarded_count", "drop_count",
+    "is_bidirectional", "is_tcp", "is_udp", "is_icmp", "is_well_known_port",
+}
+_FLOAT_FIELDS = {
+    "flow_duration", "fwd_ratio", "packets_per_second",
+    "iat_mean", "iat_std", "iat_min", "iat_max",
+    "syn_ratio", "ack_ratio", "fin_ratio", "rst_ratio",
+    "reply_ratio", "drop_ratio",
+}
+
+
+def flow_from_dict(d: dict) -> DetectionInput:
+    """把原始 dict（API 请求、bridge 聚合结果、CSV 行）转成 DetectionInput。"""
+    kwargs: dict = {}
+    for k, v in d.items():
+        if k == "model":
+            continue  # 只用于 API 选择模型，不是特征
+        if k in _INT_FIELDS:
+            kwargs[k] = int(v) if v not in (None, "") else 0
+        elif k in _FLOAT_FIELDS:
+            kwargs[k] = float(v) if v not in (None, "") else 0.0
+        else:
+            kwargs[k] = v if v is not None else ""
+    return DetectionInput(**kwargs)
