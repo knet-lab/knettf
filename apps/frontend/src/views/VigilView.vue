@@ -1,1526 +1,432 @@
 <template>
-  <div class="vigil-layout">
+  <div class="vg-root dash">
 
-    <!-- ── Sidebar (wide) ── -->
-    <aside class="sidebar wide-sidebar">
-      <div class="sidebar-header">
-        <div class="sidebar-brand">
-          <el-icon class="brand-icon"><Aim /></el-icon>
-          <span class="sidebar-title">AI Vigil</span>
-        </div>
-        <span class="live-pill live">LIVE</span>
+    <!-- ── Header ── -->
+    <header class="dash-head">
+      <div>
+        <h1 class="title">Network Anomaly Detection</h1>
+        <p class="subtitle">Flows observed by Cilium / Hubble, classified by the platform models</p>
       </div>
-      <div class="sidebar-group">
-        <div class="sidebar-label">Detection model</div>
-        <div class="model-list">
-          <div v-for="m in models" :key="m" class="model-item"
-            :class="{ active: selectedModel === m }"
-            @click="selectedModel = selectedModel === m ? null : m; loadRecords(true)">
-            <span class="model-dot" />{{ m }}
-          </div>
-          <div v-if="!models.length" class="model-item-empty">No models registered</div>
-        </div>
-        <div v-if="selectedModel" class="model-active-hint">
-          Filtering: <span class="model-active-name">{{ selectedModel }}</span>
-        </div>
+      <div class="head-actions">
+        <span class="vg-status" :class="statusClass" :title="lastError || ''">
+          <span class="dot" />{{ statusText }}
+        </span>
+        <button class="vg-btn" :disabled="refreshing" title="Refresh now" @click="loadAll(true)">
+          <el-icon :class="{ spin: refreshing }"><Refresh /></el-icon>
+          <span class="hide-sm">Refresh</span>
+        </button>
+        <button class="vg-btn primary" @click="router.push('/vigil/log')">
+          <el-icon><Tickets /></el-icon><span>Full log</span>
+        </button>
       </div>
-      <div class="sidebar-group">
-        <div class="sidebar-label">Display</div>
-        <label class="toggle-row">
-          <span>Attacks only</span>
-          <div class="toggle-switch" :class="{ on: onlyAttacks }"
-            @click="onlyAttacks = !onlyAttacks; loadRecords(true)">
-            <div class="toggle-knob" />
-          </div>
-        </label>
-      </div>
-      <div class="sidebar-group" style="margin-top: auto;">
-        <div class="sidebar-label">{{ tzOffset }} · {{ tz }}</div>
-        <div class="last-updated clock">{{ nowClock }}</div>
-      </div>
-      <div class="sidebar-group">
-        <div class="sidebar-label">Last updated</div>
-        <div class="last-updated">{{ lastRefreshed }}</div>
-        <button class="refresh-btn" @click="loadAll">Refresh now</button>
-      </div>
-    </aside>
+    </header>
 
-    <!-- ── Sidebar drawer (narrow) ── -->
-    <el-drawer v-model="sidebarOpen" direction="ltr" size="80%"
-        :show-close="false" :with-header="false" class="sidebar-drawer">
-      <div class="sidebar drawer-sidebar">
-        <div class="sidebar-header">
-          <div class="sidebar-brand">
-            <el-icon class="brand-icon"><Aim /></el-icon>
-            <span class="sidebar-title">AI Vigil</span>
-          </div>
-          <span class="live-pill live">LIVE</span>
-        </div>
-        <div class="sidebar-group">
-          <div class="sidebar-label">Detection model</div>
-          <div class="model-list">
-            <div v-for="m in models" :key="m" class="model-item"
-              :class="{ active: selectedModel === m }"
-              @click="selectedModel = selectedModel === m ? null : m; loadRecords(true); sidebarOpen = false">
-              <span class="model-dot" />{{ m }}
-            </div>
-            <div v-if="!models.length" class="model-item-empty">No models registered</div>
-          </div>
-        </div>
-        <div class="sidebar-group">
-          <div class="sidebar-label">Display</div>
-          <label class="toggle-row">
-            <span>Attacks only</span>
-            <div class="toggle-switch" :class="{ on: onlyAttacks }"
-              @click="onlyAttacks = !onlyAttacks; loadRecords(true)">
-              <div class="toggle-knob" />
-            </div>
-          </label>
-        </div>
-        <div class="sidebar-group" style="margin-top: auto;">
-          <div class="sidebar-label">Last updated</div>
-          <div class="last-updated">{{ lastRefreshed }}</div>
-          <button class="refresh-btn" @click="loadAll; sidebarOpen = false">Refresh now</button>
-        </div>
-      </div>
-    </el-drawer>
-
-    <!-- ── Content ── -->
-    <main class="content">
-
-      <!-- Page header -->
-      <div class="page-header">
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <button class="narrow-only sidebar-open-btn" @click="sidebarOpen = true"><el-icon><Menu /></el-icon></button>
-          <div>
-            <h1 class="page-title">Network Anomaly Detection</h1>
-            <p class="page-subtitle">Real-time AI-powered traffic analysis via Cilium / Hubble</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Stats row -->
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-icon total"><el-icon><DataLine /></el-icon></div>
-          <div class="stat-body">
-            <div class="stat-label">Total Inspected</div>
-            <div class="stat-value"><RollingNumber :value="stats.total ?? null" /></div>
-          </div>
-        </div>
-        <div class="stat-card danger">
-          <div class="stat-icon attack"><el-icon><WarningFilled /></el-icon></div>
-          <div class="stat-body">
-            <div class="stat-label">Attacks Detected</div>
-            <div class="stat-value"><RollingNumber :value="stats.attacks ?? null" /></div>
-          </div>
-        </div>
-        <div class="stat-card ok">
-          <div class="stat-icon normal"><el-icon><CircleCheckFilled /></el-icon></div>
-          <div class="stat-body">
-            <div class="stat-label">Normal Flows</div>
-            <div class="stat-value"><RollingNumber :value="stats.normal ?? null" /></div>
-          </div>
-        </div>
-        <div class="stat-card warn">
-          <div class="stat-icon rate"><el-icon><PieChart /></el-icon></div>
-          <div class="stat-body">
-            <div class="stat-label">Attack Rate</div>
-            <div class="stat-value">
-              <RollingNumber :value="stats.attack_rate != null ? stats.attack_rate * 100 : null" :decimals="1" suffix="%" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Middle row -->
-      <div class="mid-row">
-
-        <!-- Left col: attack breakdown + model coverage -->
-        <div class="left-col">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Attack Type Breakdown</span>
-            </div>
-            <div class="card-body">
-              <div v-if="!stats.by_attack_type?.length" class="empty-state">
-                <div class="empty-icon">◎</div>
-                <div>No attacks recorded yet</div>
-              </div>
-              <TransitionGroup v-else tag="div" name="list-item" class="breakdown-list">
-                <div v-for="row in stats.by_attack_type" :key="row.attack_type" class="breakdown-row">
-                  <div class="breakdown-meta">
-                    <span class="breakdown-name">{{ row.attack_type || 'unknown' }}</span>
-                    <span class="breakdown-count">{{ row.count }}</span>
-                  </div>
-                  <div class="breakdown-track">
-                    <div
-                      class="breakdown-fill"
-                      :style="{ width: barWidth(row.count) + '%' }"
-                      :data-type="row.attack_type"
-                    />
-                  </div>
-                </div>
-              </TransitionGroup>
-            </div>
-          </div>
-
-          <div class="card" style="margin-top:14px">
-            <div class="card-header">
-              <span class="card-title">Model Coverage</span>
-            </div>
-            <div class="card-body">
-              <div v-if="!stats.by_model?.length" class="empty-state">
-                <div class="empty-icon">◎</div>
-                <div>No data yet</div>
-              </div>
-              <TransitionGroup v-else tag="div" name="list-item" class="model-coverage-list">
-                <div v-for="m in stats.by_model" :key="m.model_name" class="model-coverage-row">
-                  <div class="model-coverage-meta">
-                    <span class="model-name-tag">{{ m.model_name }}</span>
-                    <span class="model-stat-count">{{ m.count }} flows</span>
-                  </div>
-                  <div class="breakdown-track">
-                    <div
-                      class="breakdown-fill model-bar"
-                      :style="{ width: modelBarWidth(m.count) + '%' }"
-                    />
-                  </div>
-                </div>
-              </TransitionGroup>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right col: recent attacks feed -->
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Recent Attack Events</span>
-            <div style="display:flex;align-items:center;gap:12px">
-              <span class="card-subtitle">Latest {{ displayAttacks.length }} detected</span>
-              <button class="log-link-btn" @click="router.push('/vigil/log')">View log →</button>
-            </div>
-          </div>
-          <div class="card-body no-pad">
-            <div v-if="!displayAttacks.length" class="empty-state" style="padding:32px 0">
-              <div class="empty-icon"><el-icon><Lock /></el-icon></div>
-              <div>No attacks detected</div>
-            </div>
-            <TransitionGroup v-else tag="div" name="feed" class="attack-feed">
-              <div
-                v-for="r in displayAttacks" :key="r.id"
-                class="attack-event row-clickable"
-                @click="openDetail(r.id)"
-              >
-                <div class="event-indicator" :data-type="r.attack_type" />
-                <div class="event-body">
-                  <div class="event-top">
-                    <span class="event-type">{{ r.attack_type || 'anomaly' }}</span>
-                    <span class="event-action" :class="`action-${r.cilium_action || 'ignore'}`">
-                      {{ r.cilium_action || '—' }}
-                    </span>
-                    <span class="event-time">{{ r._time }}</span>
-                  </div>
-                  <div class="event-flow">
-                    <span class="flow-addr">{{ r.src_ip }}:{{ r.src_port }}</span>
-                    <span class="flow-arrow">→</span>
-                    <span class="flow-addr">{{ r.dst_ip }}:{{ r.dst_port }}</span>
-                    <span class="flow-proto">{{ r.protocol }}</span>
-                  </div>
-                  <div class="event-meta">
-                    <span class="event-model">{{ r.model_name }}</span>
-                    <span class="event-conf">conf {{ (r.confidence * 100).toFixed(0) }}%</span>
-                    <span v-if="r.explanation" class="event-explain">{{ r.explanation }}</span>
-                  </div>
-                </div>
-              </div>
-            </TransitionGroup>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- Detection log -->
-      <div class="card log-card">
-        <div class="card-header">
-          <span class="card-title">Detection Log</span>
-          <span class="card-subtitle">{{ displayRecords.length }} records shown</span>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Time</th>
-                <th>Source</th>
-                <th>Destination</th>
-                <th>Proto</th>
-                <th>Model</th>
-                <th>Verdict</th>
-                <th>Confidence</th>
-                <th>Attack type</th>
-                <th>Cilium action</th>
-              </tr>
-            </thead>
-            <TransitionGroup tag="tbody" name="log-row">
-              <tr v-if="recordsLoading" key="__loading__" class="skeleton-row">
-                <td colspan="10"><div class="skeleton" /></td>
-              </tr>
-              <tr v-if="!recordsLoading && displayRecords.length === 0" key="__empty__">
-                <td colspan="10" class="table-empty">
-                  No detection records yet — waiting for traffic analysis results
-                </td>
-              </tr>
-              <tr
-                v-for="r in (recordsLoading ? [] : displayRecords)" :key="r.id"
-                :class="{ 'row-attack': r.is_attack, 'row-clickable': true }"
-                @click="openDetail(r.id)"
-              >
-                <td class="col-id">{{ r.id }}</td>
-                <td class="col-time">{{ r._time }}</td>
-                <td class="col-addr">
-                  <span class="addr-ip">{{ r.src_ip }}</span>
-                  <span class="addr-port">:{{ r.src_port }}</span>
-                </td>
-                <td class="col-addr">
-                  <span class="addr-ip">{{ r.dst_ip }}</span>
-                  <span class="addr-port">:{{ r.dst_port }}</span>
-                </td>
-                <td><span class="proto-tag">{{ r.protocol }}</span></td>
-                <td class="col-model">{{ r.model_name }}</td>
-                <td>
-                  <span class="verdict" :class="r.is_attack ? 'verdict-attack' : 'verdict-normal'">
-                    {{ r.is_attack ? 'ATTACK' : 'NORMAL' }}
-                  </span>
-                </td>
-                <td>
-                  <div class="conf-wrap">
-                    <div class="conf-bar">
-                      <div class="conf-fill" :style="{ width: ((r.confidence ?? 0) * 100) + '%' }" :class="r.is_attack ? 'cf-danger' : 'cf-ok'" />
-                    </div>
-                    <span class="conf-text">{{ r.confidence != null ? (r.confidence * 100).toFixed(0) + '%' : '—' }}</span>
-                  </div>
-                </td>
-                <td class="col-type">{{ r.attack_type || '—' }}</td>
-                <td>
-                  <span class="action-tag" :class="`action-${r.cilium_action || 'ignore'}`">
-                    {{ r.cilium_action || '—' }}
-                  </span>
-                </td>
-              </tr>
-            </TransitionGroup>
-          </table>
-        </div>
-      </div>
-
-    </main>
-
-    <!-- ── Detail Modal ── -->
-    <Transition name="modal-fade">
-    <div v-if="detailRecord" class="modal-overlay" @click.self="detailRecord = null">
-      <div class="modal">
-        <div class="modal-header">
-          <span class="modal-title">
-            Record #{{ detailRecord.id }}
-            <span class="verdict ml-8" :class="detailRecord.is_attack ? 'verdict-attack' : 'verdict-normal'">
-              {{ detailRecord.is_attack ? 'ATTACK' : 'NORMAL' }}
-            </span>
-          </span>
-          <button class="modal-close" @click="detailRecord = null"><el-icon><Close /></el-icon></button>
-        </div>
-
-        <div class="modal-body">
-
-          <!-- Flow -->
-          <div class="detail-section">
-            <div class="detail-section-title">Flow</div>
-            <div class="detail-grid">
-              <div class="detail-row"><span class="dk">Source</span><span class="dv mono">{{ detailRecord.src_ip }}:{{ detailRecord.src_port }}</span></div>
-              <div class="detail-row"><span class="dk">Destination</span><span class="dv mono">{{ detailRecord.dst_ip }}:{{ detailRecord.dst_port }}</span></div>
-              <div class="detail-row"><span class="dk">Protocol</span><span class="dv"><span class="proto-tag">{{ detailRecord.protocol }}</span></span></div>
-              <div class="detail-row"><span class="dk">Time</span><span class="dv">{{ detailRecord.created_at }}</span></div>
-              <div v-if="detailRecord.label != null" class="detail-row">
-                <span class="dk">Ground Truth</span>
-                <span class="dv"><span class="verdict" :class="detailRecord.label === 1 ? 'verdict-attack' : 'verdict-normal'">{{ detailRecord.label === 1 ? 'ATTACK' : 'NORMAL' }}</span></span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Detection -->
-          <div class="detail-section">
-            <div class="detail-section-title">Detection Result</div>
-            <div class="detail-grid">
-              <div class="detail-row"><span class="dk">Model</span><span class="dv mono blue">{{ detailRecord.model_name }}</span></div>
-              <div class="detail-row"><span class="dk">Confidence</span><span class="dv">{{ (detailRecord.confidence * 100).toFixed(1) }}%</span></div>
-              <div class="detail-row"><span class="dk">Attack Type</span><span class="dv orange">{{ detailRecord.attack_type || '—' }}</span></div>
-              <div class="detail-row"><span class="dk">Explanation</span><span class="dv">{{ detailRecord.explanation || '—' }}</span></div>
-            </div>
-          </div>
-
-          <!-- ZSL similarities -->
-          <div v-if="detailRecord.raw_output && Object.keys(detailRecord.raw_output).length" class="detail-section">
-            <div class="detail-section-title">ZSL Similarity Ranking</div>
-            <div class="zsl-list">
-              <div v-for="(sim, label) in sortedZsl" :key="label" class="zsl-row">
-                <span class="zsl-label">{{ label }}</span>
-                <div class="zsl-track">
-                  <div class="zsl-fill" :style="{ width: (sim * 100).toFixed(1) + '%' }" />
-                </div>
-                <span class="zsl-val">{{ (sim * 100).toFixed(1) }}%</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Cilium -->
-          <div class="detail-section">
-            <div class="detail-section-title">Cilium Response</div>
-            <div class="detail-grid">
-              <div class="detail-row"><span class="dk">Action</span><span class="dv"><span class="action-tag" :class="`action-${detailRecord.cilium_action || 'ignore'}`">{{ detailRecord.cilium_action || '—' }}</span></span></div>
-              <div class="detail-row"><span class="dk">Reason</span><span class="dv">{{ detailRecord.cilium_reason || '—' }}</span></div>
-            </div>
-          </div>
-
-          <!-- Flow features -->
-          <div v-if="detailRecord.flow_input" class="detail-section">
-            <div class="detail-section-title">Flow Features (30)</div>
-            <div class="feature-grid">
-              <div v-for="(val, key) in flowFeatures" :key="key" class="feature-cell">
-                <span class="fk">{{ key }}</span>
-                <span class="fv">{{ typeof val === 'number' ? val.toFixed(4) : val }}</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
+    <div v-if="lastError && !hasData" class="vg-alert">
+      <el-icon><WarningFilled /></el-icon>
+      Could not load detection data ({{ lastError }}).
+      <button class="vg-btn" @click="loadAll(true)">Retry</button>
     </div>
-    </Transition>
 
+    <!-- ── KPIs ── -->
+    <section class="kpis" aria-label="Summary">
+      <div class="kpi">
+        <div class="kpi-l">Flows inspected</div>
+        <div class="kpi-v"><RollingNumber :value="stats.total ?? null" /></div>
+        <div class="kpi-s">all time</div>
+      </div>
+      <div class="kpi danger">
+        <div class="kpi-l">Attacks</div>
+        <div class="kpi-v"><RollingNumber :value="stats.attacks ?? null" /></div>
+        <div class="kpi-s">{{ fmtPct(stats.attack_rate, 1) }} of flows</div>
+      </div>
+      <div class="kpi ok">
+        <div class="kpi-l">Normal</div>
+        <div class="kpi-v"><RollingNumber :value="stats.normal ?? null" /></div>
+        <div class="kpi-s">{{ stats.attack_rate != null ? fmtPct(1 - stats.attack_rate, 1) : '—' }} of flows</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-l">Latest detection</div>
+        <div class="kpi-v small vg-mono">{{ latestAt ? fmtAgo(latestAt, now) : '—' }}</div>
+        <div class="kpi-s">{{ latestAt ? fmtTime(new Date(latestAt).toISOString()) : 'no records yet' }}</div>
+      </div>
+    </section>
+
+    <!-- ── Middle ── -->
+    <section class="mid">
+      <div class="side-col">
+        <div class="vg-card">
+          <div class="vg-card-h">
+            <span class="vg-card-t">Attack types</span>
+            <span class="vg-card-s">click to filter log</span>
+          </div>
+          <div class="vg-card-b">
+            <div v-if="!typeRows.length" class="vg-empty">No attacks recorded yet</div>
+            <ul v-else class="bars">
+              <li v-for="row in typeRows" :key="row.name">
+                <button class="bar-row" @click="openLog({ verdict: 'attack', type: row.raw ?? undefined })">
+                  <span class="bar-meta">
+                    <span class="vg-type"><span class="sw" :style="{ background: typeColor(row.name) }" />{{ row.name }}</span>
+                    <span class="bar-n vg-mono">{{ row.count.toLocaleString() }} <span class="vg-muted">· {{ row.pct }}</span></span>
+                  </span>
+                  <span class="bar-track"><span class="bar-fill" :style="{ width: row.width + '%', background: typeColor(row.name) }" /></span>
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="vg-card">
+          <div class="vg-card-h"><span class="vg-card-t">Models</span></div>
+          <div class="vg-card-b">
+            <div v-if="!modelRows.length" class="vg-empty">No models registered</div>
+            <ul v-else class="models">
+              <li v-for="m in modelRows" :key="m.name">
+                <span class="vg-mono model-name">{{ m.name }}</span>
+                <span class="vg-mono vg-muted">{{ m.count != null ? m.count.toLocaleString() + ' flows' : 'no records' }}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="vg-card feed-card">
+        <div class="vg-card-h">
+          <span class="vg-card-t">Recent attacks</span>
+          <span class="vg-card-s">latest {{ attacks.length }}</span>
+        </div>
+        <div v-if="!attacks.length" class="vg-empty">
+          <template v-if="loading">Loading…</template>
+          <template v-else>No attacks among the latest detections</template>
+        </div>
+        <TransitionGroup v-else tag="ul" name="feed" class="feed">
+          <li v-for="(r, i) in attacks" :key="r.id">
+            <button class="feed-item" :class="{ selected: detail?.id === r.id }" @click="openDetail(attacks, i)">
+              <span class="feed-bar" :style="{ background: typeColor(r.attack_type) }" />
+              <span class="feed-main">
+                <span class="feed-top">
+                  <span class="vg-type">{{ r.attack_type || 'anomaly' }}</span>
+                  <span v-if="r.cilium_action" class="vg-badge" :class="`act-${r.cilium_action}`">{{ r.cilium_action }}</span>
+                  <span class="feed-time vg-mono" :title="fmtTime(r.created_at)">{{ fmtTimeSmart(r.created_at) }}</span>
+                </span>
+                <span class="feed-flow vg-mono">
+                  {{ r.src_ip }}<span class="vg-muted">:{{ r.src_port }}</span>
+                  <span class="vg-muted"> → </span>
+                  {{ r.dst_ip }}<span class="vg-muted">:{{ r.dst_port }}</span>
+                  <span class="vg-badge proto">{{ r.protocol }}</span>
+                </span>
+                <span class="feed-meta">
+                  <span class="vg-mono">{{ r.model_name }}</span>
+                  <span>conf {{ fmtPct(r.confidence) }}</span>
+                  <span v-if="r.explanation" class="feed-explain">{{ r.explanation }}</span>
+                </span>
+              </span>
+            </button>
+          </li>
+        </TransitionGroup>
+      </div>
+    </section>
+
+    <!-- ── Recent detections ── -->
+    <section class="vg-card">
+      <div class="vg-card-h wrap">
+        <div class="h-left">
+          <span class="vg-card-t">Recent detections</span>
+          <span class="vg-card-s">latest {{ records.length }}</span>
+        </div>
+        <div class="h-right">
+          <select v-if="models.length > 1" v-model="selectedModel" class="vg-input" aria-label="Model" @change="loadRecords(true)">
+            <option :value="null">All models</option>
+            <option v-for="m in models" :key="m" :value="m">{{ m }}</option>
+          </select>
+          <div class="vg-seg" role="group" aria-label="Verdict">
+            <button :class="{ active: !onlyAttacks }" @click="setOnlyAttacks(false)">All</button>
+            <button :class="{ active: onlyAttacks }" @click="setOnlyAttacks(true)">Attacks</button>
+          </div>
+        </div>
+      </div>
+      <div class="vg-table-wrap recent-table">
+        <table class="vg-table">
+          <thead>
+            <tr>
+              <th>Time</th><th>Source</th><th>Destination</th><th>Proto</th>
+              <th>Verdict</th><th>Type</th><th>Confidence</th><th>Cilium</th><th class="hide-md">Model</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="loading && !records.length"><td colspan="9"><div class="vg-skel" /></td></tr>
+            <tr v-else-if="!records.length">
+              <td colspan="9" class="vg-empty">No detection records yet — waiting for traffic to be analysed</td>
+            </tr>
+            <tr v-for="(r, i) in records" :key="r.id" :class="{ attack: r.is_attack, selected: detail?.id === r.id }" @click="openDetail(records, i)">
+              <td class="vg-mono" :title="fmtTime(r.created_at)">{{ fmtTimeSmart(r.created_at) }}</td>
+              <td class="addr">{{ r.src_ip }}<span class="port">:{{ r.src_port }}</span></td>
+              <td class="addr">{{ r.dst_ip }}<span class="port">:{{ r.dst_port }}</span></td>
+              <td><span class="vg-badge proto">{{ r.protocol }}</span></td>
+              <td><span class="vg-badge" :class="r.is_attack ? 'attack' : 'normal'">{{ r.is_attack ? 'ATTACK' : 'NORMAL' }}</span></td>
+              <td>
+                <span v-if="r.is_attack" class="vg-type"><span class="sw" :style="{ background: typeColor(r.attack_type) }" />{{ r.attack_type || 'anomaly' }}</span>
+                <span v-else class="vg-muted">—</span>
+              </td>
+              <td>
+                <span class="vg-conf">
+                  <span class="bar"><span class="fill" :class="r.is_attack ? 'attack' : 'normal'" :style="{ width: ((r.confidence ?? 0) * 100) + '%' }" /></span>
+                  <span class="txt">{{ fmtPct(r.confidence) }}</span>
+                </span>
+              </td>
+              <td><span class="vg-badge" :class="`act-${r.cilium_action || 'ignore'}`">{{ r.cilium_action || '—' }}</span></td>
+              <td class="vg-mono hide-md">{{ r.model_name }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <RecordDetailModal
+      :record="detail" has-nav
+      :can-prev="detailIdx > 0" :can-next="detailIdx >= 0 && detailIdx < detailList.length - 1"
+      @close="closeDetail" @prev="stepDetail(-1)" @next="stepDetail(1)"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import RollingNumber from '@/components/RollingNumber.vue'
+import RecordDetailModal from './vigil/RecordDetailModal.vue'
+import {
+  type VigilRecord, type VigilStats, useVigilApi,
+  fmtTime, fmtTimeSmart, fmtAgo, fmtPct, typeColor, startVisiblePolling,
+} from './vigil/vigil'
+import './vigil/vigil.css'
 
-const auth = useAuthStore()
 const router = useRouter()
-const sidebarOpen = ref(false)
+const apiGet = useVigilApi()
 
-// ── State ──────────────────────────────────────────────────────────────────────
+const POLL_MS = 15000
+const RECENT_LIMIT = 100
+
+// ── State ──
 const models = ref<string[]>([])
 const selectedModel = ref<string | null>(null)
 const onlyAttacks = ref(false)
-const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-const tzOffset = (() => {
-  const o = -new Date().getTimezoneOffset() / 60
-  return `UTC${o >= 0 ? '+' : ''}${o}`
-})()
+const stats = reactive<VigilStats>({})
+const records = ref<VigilRecord[]>([])
+const loading = ref(true)
+const refreshing = ref(false)
+const lastOk = ref<number | null>(null)
+const lastError = ref<string | null>(null)
+const now = ref(Date.now())
 
-const formatTime = (iso: string): string => {
-  if (!iso) return '—'
-  return formatLocalTime(new Date(iso))
-}
+const hasData = computed(() => lastOk.value != null)
 
-const nowClock = ref('')
-const formatLocalTime = (d: Date): string => {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
-const updateClock = () => {
-  nowClock.value = formatLocalTime(new Date())
-}
-updateClock()
-let clockTimer: ReturnType<typeof setInterval> | null = null
-
-const lastRefreshed = ref('—')
-
-const stats = reactive<any>({})
-const records = ref<any[]>([])
-const recordsLoading = ref(true)
-
-const detailRecord = ref<any>(null)
-
-const sortedZsl = computed(() => {
-  if (!detailRecord.value?.raw_output) return {}
-  const entries = Object.entries(detailRecord.value.raw_output) as [string, number][]
-  return Object.fromEntries(entries.sort((a, b) => b[1] - a[1]))
+// ── Status ──
+const statusClass = computed(() => {
+  if (lastError.value) return 'err'
+  if (!lastOk.value) return ''
+  return now.value - lastOk.value > POLL_MS * 3 ? 'paused' : 'ok'
+})
+const statusText = computed(() => {
+  if (lastError.value) return hasData.value ? `Update failed · data from ${fmtAgo(lastOk.value, now.value)}` : 'Connection error'
+  if (!lastOk.value) return 'Connecting…'
+  return `Live · updated ${fmtAgo(lastOk.value, now.value)}`
 })
 
-const FLOW_META_KEYS = new Set(['src_ip', 'dst_ip', 'src_port', 'dst_port', 'protocol', 'label'])
-const flowFeatures = computed(() => {
-  if (!detailRecord.value?.flow_input) return {}
-  return Object.fromEntries(
-    Object.entries(detailRecord.value.flow_input).filter(([k]) => !FLOW_META_KEYS.has(k))
-  )
+// ── Derived ──
+const attacks = computed(() =>
+  (onlyAttacks.value ? records.value : records.value.filter(r => r.is_attack)).slice(0, 30),
+)
+const latestAt = computed(() => {
+  const t = records.value[0]?.created_at
+  return t ? new Date(t).getTime() : null
 })
 
-// ── API ────────────────────────────────────────────────────────────────────────
-async function apiFetch(path: string, opts: RequestInit = {}, timeoutMs = 8000) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await auth.apiFetch(path, { ...opts, signal: controller.signal })
-    const json = await res.json()
-    return json.data ?? json
-  } finally {
-    clearTimeout(timer)
-  }
-}
+const typeRows = computed(() => {
+  const rows = stats.by_attack_type ?? []
+  const max = Math.max(...rows.map(r => r.count), 1)
+  const sum = rows.reduce((s, r) => s + r.count, 0) || 1
+  return rows.map(r => ({
+    raw: r.attack_type,
+    name: r.attack_type || 'anomaly',
+    count: r.count,
+    width: (r.count / max) * 100,
+    pct: fmtPct(r.count / sum),
+  }))
+})
 
+const modelRows = computed(() => {
+  const counts = new Map((stats.by_model ?? []).map(m => [m.model_name, m.count]))
+  const names = new Set([...models.value, ...counts.keys()])
+  return [...names].map(name => ({ name, count: counts.get(name) ?? null }))
+})
+
+// ── API ──
 async function loadModels() {
-  try {
-    const d = await apiFetch('/api/vigil/models/')
-    models.value = d.models ?? []
-  } catch { /* keep stale */ }
+  try { models.value = (await apiGet<{ models: string[] }>('/api/vigil/models/')).models ?? [] } catch { /* optional */ }
 }
 
 async function loadStats() {
+  Object.assign(stats, await apiGet<VigilStats>('/api/vigil/stats/'))
+}
+
+async function loadRecords(replace = false) {
+  const p = new URLSearchParams({ limit: String(RECENT_LIMIT), only_attacks: String(onlyAttacks.value) })
+  if (selectedModel.value) p.set('model_name', selectedModel.value)
+  const d = await apiGet<{ records: VigilRecord[] }>(`/api/vigil/records/?${p}`)
+  const incoming = d.records ?? []
+  if (replace || !records.value.length) {
+    records.value = incoming
+  } else {
+    // 只把新记录插到前面，已有行保持不动，避免列表跳动
+    const known = new Set(records.value.map(r => r.id))
+    const fresh = incoming.filter(r => !known.has(r.id))
+    if (fresh.length) records.value = [...fresh, ...records.value].slice(0, RECENT_LIMIT)
+  }
+}
+
+async function loadAll(manual = false) {
+  if (manual) refreshing.value = true
   try {
-    const d = await apiFetch('/api/vigil/stats/')
-    Object.assign(stats, d)
-  } catch { /* keep stale */ }
+    await Promise.all([loadStats(), loadRecords()])
+    lastOk.value = Date.now()
+    lastError.value = null
+  } catch (e: any) {
+    lastError.value = e?.name === 'AbortError' ? 'timeout' : (e?.message || 'network error')
+  } finally {
+    loading.value = false
+    refreshing.value = false
+  }
 }
 
-const loadRecords = async (force = false) => {
-  if (records.value.length === 0) recordsLoading.value = true
-  try {
-    const p = new URLSearchParams({ limit: '100', only_attacks: String(onlyAttacks.value) })
-    if (selectedModel.value) p.set('model_name', selectedModel.value)
-    const d = await apiFetch(`/api/vigil/records/?${p}`)
-    const incoming: any[] = d.records ?? []
-    if (force || records.value.length === 0) {
-      records.value = incoming
-    } else {
-      const knownIds = new Set(records.value.map((r: any) => r.id))
-      const newRows = incoming.filter((r: any) => !knownIds.has(r.id))
-      if (newRows.length > 0) {
-        records.value = [...newRows, ...records.value].slice(0, 200)
-      }
-    }
-  } catch { /* keep stale */ }
-  finally { recordsLoading.value = false }
+async function setOnlyAttacks(v: boolean) {
+  if (onlyAttacks.value === v) return
+  onlyAttacks.value = v
+  loading.value = true
+  records.value = []
+  try { await loadRecords(true) } catch { /* status shows on next poll */ } finally { loading.value = false }
 }
 
-const openDetail = async (id: number) => {
-  try {
-    const d = await apiFetch(`/api/vigil/records/${id}/`)
-    detailRecord.value = d
-  } catch { /* ignore */ }
+function openLog(q: { verdict?: string; type?: string }) {
+  router.push({ path: '/vigil/log', query: Object.fromEntries(Object.entries(q).filter(([, v]) => v)) })
 }
 
-const loadAll = async () => {
-  await Promise.all([loadStats(), loadRecords()])
-  lastRefreshed.value = formatLocalTime(new Date())
+// ── Detail modal (with prev/next through the list it was opened from) ──
+const detailList = ref<VigilRecord[]>([])
+const detailIdx = ref(-1)
+const detail = computed(() => detailList.value[detailIdx.value] ?? null)
+
+function openDetail(list: VigilRecord[], i: number) {
+  detailList.value = [...list]
+  detailIdx.value = i
 }
-
-// ── Polling ────────────────────────────────────────────────────────────────────
-const POLL_INTERVAL_MS = 30000
-let pollTimer: ReturnType<typeof setInterval> | null = null
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-const displayRecords = computed(() =>
-  records.value.map(r => ({ ...r, _time: formatTime(r.created_at) }))
-)
-
-const displayAttacks = computed(() =>
-  displayRecords.value.filter((r: any) => r.is_attack).slice(0, 30)
-)
-
-const barWidth = (count: number) => {
-  const max = Math.max(...(stats.by_attack_type ?? []).map((x: any) => x.count), 1)
-  return ((count / max) * 100).toFixed(1)
+function stepDetail(d: number) {
+  const n = detailIdx.value + d
+  if (n >= 0 && n < detailList.value.length) detailIdx.value = n
 }
+function closeDetail() { detailIdx.value = -1; detailList.value = [] }
 
-const modelBarWidth = (count: number) => {
-  const max = Math.max(...(stats.by_model ?? []).map((x: any) => x.count), 1)
-  return ((count / max) * 100).toFixed(1)
-}
+// ── Lifecycle ──
+let stopPolling: (() => void) | null = null
+let clock: ReturnType<typeof setInterval> | null = null
 
-// ── Lifecycle ──────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  await loadModels()
-  await loadAll()
-  pollTimer = setInterval(loadAll, POLL_INTERVAL_MS)
-  clockTimer = setInterval(updateClock, 1000)
+  clock = setInterval(() => { now.value = Date.now() }, 1000)
+  await Promise.all([loadModels(), loadAll()])
+  stopPolling = startVisiblePolling(() => loadAll(), POLL_MS)
 })
-
 onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
-  if (clockTimer) clearInterval(clockTimer)
+  stopPolling?.()
+  if (clock) clearInterval(clock)
 })
 </script>
 
 <style scoped>
-/* ── Root layout ── */
-.vigil-layout {
-  display: flex;
-  height: 100%;
-  overflow: hidden;
-  font-size: 15px;
-  font-family: inherit;
-}
-
-.narrow-only { display: none; }
-
-@media (max-width: 680px) {
-  .wide-sidebar { display: none !important; }
-  .narrow-only  { display: flex !important; }
-
-  .content {
-    overflow-x: hidden;
-  }
-
-  .page-header {
-    padding: 12px 12px 8px;
-  }
-
-  .page-title  { font-size: 16px; }
-  .page-subtitle { font-size: 12px; }
-
-  :deep(.el-table) { font-size: 12px; }
-
-  :deep(.el-table td),
-  :deep(.el-table th) { padding: 6px 4px; }
-
-  .stats-row {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .stat-card {
-    min-width: calc(50% - 4px);
-  }
-}
-
-:deep(.sidebar-drawer .el-drawer__body) {
-  padding: 0;
-  background: #0f172a;
-}
-
-.drawer-sidebar {
-  width: 100% !important;
-  height: 100%;
-  border-right: none;
-}
-
-.sidebar-open-btn {
-  flex-shrink: 0;
-  margin-top: 4px;
-  background: none;
-  border: 1px solid #1e293b;
-  color: #94a3b8;
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 16px;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.sidebar-open-btn:hover { background: #1e293b; color: #e2e8f0; }
-
-/* ───────────────────────── SIDEBAR ───────────────────────── */
-.sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  background: #0f172a;
-  border-right: 1px solid #1e293b;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  overflow-y: auto;
-  padding-bottom: 16px;
-}
-
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 14px 14px;
-  border-bottom: 1px solid #1e293b;
-  flex-shrink: 0;
-}
-
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.brand-icon {
-  font-size: 16px;
-  color: #3b82f6;
-  line-height: 1;
-}
-
-.sidebar-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #e2e8f0;
-  letter-spacing: 0.3px;
-}
-
-.live-pill {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 2px 7px;
-  border-radius: 20px;
-}
-
-.live-pill.live {
-  background: #14532d;
-  color: #4ade80;
-  border: 1px solid #166534;
-  animation: pulse-bg 2s infinite;
-}
-
-.live-pill.paused {
-  background: #1e293b;
-  color: #64748b;
-  border: 1px solid #334155;
-}
-
-@keyframes pulse-bg {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.65; }
-}
-
-.sidebar-group {
-  padding: 14px 14px 8px;
-  border-bottom: 1px solid #1e293b;
-}
-
-.sidebar-label {
-  font-size: 14px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #64748b;
-  margin-bottom: 8px;
-}
-
-/* Model selector */
-.model-list { display: flex; flex-direction: column; gap: 2px; }
-
-.model-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  cursor: pointer;
-  color: #94a3b8;
-  font-size: 14px;
-  font-weight: 500;
-  transition: background 0.12s, color 0.12s;
-  border: 1px solid transparent;
-}
-
-.model-item:hover {
-  background: #1e293b;
-  color: #cbd5e1;
-}
-
-.model-item.active {
-  background: #1e3a8a;
-  color: #93c5fd;
-  border-color: #1d4ed8;
-}
-
-.model-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #3b82f6;
-  flex-shrink: 0;
-}
-
-.model-item-empty {
-  font-size: 13px;
-  color: #475569;
-  padding: 4px 8px;
-  font-style: italic;
-}
-
-.model-active-hint {
-  margin-top: 8px;
-  font-size: 14px;
-  color: #64748b;
-}
-
-.model-active-name {
-  color: #93c5fd;
-  font-family: 'Courier New', monospace;
-}
-
-/* Toggle switch */
-.toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 0;
-  cursor: pointer;
-  color: #94a3b8;
+.dash {
+  height: 100%; overflow-y: auto;
+  padding: 22px 28px 32px;
+  display: flex; flex-direction: column; gap: 18px;
   font-size: 14px;
 }
 
-.toggle-switch {
-  width: 30px;
-  height: 16px;
-  border-radius: 8px;
-  background: #1e293b;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.2s;
-  flex-shrink: 0;
+.dash-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.title { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #f1f5f9; letter-spacing: -.2px; }
+.subtitle { margin: 0; font-size: 13px; color: var(--vg-text-3); }
+.head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpi {
+  background: var(--vg-surface); border: 1px solid var(--vg-border); border-radius: 12px;
+  padding: 14px 18px; position: relative; overflow: hidden;
 }
+.kpi::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--vg-border-strong); }
+.kpi.danger::before { background: var(--vg-danger); }
+.kpi.ok::before { background: var(--vg-ok); }
+.kpi-l { font-size: 12px; color: var(--vg-text-3); margin-bottom: 6px; }
+.kpi-v { font-size: 26px; font-weight: 700; color: #f1f5f9; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-v.small { font-size: 20px; line-height: 1.4; }
+.kpi-s { margin-top: 4px; font-size: 12px; color: var(--vg-text-3); font-variant-numeric: tabular-nums; }
 
-.toggle-switch.on { background: #2563eb; }
+/* Middle */
+.mid { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.side-col { display: flex; flex-direction: column; gap: 14px; }
 
-.toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #94a3b8;
-  transition: transform 0.2s, background 0.2s;
+.bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bar-row {
+  width: 100%; display: flex; flex-direction: column; gap: 6px;
+  padding: 7px 8px; margin: 0 -8px; box-sizing: content-box;
+  background: none; border: none; border-radius: 8px; cursor: pointer; text-align: left; font: inherit; color: var(--vg-text-2);
 }
+.bar-row:hover { background: var(--vg-surface-2); }
+.bar-row:focus-visible { outline: 2px solid var(--vg-accent); }
+.bar-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.bar-n { font-size: 12px; color: var(--vg-text-2); white-space: nowrap; }
+.bar-track { height: 5px; background: var(--vg-border); border-radius: 4px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; border-radius: 4px; transition: width .5s cubic-bezier(.4, 0, .2, 1); }
 
-.toggle-switch.on .toggle-knob {
-  transform: translateX(14px);
-  background: #fff;
+.models { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.models li { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.model-name { color: var(--vg-accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Feed */
+.feed-card { display: flex; flex-direction: column; }
+.feed { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; position: relative; }
+.feed li + li { border-top: 1px solid var(--vg-border); }
+.feed-item {
+  width: 100%; display: flex; gap: 12px; padding: 10px 16px;
+  background: none; border: none; cursor: pointer; text-align: left; font: inherit; color: inherit;
 }
+.feed-item:hover, .feed-item.selected { background: var(--vg-surface-2); }
+.feed-item:focus-visible { outline: 2px solid var(--vg-accent); outline-offset: -2px; }
+.feed-bar { width: 3px; border-radius: 2px; flex-shrink: 0; }
+.feed-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.feed-top { display: flex; align-items: center; gap: 8px; }
+.feed-time { margin-left: auto; font-size: 12px; color: var(--vg-text-3); }
+.feed-flow { font-size: 12px; color: var(--vg-text); display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.feed-flow .vg-badge { margin-left: 6px; }
+.feed-meta { display: flex; gap: 10px; font-size: 12px; color: var(--vg-text-3); min-width: 0; }
+.feed-explain { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
-/* Refresh section */
-.last-updated {
-  font-size: 13px;
-  color: #64748b;
-  margin-bottom: 8px;
-  font-variant-numeric: tabular-nums;
-}
+.feed-enter-active { transition: transform .35s ease, opacity .3s ease; }
+.feed-enter-from { transform: translateY(-8px); opacity: 0; }
+.feed-move { transition: transform .3s ease; }
 
-.last-updated.clock {
-  font-size: 14px;
-  color: #cbd5e1;
-  font-family: 'Courier New', monospace;
-  letter-spacing: 0.04em;
-}
-
-.refresh-btn {
-  width: 100%;
-  padding: 6px;
-  background: #1e293b;
-  border: 1px solid #1e293b;
-  border-radius: 8px;
-  color: #94a3b8;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-
-.refresh-btn:hover {
-  background: #2d3e55;
-  color: #cbd5e1;
-}
-
-/* ───────────────────────── CONTENT ───────────────────────── */
-.content {
-  flex: 1;
-  background: #0b1120;
-  overflow-y: auto;
-  padding: 22px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-/* Page header */
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.page-title {
-  font-size: 26px;
-  font-weight: 800;
-  color: #f1f5f9;
-  margin: 0 0 4px;
-  letter-spacing: -0.3px;
-}
-
-.page-subtitle {
-  font-size: 13px;
-  color: #475569;
-  margin: 0;
-}
-
-/* ── Stat cards ── */
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
-
-@media (max-width: 1000px) {
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
-}
-
-.stat-card {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  border-radius: 14px;
-  padding: 18px 20px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.stat-card:hover {
-  border-color: #334155;
-  box-shadow: 0 4px 20px rgba(0,0,0,.3);
-}
-
-.stat-card.danger { border-left: 3px solid #ef4444; }
-.stat-card.ok     { border-left: 3px solid #22c55e; }
-.stat-card.warn   { border-left: 3px solid #f59e0b; }
-
-.stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 17px;
-  flex-shrink: 0;
-}
-
-.stat-icon.total  { background: rgba(59,130,246,.15); color: #60a5fa; }
-.stat-icon.attack { background: rgba(248,81,73,.15);  color: #ef4444; }
-.stat-icon.normal { background: rgba(63,185,80,.15);  color: #22c55e; }
-.stat-icon.rate   { background: rgba(210,153,34,.15); color: #f59e0b; font-size: 13px; font-weight: 700; }
-
-.stat-label {
-  font-size: 11px;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 4px;
-}
-
-.stat-value {
-  font-size: 26px;
-  font-weight: 700;
-  color: #f1f5f9;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Mid row ── */
-.mid-row {
-  display: grid;
-  grid-template-columns: 290px 1fr;
-  gap: 16px;
-  align-items: start;
-}
+/* Recent table */
+.vg-card-h.wrap { flex-wrap: wrap; }
+.h-left { display: flex; align-items: baseline; gap: 10px; }
+.h-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.recent-table { max-height: 460px; }
 
 @media (max-width: 1100px) {
-  .mid-row { grid-template-columns: 1fr; }
+  .mid { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hide-md { display: none; }
 }
-
-.left-col { display: flex; flex-direction: column; }
-
-/* ── Card ── */
-.card {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  border-radius: 14px;
-  overflow: hidden;
+@media (max-width: 640px) {
+  .dash { padding: 14px 16px 24px; gap: 14px; }
+  .title { font-size: 18px; }
+  .kpi { padding: 12px 14px; }
+  .kpi-v { font-size: 22px; }
+  .hide-sm { display: none; }
 }
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 13px 18px;
-  border-bottom: 1px solid #1e293b;
-}
-
-.card-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #e2e8f0;
-  letter-spacing: 0.01em;
-}
-
-.card-subtitle {
-  font-size: 12px;
-  color: #475569;
-}
-
-.card-body { padding: 16px 18px; }
-
-/* Header action chips */
-.header-actions { display: flex; gap: 6px; }
-
-.chip-btn {
-  padding: 4px 10px;
-  border-radius: 20px;
-  border: 1px solid #334155;
-  background: #1e293b;
-  color: #94a3b8;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-
-.chip-btn:hover { background: #334155; color: #e2e8f0; }
-.chip-btn.danger { border-color: #6e2a2a; background: #2a1515; color: #ef4444; }
-.chip-btn.danger:hover { background: #3a1a1a; }
-
-/* ── Breakdown chart ── */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 28px 0;
-  color: #475569;
-  font-size: 13px;
-}
-
-.empty-icon { font-size: 28px; opacity: 0.3; }
-
-.breakdown-list { display: flex; flex-direction: column; gap: 12px; }
-
-.breakdown-meta {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 5px;
-}
-
-.breakdown-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.breakdown-count {
-  font-size: 13px;
-  color: #64748b;
-  font-variant-numeric: tabular-nums;
-}
-
-.breakdown-track {
-  height: 5px;
-  background: #1e293b;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.breakdown-fill {
-  height: 100%;
-  border-radius: 6px;
-  background: #ef4444;
-  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.breakdown-fill[data-type="syn_flood"] { background: #ef4444; }
-.breakdown-fill[data-type="flood"]     { background: #fb923c; }
-.breakdown-fill[data-type="port_scan"] { background: #f59e0b; }
-.breakdown-fill[data-type="anomaly"]   { background: #a78bfa; }
-
-.model-stats {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid #1e293b;
-}
-
-.model-stat-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 3px 0;
-}
-
-.model-name-tag {
-  font-size: 12px;
-  font-family: 'Courier New', monospace;
-  color: #60a5fa;
-  background: rgba(59,130,246,.12);
-  padding: 2px 8px;
-  border-radius: 8px;
-}
-
-.model-stat-count { font-size: 12px; color: #475569; }
-
-/* ── Model coverage ── */
-.model-coverage-list { display: flex; flex-direction: column; gap: 12px; }
-
-.model-coverage-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
-}
-
-.model-bar { background: #2563eb; }
-
-/* ── Attack feed ── */
-.card-body.no-pad { padding: 0; }
-
-.log-link-btn {
-  background: none;
-  border: 1px solid #334155;
-  border-radius: 6px;
-  color: #60a5fa;
-  font-size: 12px;
-  padding: 3px 10px;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.log-link-btn:hover { background: #1f6feb22; }
-
-.attack-feed {
-  display: flex;
-  flex-direction: column;
-  max-height: 640px;
-  overflow-y: auto;
-}
-
-.attack-event {
-  display: flex;
-  gap: 0;
-  padding: 11px 18px;
-  border-bottom: 1px solid #1e293b;
-  transition: background 0.1s;
-  cursor: pointer;
-}
-
-.attack-event:last-child { border-bottom: none; }
-.attack-event:hover { background: #172033; }
-
-/* ── Attack feed TransitionGroup ── */
-.feed-enter-active {
-  transition: transform 0.42s cubic-bezier(0.34, 1.3, 0.64, 1), opacity 0.3s ease;
-}
-.feed-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  position: absolute;
-  width: 100%;
-}
-.feed-move {
-  transition: transform 0.38s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-.feed-enter-from {
-  transform: translateX(-56px);
-  opacity: 0;
-}
-.feed-leave-to {
-  opacity: 0;
-  transform: translateX(24px);
-}
-
-.event-indicator {
-  width: 3px;
-  border-radius: 2px;
-  margin-right: 13px;
-  flex-shrink: 0;
-  background: #ef4444;
-}
-
-.event-indicator[data-type="syn_flood"] { background: #ef4444; }
-.event-indicator[data-type="flood"]     { background: #fb923c; }
-.event-indicator[data-type="port_scan"] { background: #f59e0b; }
-.event-indicator[data-type="anomaly"]   { background: #a78bfa; }
-
-.event-body { flex: 1; min-width: 0; }
-
-.event-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.event-type {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #ef4444;
-}
-
-.event-time {
-  margin-left: auto;
-  font-size: 12px;
-  color: #475569;
-  font-variant-numeric: tabular-nums;
-  font-family: 'Courier New', monospace;
-  flex-shrink: 0;
-}
-
-.event-flow {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 4px;
-  font-family: 'Courier New', monospace;
-  font-size: 13px;
-  color: #94a3b8;
-}
-
-.flow-arrow { color: #334155; font-size: 13px; }
-
-.flow-proto {
-  font-size: 11px;
-  font-weight: 700;
-  background: rgba(31,111,235,.2);
-  color: #60a5fa;
-  padding: 1px 6px;
-  border-radius: 6px;
-  margin-left: 3px;
-  letter-spacing: 0.04em;
-}
-
-.event-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.event-model {
-  font-size: 12px;
-  font-family: 'Courier New', monospace;
-  color: #60a5fa;
-  background: rgba(59,130,246,.1);
-  padding: 1px 6px;
-  border-radius: 6px;
-}
-
-.event-conf {
-  font-size: 12px;
-  color: #64748b;
-}
-
-.event-explain {
-  font-size: 12px;
-  color: #475569;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
-}
-
-/* ── Log table ── */
-.log-card { overflow: hidden; }
-
-.table-wrap { overflow-x: auto; overflow-y: auto; max-height: 480px; }
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-thead { position: sticky; top: 0; z-index: 1; }
-
-th {
-  background: #0f172a;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 10px 14px;
-  text-align: left;
-  border-bottom: 1px solid #1e293b;
-  white-space: nowrap;
-}
-
-td {
-  padding: 9px 14px;
-  border-bottom: 1px solid #0f172a;
-  color: #94a3b8;
-  vertical-align: middle;
-}
-
-tr:last-child td { border-bottom: none; }
-
-tr:hover td { background: #172033; }
-
-tr.row-attack td { background: rgba(248,81,73,.05); }
-tr.row-attack:hover td { background: rgba(248,81,73,.1); }
-
-.table-empty {
-  text-align: center;
-  color: #475569;
-  padding: 40px;
-  font-size: 13px;
-}
-
-/* Skeleton loader */
-.skeleton-row td { padding: 14px; }
-.skeleton {
-  height: 10px;
-  background: linear-gradient(90deg, #1e293b 25%, #2d333b 50%, #1e293b 75%);
-  background-size: 200% 100%;
-  border-radius: 6px;
-  animation: shimmer 1.4s infinite;
-}
-
-@keyframes shimmer { to { background-position: -200% 0; } }
-
-/* Table cell styles */
-.col-id    { color: #475569; font-size: 12px; width: 40px; font-variant-numeric: tabular-nums; }
-.col-time  { color: #64748b; font-variant-numeric: tabular-nums; white-space: nowrap; font-family: 'Courier New', monospace; font-size: 12px; }
-.col-addr  { font-family: 'Courier New', monospace; white-space: nowrap; }
-.col-model { color: #60a5fa; font-size: 12px; font-family: 'Courier New', monospace; }
-.col-type  { color: #f59e0b; font-size: 12px; font-weight: 600; }
-
-.addr-ip   { color: #e2e8f0; }
-.addr-port { color: #475569; font-size: 12px; }
-
-.proto-tag {
-  display: inline-block;
-  padding: 2px 7px;
-  background: rgba(31,111,235,.15);
-  color: #60a5fa;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-/* Verdict badge */
-.verdict {
-  display: inline-block;
-  padding: 2px 9px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.verdict-attack {
-  background: rgba(248,81,73,.15);
-  color: #ef4444;
-  border: 1px solid rgba(248,81,73,.3);
-}
-
-.verdict-normal {
-  background: rgba(63,185,80,.12);
-  color: #22c55e;
-  border: 1px solid rgba(63,185,80,.3);
-}
-
-/* Confidence bar */
-.conf-wrap {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.conf-bar {
-  width: 52px;
-  height: 4px;
-  background: #1e293b;
-  border-radius: 4px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.conf-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.3s;
-}
-
-.cf-danger { background: #ef4444; }
-.cf-ok     { background: #22c55e; }
-
-.conf-text { font-size: 12px; color: #64748b; font-variant-numeric: tabular-nums; }
-
-/* Cilium action tag */
-.action-tag, .event-action {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.action-drop       { background: rgba(248,81,73,.15);  color: #ef4444; border: 1px solid rgba(248,81,73,.3); }
-.action-rate_limit { background: rgba(210,153,34,.15); color: #f59e0b; border: 1px solid rgba(210,153,34,.3); }
-.action-alert      { background: rgba(31,111,235,.15); color: #60a5fa; border: 1px solid rgba(31,111,235,.3); }
-.action-ignore     { background: #1e293b;              color: #64748b; border: 1px solid #334155; }
-
-.row-clickable { cursor: pointer; }
-
-/* ── Modal ── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 24px;
-  backdrop-filter: blur(2px);
-}
-
-.modal {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 18px;
-  box-shadow: 0 24px 80px rgba(0,0,0,.6);
-  width: 100%;
-  max-width: 720px;
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 15px 22px;
-  border-bottom: 1px solid #1e293b;
-  flex-shrink: 0;
-}
-
-.modal-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #f1f5f9;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ml-8 { margin-left: 8px; }
-
-.modal-close {
-  background: none;
-  border: none;
-  color: #64748b;
-  font-size: 16px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 8px;
-  transition: background 0.1s, color 0.1s;
-}
-.modal-close:hover { background: #1e293b; color: #e2e8f0; }
-
-.modal-body {
-  overflow-y: auto;
-  padding: 18px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.detail-section-title {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: #64748b;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #1e293b;
-}
-
-.detail-grid { display: flex; flex-direction: column; gap: 6px; }
-
-.detail-row {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  font-size: 13px;
-}
-
-.dk {
-  width: 120px;
-  flex-shrink: 0;
-  color: #475569;
-  font-size: 12px;
-}
-
-.dv { color: #e2e8f0; word-break: break-all; }
-.dv.mono { font-family: 'Courier New', monospace; color: #94a3b8; }
-.dv.blue { color: #60a5fa; font-family: 'Courier New', monospace; }
-.dv.orange { color: #f59e0b; font-weight: 600; }
-
-/* ZSL */
-.zsl-list { display: flex; flex-direction: column; gap: 7px; }
-.zsl-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
-.zsl-label { width: 140px; flex-shrink: 0; color: #94a3b8; font-weight: 500; }
-.zsl-track {
-  flex: 1;
-  height: 5px;
-  background: #1e293b;
-  border-radius: 6px;
-  overflow: hidden;
-}
-.zsl-fill { height: 100%; background: #2563eb; border-radius: 6px; }
-.zsl-val { width: 44px; text-align: right; color: #64748b; font-variant-numeric: tabular-nums; }
-
-/* Feature grid */
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 5px 10px;
-}
-
-.feature-cell {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 8px;
-  background: #0b1120;
-  border: 1px solid #1e293b;
-  border-radius: 8px;
-  font-size: 12px;
-}
-
-.fk { color: #64748b; }
-.fv { color: #94a3b8; font-variant-numeric: tabular-nums; font-family: 'Courier New', monospace; }
-
-/* ── log-row TransitionGroup (Detection Log) ── */
-.log-row-enter-active { transition: opacity 0.35s ease; }
-.log-row-enter-from   { opacity: 0; }
-.log-row-move         { transition: transform 0.3s ease; }
-
-/* ── list-item TransitionGroup (breakdown / model coverage) ── */
-.list-item-enter-active { transition: opacity 0.3s ease, transform 0.3s ease; }
-.list-item-leave-active { transition: opacity 0.2s ease; }
-.list-item-enter-from   { opacity: 0; transform: translateX(-10px); }
-.list-item-leave-to     { opacity: 0; }
-.list-item-move         { transition: transform 0.3s ease; }
-
-/* ── Modal Transition ── */
-.modal-fade-enter-active { transition: opacity 0.22s ease; }
-.modal-fade-leave-active { transition: opacity 0.18s ease; }
-.modal-fade-enter-from,
-.modal-fade-leave-to     { opacity: 0; }
-.modal-fade-enter-active .modal {
-  transition: transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.22s ease;
-}
-.modal-fade-enter-from .modal { transform: scale(0.95) translateY(-8px); opacity: 0; }
 </style>
