@@ -132,7 +132,7 @@ bash 03-deploy-5nodes.sh  # 部署 Kafka + flow-shipper + nginx，并回写本�
 1. 前置检查：5 节点 Ready、local-path、MetalLB、hubble-relay
 2. 先只 apply `manifests/kafka-5nodes.yaml` 中的 Service，等 MetalLB 分配 `kafka-{0..3}-external` IP
 3. 用真实 IP 创建 ConfigMap `kafka-node-ips`，再 apply 完整 Kafka 清单，等 controller 与 4 个 broker 就绪
-4. 创建 Secret `flow-shipper-kafka`（`kafka-svc.default.svc.cluster.local:9092`）和代码 ConfigMap `flow-shipper-code`，部署 `manifests/flow-shipper.yaml`（旧环境里的 Vector 会被删除）
+4. 创建 Secret `flow-shipper-kafka`（`kafka-svc.default.svc.cluster.local:9092`）和代码 ConfigMap `flow-shipper-code`，部署 `manifests/flow-shipper.yaml`（旧环境里的 Vector 会被删除）。ConfigMap 要用后端的 `vigil/ingest/`：在运行目录里运行时设 `NETSENTINEL_BACKEND_DIR` 指向线上后端的 `apps/backend`，否则用同一仓库里的
 5. 部署 `my-nginx`（LoadBalancer:80）作为测试目标
 6. 后台 `kubectl port-forward svc/hubble-relay 4245`（日志 `/tmp/hubble-pf.log`）
 7. 在 `/etc/hosts` 写入 `kafka-svc.default.svc.cluster.local`，并重写 `lab/.env`
