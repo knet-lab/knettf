@@ -31,11 +31,28 @@ data:
           if err != null { abort }
           . = parsed
 
+      # 去掉采集链路自身的流量：Vector→Kafka、Hubble relay/peer、kube-system 组件。
+      # 否则 "Hubble 记录 → Vector 写 Kafka → 写 Kafka 又被 Hubble 记录" 形成自激回路，
+      # 抽样中这类流量占绝大多数，会淹没业务/攻击流量。
+      drop_pipeline:
+        type: filter
+        inputs:
+          - parse_flow
+        condition: |
+          f = object(.flow) ?? .
+          src = object(f.source) ?? {}
+          dst = object(f.destination) ?? {}
+          ns = [string(src.namespace) ?? "", string(dst.namespace) ?? ""]
+          lbl = (join(array(src.labels) ?? [], ",") ?? "") + "," + (join(array(dst.labels) ?? [], ",") ?? "")
+          infra = includes(ns, "kube-system") ||
+                  match(lbl, r'k8s:app=(kafka-broker|kafka-controller|vector)(,|$)|k8s:app\.kubernetes\.io/name=hubble-relay')
+          !infra
+
     sinks:
       kafka_output:
         type: kafka
         inputs:
-          - parse_flow
+          - drop_pipeline
         bootstrap_servers: "${KAFKA_BOOTSTRAP}"
         topic: "ebpf-net-logs"
         encoding:
