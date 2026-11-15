@@ -6,6 +6,9 @@
 #     其他（文档、ops 等）                    → deploy.sh（只拉代码并重启）
 #     lab/                                   → lab/sync-to-srv.sh
 # 部署失败的提交记在 STATE_DIR/failed，不会每 2 分钟重试；修复后合入新提交即可。
+# 平台最后一次部署成功的提交记在 STATE_DIR/deployed，改动范围从它算起，
+# 这样中途失败过的前端/后端改动会在下一次成功部署时补上。
+# lab 同步失败不阻塞平台部署，也不记 failed，下一轮自动重试。
 # 手动运行：sudo -u netsentinel /srv/netsentinel/prod/ops/scripts/auto-deploy.sh
 # 日志：/srv/netsentinel/logs/auto-deploy.log
 set -euo pipefail
@@ -25,7 +28,8 @@ flock -n 9 || exit 0                      # 上一次还没跑完
 
 git -C "$PROD" fetch -q origin "$BRANCH"
 NEW=$(git -C "$PROD" rev-parse "origin/$BRANCH")
-CUR=$(git -C "$PROD" rev-parse HEAD)
+CUR=$(cat "$STATE_DIR/deployed" 2>/dev/null || true)
+git -C "$PROD" cat-file -e "${CUR:-x}^{commit}" 2>/dev/null || CUR=""   # 没记录：整套部署
 LAB_CUR=$(git -C "$LAB_REPO" rev-parse HEAD)
 [ "$NEW" = "$CUR" ] && [ "$NEW" = "$LAB_CUR" ] && exit 0
 [ "$(cat "$STATE_DIR/failed" 2>/dev/null)" = "$NEW" ] && exit 0
@@ -45,7 +49,11 @@ fi
 say "==== 部署 ${CUR:0:7} → ${NEW:0:7}：$(git -C "$PROD" log -1 --format=%s "$NEW")"
 rc=0
 if [ "$NEW" != "$CUR" ]; then
-  changed=$(git -C "$PROD" diff --name-only "$CUR" "$NEW")
+  if [ -n "$CUR" ]; then
+    changed=$(git -C "$PROD" diff --name-only "$CUR" "$NEW")
+  else
+    changed=$'apps/backend/\napps/frontend/'
+  fi
   args=()
   grep -qE '^(apps/backend/|pyproject\.toml$|uv\.lock$)' <<<"$changed" && args+=(-backend)
   grep -qE '^apps/frontend/' <<<"$changed" && args+=(-frontend)
@@ -56,14 +64,18 @@ if [ "$NEW" != "$CUR" ]; then
   else
     git -C "$PROD" pull --ff-only -q origin "$BRANCH" || rc=$?   # 只改了 lab/，平台不用重启
   fi
+  [ $rc -eq 0 ] && echo "$NEW" >"$STATE_DIR/deployed"
 fi
-if [ $rc -eq 0 ] && [ "$NEW" != "$LAB_CUR" ]; then
+
+lab_rc=0
+if [ "$NEW" != "$LAB_CUR" ]; then
   say "sync-to-srv.sh"
-  bash "$LAB_REPO/lab/sync-to-srv.sh" || rc=$?
+  bash "$LAB_REPO/lab/sync-to-srv.sh" || lab_rc=$?
+  [ $lab_rc -eq 0 ] || say "⚠ lab 同步失败（rc=$lab_rc），不影响平台；下一轮重试"
 fi
 
 if [ $rc -eq 0 ]; then
-  rm -f "$STATE_DIR/failed"; say "✓ 完成 ${NEW:0:7}"
+  rm -f "$STATE_DIR/failed"; [ $lab_rc -eq 0 ] && say "✓ 完成 ${NEW:0:7}"
 else
-  echo "$NEW" >"$STATE_DIR/failed"; say "✗ 部署失败（rc=$rc），见上方输出；合入修复提交后会再次部署"
+  echo "$NEW" >"$STATE_DIR/failed"; say "✗ 平台部署失败（rc=$rc），见上方输出；合入修复提交后会再次部署"
 fi

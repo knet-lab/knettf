@@ -390,7 +390,7 @@ onUnmounted(() => {
 
 /* Feed */
 .feed-card { display: flex; flex-direction: column; }
-.feed { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; position: relative; }
+.feed { list-style: none; margin: 0; padding: 0; position: relative; }
 .feed li + li { border-top: 1px solid var(--vg-border); }
 .feed-item {
   width: 100%; display: flex; gap: 12px; padding: 10px 16px;
@@ -415,7 +415,7 @@ onUnmounted(() => {
 .vg-card-h.wrap { flex-wrap: wrap; }
 .h-left { display: flex; align-items: baseline; gap: 10px; }
 .h-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.recent-table { max-height: 460px; }
+
 
 @media (max-width: 1100px) {
   .mid { grid-template-columns: 1fr; }
