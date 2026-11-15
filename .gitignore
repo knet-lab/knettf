@@ -90,3 +90,7 @@ release.sh
 # 旧的模型目录（已迁到 vigil/detection/ads_ml + /srv/netsentinel/models），本地残留不进仓库
 apps/backend/vigil/ml/
 docs/archive/detector/ads_ml/
+
+
+# 本地claude数据分析
+claude-analysis
