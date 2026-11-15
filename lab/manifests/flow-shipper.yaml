@@ -68,13 +68,14 @@ spec:
             - name: cilium-run
               mountPath: /var/run/cilium
           # 流量最大的节点约 4000 事件/秒；500m 时只能处理约 1350/秒，Hubble 丢失过半。
-          # 1 核留约 2 倍余量；日志里「Hubble 丢失」持续不为 0 说明还不够。
+          # frontend 所在节点约 4000 事件/秒时用掉 1 核的约 70%，上限给 2 核；
+          # 日志里「Hubble 丢失」持续不为 0 说明还不够。
           resources:
             requests:
               cpu: "200m"
               memory: "128Mi"
             limits:
-              cpu: "1000m"
+              cpu: "2000m"
               memory: "512Mi"
       volumes:
         - name: cilium-run
