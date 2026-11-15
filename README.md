@@ -10,7 +10,7 @@
 flowchart LR
     subgraph LAB["lab/ · 实验集群（5 台 KVM VM）"]
         direction TB
-        TR["发包脚本<br/>traffic · replay · simulation"]
+        TR["正常流量<br/>Online Boutique + 客户端区"]
         CIL["Cilium / Hubble"]
         KAF[("Kafka<br/>ebpf-net-logs")]
         TR --> CIL -- "flow-shipper" --> KAF
