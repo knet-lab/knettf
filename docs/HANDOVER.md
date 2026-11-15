@@ -10,7 +10,7 @@
 ```
 一台 Linux 宿主机，同时是：开发环境 + 线上平台 + 实验集群
 ├─ 实验环境（lab/）：5 台 VM 组成的 K8s 集群 + 流量仿真
-│     每个节点 eBPF（Cilium/Hubble）抓包 → Vector → Kafka（ebpf-net-logs）
+│     每个节点 eBPF（Cilium/Hubble）抓包 → flow-shipper（过滤 + 去重）→ Kafka（ebpf-net-logs）
 └─ 平台（apps/）：Django 后端 + Vue 前端（域名 → Cloudflare Tunnel → 本机 8080）
       ingest 把包切成流（35 个特征）→ 检测模型 → PostgreSQL → /vigil 页面
 ```

@@ -346,7 +346,6 @@ fi
 #   hubble.relay.service.type=ClusterIP → relay 仅集群内可达
 #   hubble.relay.servicePort=4245      → Service port 与 relay gRPC port 对齐（1.19 的参数名；
 #                                         旧写法 service.port 会被静默忽略）
-#                                         vector.yaml 里 --server=:4245 才能连通
 #   mtu=1450                    → virbr-k8s NAT 下安全值（宿主 MTU 1500）
 #   bpf.monitorAggregation=none → 每个包都上报事件（medium 只在连接建立/标志变化/
 #                                  每 5s 上报，事件数 ≠ 包数）。需要 master ≥ 6 vCPU（见 01）

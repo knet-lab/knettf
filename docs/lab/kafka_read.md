@@ -7,10 +7,11 @@
 ## 数据来源
 
 ```
-Cilium/Hubble  →  Vector (exec: hubble observe --output=json)  →  Kafka (ebpf-net-logs)  →  kafka_read.py
+Cilium/Hubble  →  flow-shipper（每节点，gRPC 读本节点 Hubble）  →  Kafka (ebpf-net-logs)  →  kafka_read.py
 ```
 
-Vector 只做 JSON 解析，**不对字段做任何删改**，Kafka 中存储的是 Hubble 原始事件的完整结构。
+flow-shipper 输出的消息与 `hubble observe --output=json` 格式相同，**不对字段做任何删改**。
+但默认会在节点上过滤采集链路自身流量、并按后端规则去重（同一个包的多个观测点只保留一条），需要全部原始事件时把 `lab/manifests/flow-shipper.yaml` 里的 `SHIPPER_DEDUP` 设为 `0` 后重跑 03。
 
 ---
 

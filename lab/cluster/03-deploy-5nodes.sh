@@ -1,6 +1,6 @@
 #!/bin/bash
 # 03-deploy-5nodes.sh
-# 部署 Kafka + Vector + nginx 测试服务
+# 部署 Kafka + flow-shipper + nginx 测试服务
 #
 # Kafka 架构（kafka-5nodes.yaml）：
 #   kafka-controller Pod  → k8s-master，process.roles=controller
@@ -25,7 +25,7 @@ trap 'echo ""; echo "❌ 出错。集群和已部署资源保留，修复后重�
 
 LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # 本脚本在 lab/cluster/ 下
 KAFKA_YAML="${LAB_DIR}/manifests/kafka-5nodes.yaml"
-VECTOR_YAML="${LAB_DIR}/manifests/vector-5nodes.yaml"
+SHIPPER_YAML="${LAB_DIR}/manifests/flow-shipper.yaml"
 HOSTFW_YAML="${LAB_DIR}/cluster/host-firewall-ccnp.yaml"
 
 # ══════════════════════════════════════════════
@@ -59,9 +59,9 @@ kubectl get node -o wide
 log "Step 2: 检查部署文件"
 
 [ -f "$KAFKA_YAML" ]  || die "找不到 KAFKA_YAML: ${KAFKA_YAML}"
-[ -f "$VECTOR_YAML" ] || die "找不到 VECTOR_YAML: ${VECTOR_YAML}"
+[ -f "$SHIPPER_YAML" ] || die "找不到 SHIPPER_YAML: ${SHIPPER_YAML}"
 ok "KAFKA_YAML  : ${KAFKA_YAML}"
-ok "VECTOR_YAML : ${VECTOR_YAML}"
+ok "SHIPPER_YAML: ${SHIPPER_YAML}"
 [ -f "$HOSTFW_YAML" ] || die "找不到 HOSTFW_YAML: ${HOSTFW_YAML}"
 ok "HOSTFW_YAML : ${HOSTFW_YAML}"
 
@@ -204,49 +204,65 @@ kubectl rollout status statefulset/kafka-broker -n default --timeout=360s
 ok "Kafka 集群就绪（1 controller + 4 broker）"
 
 # ══════════════════════════════════════════════
-# Step 7: 创建 Vector Kafka Secret
-# name/key 与 vector-5nodes.yaml secretKeyRef 完全一致
+# Step 7: 创建 flow-shipper 的 Kafka Secret 和代码 ConfigMap
+# 代码 = lab/shipper/ + 后端 vigil/ingest 的 features.py / flows.py（节点去重与后端同一份规则）
 # ══════════════════════════════════════════════
-log "Step 7: 创建 Vector Kafka Secret"
+log "Step 7: 创建 flow-shipper Secret / ConfigMap"
 
-kubectl create secret generic vector-kafka-secret \
+kubectl create secret generic flow-shipper-kafka \
   --from-literal=bootstrap_servers="kafka-svc.default.svc.cluster.local:9092" \
   -n kube-system \
   --dry-run=client -o yaml | kubectl apply -f -
-ok "Secret vector-kafka-secret 就绪"
-info "bootstrap: kafka-svc.default.svc.cluster.local:9092（ClusterIP，集群内直连）"
+ok "Secret flow-shipper-kafka 就绪（kafka-svc.default.svc.cluster.local:9092，集群内直连）"
+
+INGEST_DIR="${LAB_DIR}/../apps/backend/vigil/ingest"
+HUBBLE_API="${LAB_DIR}/shipper/hubble_api"
+SHIPPER_CODE_OLD=$(kubectl -n kube-system get cm flow-shipper-code -o json 2>/dev/null | sha256sum)
+kubectl -n kube-system create configmap flow-shipper-code \
+  --from-file=shipper.py="${LAB_DIR}/shipper/shipper.py" \
+  --from-file=ingest-init.py="${INGEST_DIR}/__init__.py" \
+  --from-file=ingest-features.py="${INGEST_DIR}/features.py" \
+  --from-file=ingest-flows.py="${INGEST_DIR}/flows.py" \
+  --from-file="${HUBBLE_API}/flow/flow_pb2.py" \
+  --from-file="${HUBBLE_API}/observer/observer_pb2.py" \
+  --from-file="${HUBBLE_API}/observer/observer_pb2_grpc.py" \
+  --from-file="${HUBBLE_API}/relay/relay_pb2.py" \
+  --dry-run=client -o yaml | kubectl apply -f -
+SHIPPER_CODE_NEW=$(kubectl -n kube-system get cm flow-shipper-code -o json | sha256sum)
+ok "ConfigMap flow-shipper-code 就绪"
 
 # ══════════════════════════════════════════════
-# Step 8: 部署 Vector DaemonSet
+# Step 8: 部署 flow-shipper DaemonSet（替代原 Vector）
 # ══════════════════════════════════════════════
-log "Step 8: 部署 Vector"
+log "Step 8: 部署 flow-shipper"
 
-VECTOR_CFG_OLD=$(kubectl -n kube-system get cm vector-config -o jsonpath='{.data.vector\.yaml}' 2>/dev/null | sha256sum)
-kubectl apply -f "$VECTOR_YAML"
-VECTOR_CFG_NEW=$(kubectl -n kube-system get cm vector-config -o jsonpath='{.data.vector\.yaml}' | sha256sum)
-# Vector 不监听 ConfigMap 变化：配置变了必须重启 Pod，否则继续跑旧配置
-if [ "$VECTOR_CFG_OLD" != "$VECTOR_CFG_NEW" ] && kubectl -n kube-system get ds vector >/dev/null 2>&1; then
-  info "vector-config 有变化，重启 Vector 以加载新配置"
-  kubectl -n kube-system rollout restart daemonset/vector
+# 旧环境里的 Vector 会和 flow-shipper 重复写 Kafka，先删掉
+if kubectl -n kube-system get ds vector >/dev/null 2>&1; then
+  info "删除旧的 Vector DaemonSet"
+  kubectl -n kube-system delete ds vector --wait=true
+  kubectl -n kube-system delete configmap vector-config --ignore-not-found
+  kubectl -n kube-system delete secret vector-kafka-secret --ignore-not-found
 fi
 
-# DaemonSet 刚创建，Pod 还在 ContainerCreating（init container 要 cp hubble binary）
-info "等待 Vector Pod 出现（15s）..."
-sleep 15
+kubectl apply -f "$SHIPPER_YAML"
+# 代码在 ConfigMap 里，程序不会自动重新加载：代码变了必须重启 Pod
+if [ "$SHIPPER_CODE_OLD" != "$SHIPPER_CODE_NEW" ]; then
+  info "flow-shipper 代码有变化，重启以加载"
+  kubectl -n kube-system rollout restart daemonset/flow-shipper
+fi
 
-info "等待 Vector DaemonSet 就绪（5个节点，最多 3 分钟）..."
-kubectl rollout status daemonset/vector -n kube-system --timeout=180s
-ok "Vector 就绪"
+info "等待 flow-shipper DaemonSet 就绪（5 个节点，initContainer 要 pip 安装依赖，最多 5 分钟）..."
+kubectl rollout status daemonset/flow-shipper -n kube-system --timeout=300s
+ok "flow-shipper 就绪"
 
-# 确认 Vector 能连上 hubble-relay 且没有立即崩溃
-info "观察 Vector 日志（10s 稳定检查）..."
+info "观察 flow-shipper 日志（10s 稳定检查）..."
 sleep 10
-VECTOR_RESTARTS=$(kubectl get pods -n kube-system -l app=vector \
+SHIPPER_RESTARTS=$(kubectl get pods -n kube-system -l app=flow-shipper \
   --no-headers 2>/dev/null | awk '{sum+=$4} END {print sum+0}')
-if [ "$VECTOR_RESTARTS" -gt 5 ]; then
-  info "⚠️  Vector Pod 重启次数偏高（${VECTOR_RESTARTS}），检查: kubectl logs -n kube-system -l app=vector"
+if [ "$SHIPPER_RESTARTS" -gt 5 ]; then
+  info "⚠️  flow-shipper Pod 重启次数偏高（${SHIPPER_RESTARTS}），检查: kubectl logs -n kube-system -l app=flow-shipper"
 else
-  ok "Vector Pod 稳定（重启总计 ${VECTOR_RESTARTS} 次）"
+  ok "flow-shipper Pod 稳定（重启总计 ${SHIPPER_RESTARTS} 次）"
 fi
 
 # ══════════════════════════════════════════════
@@ -391,5 +407,5 @@ echo "       /opt/kafka/bin/kafka-console-consumer.sh \\"
 echo "       --bootstrap-server kafka-svc.default.svc.cluster.local:9092 \\"
 echo "       --topic ebpf-net-logs --from-beginning --max-messages 5"
 echo ""
-echo "# 5. Vector 日志"
-echo "     kubectl logs -n kube-system -l app=vector --tail=50"
+echo "# 5. flow-shipper 日志"
+echo "     kubectl logs -n kube-system -l app=flow-shipper --tail=50"

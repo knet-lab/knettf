@@ -1,8 +1,8 @@
 # lab — 实验环境（原 knetsentinel）
 
-基于 **KVM + kubeadm + Cilium/Hubble (eBPF) + Vector + Kafka** 的 Kubernetes 网络流量采集与入侵检测实验环境。
+基于 **KVM + kubeadm + Cilium/Hubble (eBPF) + flow-shipper + Kafka** 的 Kubernetes 网络流量采集与入侵检测实验环境。
 
-在单台宿主机上用 libvirt 起 5 台 VM 组成 K8s 集群，Cilium 以 eBPF 方式观测所有流量，Hubble 流事件经 Vector 写入 Kafka；宿主机通过绑定伪造源 IP 向集群发送正常 / 攻击流量，用于：
+在单台宿主机上用 libvirt 起 5 台 VM 组成 K8s 集群，Cilium 以 eBPF 方式观测所有流量，Hubble 流事件经 flow-shipper 写入 Kafka；宿主机通过绑定伪造源 IP 向集群发送正常 / 攻击流量，用于：
 
 - 采集带标签的数据集（包级 → 流级 30 特征）
 - 把流量实时送到 NetSentinel 检测后端（Django `vigil` 应用，模型由 `VIGIL_MODELS` 配置，默认 `AdsMLModel`/OCSVM）并评估检测效果
@@ -30,7 +30,7 @@ flowchart LR
         SVC["nginx / targets 服务<br/>MetalLB IP"]
         CIL["Cilium eBPF<br/>替代 kube-proxy"]
         HUB["Hubble Relay :4245"]
-        VEC["Vector DaemonSet<br/>每节点 hubble observe"]
+        VEC["flow-shipper DaemonSet<br/>每节点 gRPC 读本地 Hubble<br/>过滤 + 去重"]
         KAF[("Kafka KRaft<br/>1 controller + 4 broker<br/>topic: ebpf-net-logs")]
         SVC --> CIL --> HUB --> VEC --> KAF
     end
@@ -43,7 +43,7 @@ flowchart LR
     NS -- "GET /api/vigil/records/" --> MON
 ```
 
-数据流：`数据包 → Cilium eBPF → Hubble → Vector(exec hubble observe --output=json) → Kafka ebpf-net-logs → 采集脚本 / 检测器`
+数据流：`数据包 → Cilium eBPF → Hubble → flow-shipper(gRPC 读本节点 Hubble，过滤 + 去重) → Kafka ebpf-net-logs → 采集脚本 / 检测器`
 
 ---
 
@@ -57,7 +57,7 @@ flowchart LR
 | CNI / 观测 | Cilium + Hubble（Helm） | `kubeProxyReplacement=true`，Hubble Relay + UI，`mtu=1450` |
 | 负载均衡 | MetalLB（Helm，L2 模式） | IP 池 `192.168.100.200-250` |
 | 存储 | rancher local-path-provisioner | v0.0.28，设为默认 StorageClass |
-| 日志管道 | Vector DaemonSet | `timberio/vector:0.38.0-distroless-libc`，hubble CLI `v0.13.0` |
+| 日志管道 | flow-shipper DaemonSet（`lab/shipper/`） | `python:3.12.11-slim`，依赖启动时 pip 安装：grpcio 1.71.0、protobuf 5.29.5、confluent-kafka 2.13.2 |
 | 消息队列 | Apache Kafka（KRaft，无 ZooKeeper） | `apache/kafka:4.0.2` |
 | Python | uv + Python 3.12 | scapy 2.7.0、confluent-kafka 2.13.2、python-dotenv、aiohttp、websockets |
 
@@ -106,7 +106,7 @@ cd cluster
 bash 00-clear.sh          # 可选：彻底清理旧环境（VM、网桥、磁盘、cloud image、kubeconfig、/etc/hosts）
 bash 01-setup-vms.sh      # 创建网桥 + 5 台 VM，等待 SSH 就绪
 bash 02-setup-cluster.sh  # 安装 K8s 及集群基础组件
-bash 03-deploy-5nodes.sh  # 部署 Kafka + Vector + nginx，并回写本地配置
+bash 03-deploy-5nodes.sh  # 部署 Kafka + flow-shipper + nginx，并回写本地配置
 ```
 
 **01-setup-vms.sh**
@@ -132,7 +132,7 @@ bash 03-deploy-5nodes.sh  # 部署 Kafka + Vector + nginx，并回写本地配�
 1. 前置检查：5 节点 Ready、local-path、MetalLB、hubble-relay
 2. 先只 apply `manifests/kafka-5nodes.yaml` 中的 Service，等 MetalLB 分配 `kafka-{0..3}-external` IP
 3. 用真实 IP 创建 ConfigMap `kafka-node-ips`，再 apply 完整 Kafka 清单，等 controller 与 4 个 broker 就绪
-4. 创建 Secret `vector-kafka-secret`（`kafka-svc.default.svc.cluster.local:9092`），部署 `manifests/vector-5nodes.yaml`
+4. 创建 Secret `flow-shipper-kafka`（`kafka-svc.default.svc.cluster.local:9092`）和代码 ConfigMap `flow-shipper-code`，部署 `manifests/flow-shipper.yaml`（旧环境里的 Vector 会被删除）
 5. 部署 `my-nginx`（LoadBalancer:80）作为测试目标
 6. 后台 `kubectl port-forward svc/hubble-relay 4245`（日志 `/tmp/hubble-pf.log`）
 7. 在 `/etc/hosts` 写入 `kafka-svc.default.svc.cluster.local`，并重写 `lab/.env`
@@ -147,13 +147,14 @@ bash 03-deploy-5nodes.sh  # 部署 Kafka + Vector + nginx，并回写本地配�
   - 每个 broker 一个 10Gi PVC（local-path）
 - Service：`kafka-svc`（集群内 bootstrap :9092）、`kafka-headless`、`kafka-controller-svc`、`kafka-{0..3}-external`（`externalTrafficPolicy: Local`）
 
-### 4.3 Vector 管道（`manifests/vector-5nodes.yaml`）
+### 4.3 采集管道 flow-shipper（`shipper/`、`manifests/flow-shipper.yaml`）
 
-- initContainer 从 `quay.io/cilium/hubble:v0.13.0` 拷出 hubble 二进制
-- `source`：`exec` 流式运行 `hubble observe --follow --output=json --server=hubble-relay.kube-system.svc.cluster.local:4245`，退出后 5s 重启
-- `transform`：`parse_json` 解析，失败丢弃
-- `sink`：Kafka topic `ebpf-net-logs`，JSON 编码，批量 500 条 / 1s，内存缓冲 50000，满了丢最新
-- `manifests/vector.yaml` 是早期 minikube 版本
+- DaemonSet，每个节点通过 gRPC 直连本节点的 Hubble socket（`/var/run/cilium/hubble.sock`），只处理本节点事件
+- 过滤：采集链路自身流量（kube-system、Kafka、flow-shipper、hubble-relay，避免自激回路）+ 后端 `should_skip` 会丢弃的事件
+- 去重（`SHIPPER_DEDUP=1`，默认开）：同一个包在多个观测点的事件只发一条，规则就是后端 `vigil/ingest/flows.py` 的 `counts_once`（03 把后端这两个文件放进 ConfigMap，同一份代码）。线上采样约只剩 16% 的消息
+- 输出格式与 `hubble observe --output=json` 完全相同，后端和 `lab/collect` 脚本不用改；`lab/dataset` 等按原始逐包事件统计的脚本要把 `SHIPPER_DEDUP` 设为 `0`
+- Kafka 缓冲满时阻塞（反压到 Hubble），丢失体现在日志里的「Hubble 丢失」计数
+- `shipper/hubble_api/` 是用 grpcio-tools 1.71.0 从 Cilium v1.19.3 的 `api/v1/{observer,flow,relay}/*.proto` 生成的代码；升级 Cilium 时重新生成
 
 ### 4.4 可选组件（需手动 apply）
 
@@ -195,8 +196,8 @@ kubectl exec -n default kafka-broker-0 -- /opt/kafka/bin/kafka-console-consumer.
   --bootstrap-server kafka-svc.default.svc.cluster.local:9092 \
   --topic ebpf-net-logs --from-beginning --max-messages 5
 
-# Vector 日志
-kubectl logs -n kube-system -l app=vector --tail=50
+# flow-shipper 日志（每 60s 一行统计：收到 / 转发 / Hubble 丢失）
+kubectl logs -n kube-system -l app=flow-shipper --tail=50
 
 # 宿主机环境诊断（磁盘、网桥、DHCP 租约、NAT、KVM）
 bash cluster/host-info.sh
@@ -235,7 +236,8 @@ TOPICS='["ebpf-net-logs"]'
 ```
 lab/
 ├── cluster/      # ★ 集群部署脚本 00~03 + host-info.sh；targets.yaml、host-firewall-ccnp.yaml、my-nginx-ingress.yaml
-├── manifests/    # Kafka KRaft、Vector DaemonSet 清单
+├── shipper/      # flow-shipper：节点上读 Hubble → 过滤 + 去重 → Kafka
+├── manifests/    # Kafka KRaft、flow-shipper DaemonSet 清单
 ├── traffic/      # 基础发包脚本
 ├── dataset/      # 数据集采集与流聚合
 ├── collect/      # Kafka 读取、过滤、推送到检测后端；last_record.sh 取最后一条 hubble 事件
@@ -349,7 +351,7 @@ sudo NETSENTINEL_TOKEN=<JWT> bash simulation/run.sh [1|2|3]
 | VM 无法出网 | 检查 `HOST_NIC` 是否为实际出口网卡，`iptables -t nat -L -n \| grep 192.168.100` |
 | MetalLB 不分配 IP | `kubectl get pods -n metallb-system`；apply IP 池过早会被 webhook 拒绝，重跑 02 即可 |
 | Kafka broker 起不来 | ConfigMap `kafka-node-ips` 是否在 broker 前创建；`kubectl logs kafka-controller` |
-| Kafka 无数据 | `kubectl logs -n kube-system -l app=vector`；确认 hubble-relay Service 端口为 4245 |
+| Kafka 无数据 | `kubectl logs -n kube-system -l app=flow-shipper`；确认节点上有 `/var/run/cilium/hubble.sock` |
 | Hubble 看不到伪造源 IP 的流量 | 源 IP 是否已绑定到 `virbr-k8s`；必要时 apply `host-firewall-ccnp.yaml` |
 | 发包报权限错误 | 发包脚本需要 root |
 

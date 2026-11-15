@@ -2,7 +2,7 @@
 
 **NetSentinel** 网络入侵检测平台，以及配套的 Kubernetes 流量实验环境（lab）。线上地址：https://knettf.com
 
-实验集群用 Cilium/Hubble（eBPF）观测所有网络流量，经 Vector 写入 Kafka；NetSentinel 后端消费 Kafka，按五元组聚合成流特征，交给检测模型（默认 `AdsMLModel`，OCSVM）判断是否为攻击，结果存库并在前端展示。lab 负责搭集群、发正常 / 攻击流量、采集数据集、评估检测效果。
+实验集群用 Cilium/Hubble（eBPF）观测所有网络流量，经 flow-shipper（每节点，过滤 + 去重）写入 Kafka；NetSentinel 后端消费 Kafka，按五元组聚合成流特征，交给检测模型（默认 `AdsMLModel`，OCSVM）判断是否为攻击，结果存库并在前端展示。lab 负责搭集群、发正常 / 攻击流量、采集数据集、评估检测效果。
 
 本仓库由原 `NetSentinel`（平台）和 `knetsentinel`（实验环境）两个仓库合并而来，保留了两边的提交历史。
 
@@ -13,7 +13,7 @@ flowchart LR
         TR["发包脚本<br/>traffic · replay · simulation"]
         CIL["Cilium / Hubble"]
         KAF[("Kafka<br/>ebpf-net-logs")]
-        TR --> CIL -- "Vector" --> KAF
+        TR --> CIL -- "flow-shipper" --> KAF
     end
     BE["apps/backend<br/>Django · vigil / kcore / autotf"]
     FE["apps/frontend<br/>Vue · 站内手册 /help"]
@@ -33,7 +33,7 @@ flowchart LR
 |------|------|
 | `apps/backend/` | Django 后端。`vigil`：检测（Kafka 消费、模型、检测记录 API）；`kcore`：用户与集群管理；`autotf`：Terraform 配置扫描；`common`：公共工具 |
 | `apps/frontend/` | Vue 3 + Vite 前端，包含站内使用手册（`src/views/help/`，访问 `/help`） |
-| `lab/` | 实验环境：集群部署、Kafka / Vector 清单、发包、采集、数据集、检测评估。见 [lab/README.md](lab/README.md) |
+| `lab/` | 实验环境：集群部署、Kafka / flow-shipper 清单、发包、采集、数据集、检测评估。见 [lab/README.md](lab/README.md) |
 | `ops/` | 运维：`deploy/`（systemd、cron、sudoers、cloudflared 配置）、`scripts/deploy.sh`（部署）、`scripts/auto-deploy.sh`（自动部署）、`scripts/check.sh`（检查） |
 | `.github/workflows/` | PR 自动检查（GitHub Actions） |
 | `docs/` | `structure/` 架构文档与图，`lab/` 实验相关说明（特征定义等），`archive/` 旧资料（含已停用的集群内检测器 `detector/`） |
