@@ -227,7 +227,7 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
         <tr><td>—</td><td><code>label</code></td><td>"0"/"1"/""</td><td>流内各包标签的众数</td><td>不送入模型，只写库</td></tr>
         <tr><td>—</td><td><code>aggregation_ms</code></td><td>float</td><td>入口 A 专有：流输出（送检）时刻 − 首包时间</td><td>不送入模型，写入 raw_output</td></tr>
       </table></div>
-      <p>入口 A 过滤规则（<code>bridge.py</code>）：源和目的<b>都</b>是基础设施地址（<code>10.*</code>、节点 .10-.15、MetalLB .200-.250、宿主机 .1）时丢弃；任一端口为 9092/9093/9094（Kafka 自身流量）时丢弃；loopback 或 TCP/UDP 缺端口的残缺事件丢弃。</p>
+      <p>入口 A 过滤规则（<code>bridge.py</code>）：一端是节点（.10-.15）或宿主机网关（.1）、另一端也在集群内（节点层面的管理流量）时丢弃；Pod↔Pod（东西向）和外部↔集群（南北向）保留；任一端口为 9092/9093/9094（Kafka 自身流量）时丢弃；loopback 或 TCP/UDP 缺端口的残缺事件丢弃。</p>
     </section>
 
     <section id="model">

@@ -58,7 +58,7 @@ _HOST_GW     = 192.168.100.1</code></pre>
         <li>对每条消息过滤：
           <ul>
             <li>源或目的 IP 为空 → 跳过</li>
-            <li><b>源和目的都是基础设施</b>（<code>10.*</code> Pod 网段、节点、MetalLB、宿主机网关）→ 跳过（集群内部互相通信不检测）</li>
+            <li><b>节点层面的管理流量</b>（一端是节点或宿主机网关，另一端也在集群内：kubelet 探针、apiserver 等）→ 跳过。Pod↔Pod（东西向）和外部↔集群（南北向）都检测</li>
             <li>任一端口是 Kafka 端口 → 跳过（否则 bridge 自己消费 Kafka 的流量会被检测，形成反馈环）</li>
             <li>loopback（<code>127.*</code>、<code>::1</code>）或 TCP/UDP 缺端口的残缺事件 → 跳过（节点本地 socket 层记录，不是网络包；以前缺的端口被当成 0）</li>
           </ul></li>

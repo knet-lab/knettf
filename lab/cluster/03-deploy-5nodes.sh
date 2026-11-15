@@ -339,7 +339,11 @@ for i in $(seq 0 3); do
 done
 BOOTSTRAP_EXTERNAL="${BOOTSTRAP_EXTERNAL%,}"
 
-cat > "${LAB_DIR}/.env" << ENVEOF
+# 只更新本脚本负责的键，保留其他脚本写入的内容（如 04 的 BOUTIQUE_URL）
+ENV_FILE="${LAB_DIR}/.env"
+touch "$ENV_FILE"
+sed -i -E '/^(BOOTSTRAP_SERVERS|GROUP_ID|AUTO_OFFSET_RESET|TOPICS)=/d' "$ENV_FILE"
+cat >> "$ENV_FILE" << ENVEOF
 BOOTSTRAP_SERVERS=${BOOTSTRAP_EXTERNAL}
 GROUP_ID=ebpf-log-consumer-group
 AUTO_OFFSET_RESET=earliest
