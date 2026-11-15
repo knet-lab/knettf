@@ -53,6 +53,21 @@ class FlowTableTests(SimpleTestCase):
         (f,) = t.flush_all()
         self.assertEqual(f["total_packets"], 1)
 
+    def test_cross_node_pod_packet_counted_once(self):
+        # 跨节点 Pod→Pod：源节点 FROM_ENDPOINT，目的节点 FROM_NETWORK 再报一次，只能算一个包
+        t = FlowTable()
+        kw = dict(src="10.0.2.14", dst="10.0.1.237", sport=34504, dport=6379)
+        for obs in ("FROM_ENDPOINT", "TO_OVERLAY", "TO_NETWORK", "FROM_NETWORK", "FROM_OVERLAY", "TO_ENDPOINT"):
+            t.add(_pkt(0.0, obs=obs, **kw))
+        [f] = t.flush_all()
+        self.assertEqual(f["total_packets"], 1)
+
+    def test_external_packet_from_network_still_counted(self):
+        t = FlowTable()
+        t.add(_pkt(0.0, obs="FROM_NETWORK"))          # 外部客户端 → Pod
+        [f] = t.flush_all()
+        self.assertEqual(f["total_packets"], 1)
+
     def test_reply_seen_first_keeps_initiator(self):
         t = FlowTable()
         t.add(_back(0.0, flags={"ACK": True}))          # 中途接入，先看到回包

@@ -32,7 +32,7 @@ BRIDGE_SUBNET="192.168.100"
 BRIDGE_HOST_IP="${BRIDGE_SUBNET}.1"
 
 # 每台 VM 的 vCPU / 内存（与 VM_NAMES 一一对应）
-# master 跑 etcd + apiserver + Kafka controller + cilium/hubble/vector，
+# master 跑 etcd + apiserver + Kafka controller + cilium/hubble/flow-shipper，
 # monitorAggregation=none 下事件量大，2 核时 etcd 延迟飙升、scheduler/controller-manager
 # 续约超时反复重启，所以给 master 单独加配。
 VM_VCPUS_LIST=( 6 4 4 4 4 )

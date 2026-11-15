@@ -1,0 +1,95 @@
+# flow-shipper：每个节点读本节点 Hubble → 过滤 + 去重 → Kafka（替代原来的 Vector）
+# 代码见 lab/shipper/。程序代码放在 ConfigMap flow-shipper-code 里，由 03 用
+# `kubectl create configmap --from-file` 生成（包括后端 vigil/ingest 的 features.py / flows.py，
+# 保证节点去重和后端用同一份规则）。依赖在 initContainer 里用 pip 安装，不需要自建镜像。
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flow-shipper
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: flow-shipper
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: flow-shipper
+  template:
+    metadata:
+      labels:
+        app: flow-shipper
+    spec:
+      serviceAccountName: flow-shipper
+      tolerations:
+        - operator: Exists
+      initContainers:
+        - name: install-deps
+          image: python:3.12.11-slim
+          command:
+            - pip
+            - install
+            - --quiet
+            - --no-cache-dir
+            - --target=/deps
+            - grpcio==1.71.0
+            - protobuf==5.29.5
+            - confluent-kafka==2.13.2
+          volumeMounts:
+            - name: deps
+              mountPath: /deps
+      containers:
+        - name: shipper
+          image: python:3.12.11-slim
+          command: ["python", "-u", "/app/shipper.py"]
+          env:
+            - name: PYTHONPATH
+              value: /deps
+            - name: KAFKA_BOOTSTRAP
+              valueFrom:
+                secretKeyRef:
+                  name: flow-shipper-kafka
+                  key: bootstrap_servers
+            - name: KAFKA_TOPIC
+              value: ebpf-net-logs
+            # 1 = 节点上去重（默认）；lab/dataset 等需要原始逐包事件的旧脚本要设为 0
+            - name: SHIPPER_DEDUP
+              value: "1"
+          volumeMounts:
+            - name: code
+              mountPath: /app
+              readOnly: true
+            - name: deps
+              mountPath: /deps
+              readOnly: true
+            # 连接 unix socket 需要写权限，不能 readOnly
+            - name: cilium-run
+              mountPath: /var/run/cilium
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: cilium-run
+          hostPath:
+            path: /var/run/cilium
+            type: Directory
+        - name: deps
+          emptyDir: {}
+        - name: code
+          configMap:
+            name: flow-shipper-code
+            items:
+              - { key: shipper.py,           path: shipper.py }
+              - { key: ingest-init.py,       path: ingest/__init__.py }
+              - { key: ingest-features.py,   path: ingest/features.py }
+              - { key: ingest-flows.py,      path: ingest/flows.py }
+              - { key: flow_pb2.py,          path: hubble_api/flow/flow_pb2.py }
+              - { key: observer_pb2.py,      path: hubble_api/observer/observer_pb2.py }
+              - { key: observer_pb2_grpc.py, path: hubble_api/observer/observer_pb2_grpc.py }
+              - { key: relay_pb2.py,         path: hubble_api/relay/relay_pb2.py }

@@ -8,9 +8,11 @@
   · 活跃超时 ACTIVE_TIMEOUT：流持续超过这么久 → 先输出一段，后续包开始新的一条
   · 单条流包数上限 MAX_PACKETS：防止异常长流占满内存，达到即输出
 
-去重：同一个包会在多个观测点各上报一次（例如源节点 FROM_ENDPOINT + TO_OVERLAY，
-目的节点 FROM_OVERLAY + TO_ENDPOINT）。只统计包"第一次被看到"的观测点，
-其余丢弃，避免包数被放大 2~4 倍。
+去重：同一个包会在多个观测点各上报一次。跨节点 Pod→Pod 的包经过 overlay 隧道，
+源节点报 FROM_ENDPOINT → TO_OVERLAY → TO_NETWORK，目的节点报 FROM_NETWORK →
+FROM_OVERLAY → TO_ENDPOINT。只统计包"第一次被看到"的观测点，其余丢弃。
+源地址是 Pod 的包在 FROM_NETWORK 出现，说明它是从别的节点隧道过来的，源节点已经在
+FROM_ENDPOINT 计过一次，这里不再计数（否则跨节点流的包数翻倍、包间隔被打乱）。
 
 时间一律用事件自带的时间戳（Hubble 记录的内核时间），超时判断用调用方给的 now。
 """
@@ -20,7 +22,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from .features import compute_flow
+from .features import compute_flow, is_pod_ip
 
 IDLE_TIMEOUT   = 60.0     # 秒
 ACTIVE_TIMEOUT = 120.0    # 秒（CICFlowMeter 默认 flow timeout）
@@ -35,6 +37,8 @@ _FIRST_SIGHTING = {"FROM_ENDPOINT", "FROM_NETWORK", "FROM_HOST", "FROM_STACK",
 def counts_once(packet: dict) -> bool:
     """这个包事件是否参与计数。没有观测点信息时（旧版本 Hubble）照常计数。"""
     op = packet.get("obs_point") or ""
+    if op == "FROM_NETWORK" and is_pod_ip(packet.get("src_ip", "")):
+        return False  # 跨节点隧道送达的 Pod 包，源节点已计数
     return op == "" or op in _FIRST_SIGHTING
 
 
