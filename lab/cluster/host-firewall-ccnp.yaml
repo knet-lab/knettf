@@ -13,6 +13,9 @@ spec:
   # 2. 主机桥子网（192.168.100.0/24）：含宿主机 .1、VM .10~.14、MetalLB .200~.250、伪造 IP .20~.29
   - fromCIDR:
     - 192.168.100.0/24
+  # 宿主机上的仿真客户端区（lab/traffic/client-zone.sh），经宿主机路由进来
+  - fromCIDR:
+    - 172.30.0.0/16
   # 3. Pod CIDR（Cilium overlay 内部流量）
   - fromCIDR:
     - 10.244.0.0/16

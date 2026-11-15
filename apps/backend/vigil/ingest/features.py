@@ -30,6 +30,11 @@ def is_infrastructure(ip: str) -> bool:
     )
 
 
+def is_node_level(ip: str) -> bool:
+    """节点 IP 或宿主机网关（不含 Pod、不含 LoadBalancer VIP）。"""
+    return ip in _NODE_IPS or ip == _HOST_GW
+
+
 # ── 工具函数 ────────────────────────────────────────────────────────────────────
 def _mean(values):
     return sum(values) / len(values) if values else 0.0
@@ -203,12 +208,14 @@ def compute_flow(packets: list) -> dict:
 
 
 def should_skip(flow: dict) -> bool:
-    """集群内部流量（两端都是基础设施）、Kafka 自身的流量、loopback、缺 IP 或缺端口的残缺事件不参与检测。"""
+    """节点层面的管理流量、Kafka 自身的流量、loopback、缺 IP 或缺端口的残缺事件不参与检测。"""
     src = flow.get("IP", {}).get("source", "")
     dst = flow.get("IP", {}).get("destination", "")
     if not src or not dst:
         return True
-    if is_infrastructure(src) and is_infrastructure(dst):
+    # 节点层面的管理流量（kubelet 探针、apiserver、节点间通信）：一端是节点/宿主机网关，
+    # 另一端也在集群内。Pod↔Pod（东西向）与外部↔集群（南北向）都保留检测。
+    if (is_node_level(src) and is_infrastructure(dst)) or (is_node_level(dst) and is_infrastructure(src)):
         return True
     # loopback：节点本地 socket 层的记录，不是网络上的包
     if src.startswith("127.") or dst.startswith("127.") or src == "::1" or dst == "::1":

@@ -33,7 +33,10 @@ class HubbleToPacketTests(SimpleTestCase):
 class ShouldSkipTests(SimpleTestCase):
     def test_skip_rules(self):
         self.assertFalse(should_skip(_event("x")))
-        self.assertTrue(should_skip(_event("x", src="10.0.0.1", dst="192.168.100.10")))   # 两端都是基础设施
+        self.assertTrue(should_skip(_event("x", src="10.0.0.1", dst="192.168.100.10")))   # Pod↔节点：管理流量
+        self.assertTrue(should_skip(_event("x", src="192.168.100.1", dst="10.0.1.5")))    # 宿主机网关→Pod
+        self.assertFalse(should_skip(_event("x", src="10.0.1.5", dst="10.0.2.7")))        # Pod↔Pod：东西向保留
+        self.assertFalse(should_skip(_event("x", src="172.30.1.11", dst="10.0.2.7")))     # 外部→Pod：南北向保留
         self.assertTrue(should_skip(_event("x", dport=9094)))                             # Kafka 自身流量
         self.assertTrue(should_skip({"IP": {"source": "", "destination": "1.1.1.1"}}))   # 缺 IP
         self.assertTrue(should_skip(_event("x", src="127.0.0.1", dst="192.168.100.12")))  # loopback
