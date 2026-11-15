@@ -89,3 +89,17 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
       - run: ops/scripts/check.sh frontend
+
+  # 汇总：仓库规则（ruleset）要求名为 check 的检查通过才能合并，改名或删除前先改规则
+  check:
+    needs: [targets, light, backend, frontend]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "各项结果: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in success|skipped) ;; *) echo "✗ 有检查未通过"; exit 1 ;; esac
+          done
