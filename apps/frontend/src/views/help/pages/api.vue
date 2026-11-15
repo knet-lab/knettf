@@ -217,7 +217,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/kcore/users/
         <pre><code>curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   http://localhost:8080/api/vigil/detect/ -d '{
   "src_ip":"192.168.100.21","dst_ip":"192.168.100.11","protocol":"TCP",
-  "src_port":40000,"dst_port":80,"flow_duration":0.5,"total_packets":200,
+  "src_port":40000,"dst_port":80,"flow_duration":500000,"total_packets":200,
   "fwd_packets":200,"packets_per_second":400,"syn_count":200,"syn_ratio":1.0,
   "is_tcp":1,"is_well_known_port":1,"label":"1"}'</code></pre>
         <p>响应 <code>data</code>：</p>

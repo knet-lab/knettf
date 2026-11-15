@@ -36,6 +36,9 @@ class ShouldSkipTests(SimpleTestCase):
         self.assertTrue(should_skip(_event("x", src="10.0.0.1", dst="192.168.100.10")))   # 两端都是基础设施
         self.assertTrue(should_skip(_event("x", dport=9094)))                             # Kafka 自身流量
         self.assertTrue(should_skip({"IP": {"source": "", "destination": "1.1.1.1"}}))   # 缺 IP
+        self.assertTrue(should_skip(_event("x", src="127.0.0.1", dst="192.168.100.12")))  # loopback
+        partial = _event("x"); del partial["l4"]["TCP"]["destination_port"]
+        self.assertTrue(should_skip(partial))                                              # 缺端口的残缺事件
 
 
 class ComputeFlowTests(SimpleTestCase):
@@ -50,9 +53,9 @@ class ComputeFlowTests(SimpleTestCase):
     def test_counts_and_ratios(self):
         f = self.flow
         self.assertEqual((f["total_packets"], f["fwd_packets"], f["bwd_packets"]), (3, 2, 1))
-        self.assertEqual(f["flow_duration"], 3.0)
-        self.assertEqual(f["packets_per_second"], 1.0)
-        self.assertEqual((f["iat_min"], f["iat_max"], f["iat_mean"]), (1.0, 2.0, 1.5))
+        self.assertEqual(f["flow_duration"], 3_000_000.0)                     # 微秒
+        self.assertEqual(f["packets_per_second"], 1.0)                        # 每秒
+        self.assertEqual((f["iat_min"], f["iat_max"], f["iat_mean"]), (1e6, 2e6, 1.5e6))
         self.assertEqual((f["syn_count"], f["ack_count"]), (2, 2))
         self.assertEqual(f["syn_ratio"], 0.6667)
         self.assertEqual((f["reply_count"], f["drop_count"], f["forwarded_count"]), (1, 1, 2))

@@ -221,7 +221,14 @@ info "bootstrap: kafka-svc.default.svc.cluster.local:9092（ClusterIP，集群�
 # ══════════════════════════════════════════════
 log "Step 8: 部署 Vector"
 
+VECTOR_CFG_OLD=$(kubectl -n kube-system get cm vector-config -o jsonpath='{.data.vector\.yaml}' 2>/dev/null | sha256sum)
 kubectl apply -f "$VECTOR_YAML"
+VECTOR_CFG_NEW=$(kubectl -n kube-system get cm vector-config -o jsonpath='{.data.vector\.yaml}' | sha256sum)
+# Vector 不监听 ConfigMap 变化：配置变了必须重启 Pod，否则继续跑旧配置
+if [ "$VECTOR_CFG_OLD" != "$VECTOR_CFG_NEW" ] && kubectl -n kube-system get ds vector >/dev/null 2>&1; then
+  info "vector-config 有变化，重启 Vector 以加载新配置"
+  kubectl -n kube-system rollout restart daemonset/vector
+fi
 
 # DaemonSet 刚创建，Pod 还在 ContainerCreating（init container 要 cp hubble binary）
 info "等待 Vector Pod 出现（15s）..."
