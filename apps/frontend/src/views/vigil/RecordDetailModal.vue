@@ -65,14 +65,15 @@
 
           <p v-if="record.explanation" class="explain">{{ record.explanation }}</p>
 
-          <!-- ZSL -->
-          <section v-if="zsl.length">
-            <h3 class="sec">Attack-type similarity</h3>
+          <!-- 模型输出（raw_output）：按字段类型显示 -->
+          <section v-if="modelOutput.length">
+            <h3 class="sec">Model output</h3>
             <div class="zsl">
-              <div v-for="[label, sim] in zsl" :key="label" class="zsl-row" :class="{ top: label === record.attack_type }">
-                <span class="zsl-l">{{ label }}</span>
-                <span class="zsl-t"><span class="zsl-f" :style="{ width: Math.max(0, sim) * 100 + '%', background: typeColor(label) }" /></span>
-                <span class="zsl-v vg-mono">{{ fmtPct(sim, 1) }}</span>
+              <div v-for="o in modelOutput" :key="o.key" class="zsl-row">
+                <span class="zsl-l vg-mono">{{ o.key }}</span>
+                <span v-if="o.kind === 'ratio'" class="zsl-t"><span class="zsl-f" :style="{ width: Math.max(0, Math.min(1, o.num)) * 100 + '%', background: typeColor(record.attack_type || o.key) }" /></span>
+                <span v-else class="zsl-t none" />
+                <span class="zsl-v vg-mono">{{ o.text }}</span>
               </div>
             </div>
           </section>
@@ -85,7 +86,7 @@
                 <div class="fgroup-t">{{ g.name }}</div>
                 <div v-for="[k, v] in g.items" :key="k" class="frow">
                   <span class="fk">{{ k }}</span>
-                  <span class="fv vg-mono">{{ fmtFeature(v) }}</span>
+                  <span class="fv vg-mono">{{ fmtFeature(v, k) }}</span>
                 </div>
               </div>
             </div>
@@ -115,17 +116,32 @@ const close = () => emit('close')
 
 const outcome = computed(() => (props.record ? outcomeOf(props.record) : null))
 
-const zsl = computed(() => {
+// raw_output 是模型自定义的 dict，字段含义各不相同：
+//   *_ms                         → 时长（毫秒）
+//   相似度 / 分数 / 概率（0~1）    → 百分比 + 进度条
+//   其他                         → 原样
+type OutputRow = { key: string; kind: 'ms' | 'ratio' | 'other'; num: number; text: string }
+const RATIO_KEY = /(similarity|score|prob|confidence|ratio)/i
+function fmtMs(ms: number): string {
+  if (ms < 1000) return `${ms.toFixed(1)} ms`
+  const s = ms / 1000
+  if (s < 60) return `${s.toFixed(1)} s`
+  return `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`
+}
+const modelOutput = computed<OutputRow[]>(() => {
   const raw = props.record?.raw_output
   if (!raw) return []
-  return (Object.entries(raw).filter(([, v]) => typeof v === 'number') as [string, number][])
-    .sort((a, b) => b[1] - a[1])
+  return Object.entries(raw).map(([key, v]): OutputRow => {
+    if (typeof v === 'number' && key.endsWith('_ms')) return { key, kind: 'ms', num: v, text: fmtMs(v) }
+    if (typeof v === 'number' && RATIO_KEY.test(key) && v >= 0 && v <= 1) return { key, kind: 'ratio', num: v, text: fmtPct(v, 1) }
+    return { key, kind: 'other', num: NaN, text: typeof v === 'object' ? JSON.stringify(v) : String(v) }
+  })
 })
 
 const META = new Set(['src_ip', 'dst_ip', 'src_port', 'dst_port', 'protocol', 'label'])
 const GROUPS: { name: string; test: (k: string) => boolean }[] = [
   { name: 'Volume & direction', test: k => /packets|fwd_|bwd_|bidirectional/.test(k) },
-  { name: 'Timing', test: k => /duration|iat_|per_second|aggregation/.test(k) },
+  { name: 'Timing', test: k => /duration|iat_|per_second/.test(k) },
   { name: 'TCP flags', test: k => /^(syn|ack|fin|rst|psh|urg)_/.test(k) },
   { name: 'Replies & verdict', test: k => /reply|forward|drop/.test(k) },
   { name: 'Protocol', test: k => k.startsWith('is_') },
@@ -206,10 +222,11 @@ watch(() => props.record?.id, async id => {
 .sec { margin: 0 0 10px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--vg-text-2); }
 
 .zsl { display: flex; flex-direction: column; gap: 6px; }
-.zsl-row { display: grid; grid-template-columns: 170px 1fr 56px; align-items: center; gap: 10px; font-size: 12px; color: var(--vg-text-2); }
+.zsl-row { display: grid; grid-template-columns: 150px 1fr minmax(64px, auto); align-items: center; gap: 10px; font-size: 12px; color: var(--vg-text-2); }
 .zsl-row.top { color: var(--vg-text); font-weight: 600; }
 .zsl-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .zsl-t { height: 6px; background: var(--vg-border); border-radius: 4px; overflow: hidden; }
+.zsl-t.none { background: transparent; }
 .zsl-f { display: block; height: 100%; border-radius: 4px; }
 .zsl-v { text-align: right; }
 

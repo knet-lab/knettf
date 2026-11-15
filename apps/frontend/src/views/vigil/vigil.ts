@@ -83,7 +83,17 @@ export function fmtPct(v: number | null | undefined, digits = 0): string {
   return v == null || Number.isNaN(v) ? '—' : `${(v * 100).toFixed(digits)}%`
 }
 
-export function fmtFeature(v: unknown): string {
+// 时间类特征（flow_duration、iat_*）单位是微秒，换算成易读的时长
+export function fmtMicros(us: number): string {
+  if (us === 0) return '0'
+  if (us < 1000) return `${Number(us.toPrecision(3))} µs`
+  if (us < 1e6) return `${Number((us / 1000).toPrecision(3))} ms`
+  if (us < 60e6) return `${Number((us / 1e6).toPrecision(3))} s`
+  return `${Math.floor(us / 60e6)} min ${Math.round((us % 60e6) / 1e6)} s`
+}
+
+export function fmtFeature(v: unknown, key = ''): string {
+  if (typeof v === 'number' && /^(flow_duration|iat_)/.test(key)) return fmtMicros(v)
   if (typeof v !== 'number') return String(v ?? '—')
   if (Number.isInteger(v)) return v.toLocaleString()
   return Math.abs(v) >= 1000 ? v.toFixed(1) : Number(v.toPrecision(4)).toString()
