@@ -60,12 +60,13 @@ _HOST_GW     = 192.168.100.1</code></pre>
             <li>源或目的 IP 为空 → 跳过</li>
             <li><b>源和目的都是基础设施</b>（<code>10.*</code> Pod 网段、节点、MetalLB、宿主机网关）→ 跳过（集群内部互相通信不检测）</li>
             <li>任一端口是 Kafka 端口 → 跳过（否则 bridge 自己消费 Kafka 的流量会被检测，形成反馈环）</li>
+            <li>loopback（<code>127.*</code>、<code>::1</code>）或 TCP/UDP 缺端口的残缺事件 → 跳过（节点本地 socket 层记录，不是网络包；以前缺的端口被当成 0）</li>
           </ul></li>
-        <li>通过的按 <code>_flow_key()</code>（5 元组）放进 <code>open_flows[key]</code>，每个包用 <code>_hubble_to_packet()</code> 转成 <code>{ts, direction, verdict, flags, is_reply, label, 5 元组}</code>。<b>标签规则</b>：源 IP 末段 20-29 → <code>"1"</code>，50-64 → <code>"0"</code>，其他 → <code>""</code>。</li>
-        <li>本轮只要有数据就 <code>_flush()</code>：每个 key 调 <code>compute_flow(pkts)</code> 得到一条流，附上 <code>aggregation_ms</code>，整批 <code>flow_queue.put_nowait(batch)</code>，然后异步提交 offset。队列满（2000 批）→ 丢弃该批并打 warning。</li>
+        <li>通过的用 <code>hubble_to_packet()</code> 转成包记录，交给流表 <code>FlowTable.add()</code>（<code>ingest/flows.py</code>）。<b>标签规则</b>：源 IP 末段 20-29 → <code>"1"</code>，50-64 → <code>"0"</code>，其他 → <code>""</code>。</li>
+        <li>流表按<b>双向</b>五元组归流；同一个包在多个观测点的重复上报只计一次。流在以下时刻结束并送去检测：出现 RST、双方都发过 FIN、空闲 60 秒、持续满 120 秒（长连接分段）。每秒检查一次超时，把结束的流整批 <code>flow_queue.put_nowait(batch)</code>，然后异步提交 offset。队列满（2000 批）→ 丢弃该批并打 warning。</li>
         <li>任何异常 → 日志 <code>bridge error: ...</code>，<b>线程退出，不重连</b>。这是“检测停了”的头号原因：集群重启或 Kafka 中断后必须重启后端。</li>
       </ol>
-      <div class="learn"><b>理解“流”的边界</b>：入口 A 没有时间窗口，每次 poll（最多等 0.1 秒）拿到的包就聚合一次。一个持续 10 秒的连接会被切成很多条“流”记录，每条只包含那一小段时间里的包。所以 <code>flow_duration</code> 一般很短，<code>total_packets</code> 一般很少。训练数据（<code>dataset/aggregate_flows.py</code>，5 秒超时）的切法不同，这会影响模型效果。</div>
+      <div class="learn"><b>理解“流”的边界</b>：流 = 一对端点之间的一次完整通信（请求和回包在同一条流里，先发包的一方是正向）。切分方式参照 CICFlowMeter / Zeek：TCP 结束（FIN/RST）立即输出，否则空闲 60 秒或持续 120 秒输出。所以检测是<b>近实时</b>的：短连接结束即检测，长连接最晚 120 秒出一段结果。<code>aggregation_ms</code> 记录首包到送检的延迟。</div>
       <h3>线程二：<code>run_drainer()</code></h3>
 <pre><code>while True:
     batch = flow_queue.get()                    <span class="c"># 阻塞等待</span>
@@ -84,12 +85,12 @@ _HOST_GW     = 192.168.100.1</code></pre>
         <tr><td>1-2</td><td><code>src_ip</code>、<code>dst_ip</code></td><td>字符串</td><td>第一个包的源 / 目的 IP。模型里用 OrdinalEncoder 编码（训练时没见过的 IP 编成未知值）</td></tr>
         <tr><td>3-4</td><td><code>src_port</code>、<code>dst_port</code></td><td>int</td><td>TCP / UDP 端口，ICMP 为 0</td></tr>
         <tr><td>5</td><td><code>protocol</code></td><td>字符串</td><td>TCP / UDP / ICMPv4 / ICMPv6 / OTHER，也被编码</td></tr>
-        <tr><td>6</td><td><code>flow_duration</code></td><td>秒</td><td>见上</td></tr>
+        <tr><td>6</td><td><code>flow_duration</code></td><td>微秒</td><td>见上</td></tr>
         <tr><td>7</td><td><code>total_packets</code></td><td>int</td><td>包数</td></tr>
-        <tr><td>8-9</td><td><code>fwd_packets</code>、<code>bwd_packets</code></td><td>int</td><td><code>traffic_direction == INGRESS</code> 的算 fwd，其余 bwd</td></tr>
+        <tr><td>8-9</td><td><code>fwd_packets</code>、<code>bwd_packets</code></td><td>int</td><td>连接发起方发出的算 fwd，响应方发出的算 bwd</td></tr>
         <tr><td>10</td><td><code>fwd_ratio</code></td><td>0-1</td><td>fwd / total</td></tr>
         <tr><td>11</td><td><code>packets_per_second</code></td><td></td><td>total / duration（单包流会非常大：1 / 1e-6）</td></tr>
-        <tr><td>12-15</td><td><code>iat_mean / std / min / max</code></td><td>秒</td><td>包间隔统计，单包流全为 0</td></tr>
+        <tr><td>12-15</td><td><code>iat_mean / std / min / max</code></td><td>微秒</td><td>包间隔统计，单包流全为 0</td></tr>
         <tr><td>16-21</td><td><code>syn / ack / fin / rst / psh / urg_count</code></td><td>int</td><td>TCP flags 中该位为真的包数</td></tr>
         <tr><td>22-25</td><td><code>syn / ack / fin / rst_ratio</code></td><td>0-1</td><td>对应 count / total</td></tr>
         <tr><td>26-27</td><td><code>reply_count</code>、<code>reply_ratio</code></td><td></td><td><code>is_reply</code> 为真的包</td></tr>

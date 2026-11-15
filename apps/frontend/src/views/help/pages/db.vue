@@ -205,13 +205,13 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
         <tr><td>3</td><td><code>protocol</code></td><td>str</td><td><code>l4</code> 中出现的 TCP / UDP / ICMPv4 / ICMPv6，否则 OTHER</td><td>OrdinalEncoder</td></tr>
         <tr><td>4</td><td><code>src_port</code></td><td>int</td><td><code>l4.TCP|UDP.source_port</code>，无则 0</td><td>是</td></tr>
         <tr><td>5</td><td><code>dst_port</code></td><td>int</td><td><code>destination_port</code></td><td>是</td></tr>
-        <tr><td>6</td><td><code>flow_duration</code></td><td>float 秒</td><td>末包时间 − 首包时间，最小 1e-6</td><td>是（log1p）</td></tr>
+        <tr><td>6</td><td><code>flow_duration</code></td><td>float 微秒</td><td>末包时间 − 首包时间（与 CICFlowMeter / 训练数据同单位）</td><td>是（log1p）</td></tr>
         <tr><td>7</td><td><code>total_packets</code></td><td>int</td><td>事件数</td><td>是（log1p）</td></tr>
-        <tr><td>8</td><td><code>fwd_packets</code></td><td>int</td><td><code>traffic_direction == INGRESS</code> 的数量</td><td>是（log1p）</td></tr>
+        <tr><td>8</td><td><code>fwd_packets</code></td><td>int</td><td>连接发起方发出的包数</td><td>是（log1p）</td></tr>
         <tr><td>9</td><td><code>bwd_packets</code></td><td>int</td><td>total − fwd</td><td>常量剔除</td></tr>
         <tr><td>10</td><td><code>fwd_ratio</code></td><td>float</td><td>fwd / total（4 位小数）</td><td>是</td></tr>
         <tr><td>11</td><td><code>packets_per_second</code></td><td>float</td><td>total / duration</td><td>是（log1p）</td></tr>
-        <tr><td>12-15</td><td><code>iat_mean</code> · <code>iat_std</code> · <code>iat_min</code> · <code>iat_max</code></td><td>float 秒</td><td>相邻事件时间差的均值 / 总体标准差 / 最小 / 最大；单包为 0</td><td>是（log1p）</td></tr>
+        <tr><td>12-15</td><td><code>iat_mean</code> · <code>iat_std</code> · <code>iat_min</code> · <code>iat_max</code></td><td>float 微秒</td><td>相邻包时间差的均值 / 总体标准差 / 最小 / 最大；单包为 0</td><td>是（log1p）</td></tr>
         <tr><td>16-21</td><td><code>syn_count</code> · <code>ack_count</code> · <code>fin_count</code> · <code>rst_count</code> · <code>psh_count</code> · <code>urg_count</code></td><td>int</td><td><code>l4.TCP.flags</code> 中该标志为真的事件数</td><td>前 5 个是（log1p）；urg 常量剔除</td></tr>
         <tr><td>22-25</td><td><code>syn_ratio</code> · <code>ack_ratio</code> · <code>fin_ratio</code> · <code>rst_ratio</code></td><td>float</td><td>对应 count / total</td><td>是</td></tr>
         <tr><td>26</td><td><code>reply_count</code></td><td>int</td><td><code>is_reply == true</code> 的事件数</td><td>常量剔除</td></tr>
@@ -219,15 +219,15 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
         <tr><td>28</td><td><code>forwarded_count</code></td><td>int</td><td><code>verdict == FORWARDED</code> 数</td><td>是（log1p）</td></tr>
         <tr><td>29</td><td><code>drop_count</code></td><td>int</td><td>total − forwarded</td><td>常量剔除</td></tr>
         <tr><td>30</td><td><code>drop_ratio</code></td><td>float</td><td>drop / total</td><td>常量剔除</td></tr>
-        <tr><td>31</td><td><code>is_bidirectional</code></td><td>0/1</td><td>流中出现过不止一种 direction</td><td>常量剔除</td></tr>
+        <tr><td>31</td><td><code>is_bidirectional</code></td><td>0/1</td><td>双方都发过包（fwd &gt; 0 且 bwd &gt; 0）</td><td>常量剔除</td></tr>
         <tr><td>32</td><td><code>is_tcp</code></td><td>0/1</td><td>protocol == TCP</td><td>是</td></tr>
         <tr><td>33</td><td><code>is_udp</code></td><td>0/1</td><td>protocol == UDP</td><td>是</td></tr>
         <tr><td>34</td><td><code>is_icmp</code></td><td>0/1</td><td>ICMPv4 / ICMPv6</td><td>常量剔除</td></tr>
         <tr><td>35</td><td><code>is_well_known_port</code></td><td>0/1</td><td>dst_port &lt; 1024</td><td>是</td></tr>
         <tr><td>—</td><td><code>label</code></td><td>"0"/"1"/""</td><td>流内各包标签的众数</td><td>不送入模型，只写库</td></tr>
-        <tr><td>—</td><td><code>aggregation_ms</code></td><td>float</td><td>入口 A 专有：flush 时刻 − 首包时间</td><td>不送入模型，写入 raw_output</td></tr>
+        <tr><td>—</td><td><code>aggregation_ms</code></td><td>float</td><td>入口 A 专有：流输出（送检）时刻 − 首包时间</td><td>不送入模型，写入 raw_output</td></tr>
       </table></div>
-      <p>入口 A 过滤规则（<code>bridge.py</code>）：源和目的<b>都</b>是基础设施地址（<code>10.*</code>、节点 .10-.15、MetalLB .200-.250、宿主机 .1）时丢弃；任一端口为 9092/9093/9094（Kafka 自身流量）时丢弃。</p>
+      <p>入口 A 过滤规则（<code>bridge.py</code>）：源和目的<b>都</b>是基础设施地址（<code>10.*</code>、节点 .10-.15、MetalLB .200-.250、宿主机 .1）时丢弃；任一端口为 9092/9093/9094（Kafka 自身流量）时丢弃；loopback 或 TCP/UDP 缺端口的残缺事件丢弃。</p>
     </section>
 
     <section id="model">

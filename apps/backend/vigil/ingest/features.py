@@ -1,8 +1,12 @@
 """
 Hubble flow 事件 → 数据包记录 → 流特征（35 个，与 DetectionInput 字段一致）。
 
-这里的计算必须与训练数据的生成方式一致（lab/dataset/aggregate_flows.py），
-否则模型看到的特征分布会和训练时不同。改动任何特征前先对照那边。
+流的切分在 flows.py（双向流 + FIN/RST + 超时，业界通用做法）。这里只负责：
+  · 单个 Hubble 事件 → 包记录（hubble_to_packet）
+  · 一条完整流的包 → 特征（compute_flow）
+
+单位与 CICFlowMeter / 训练数据一致：flow_duration、iat_* 为微秒；packets_per_second 为每秒。
+正向（fwd）= 连接发起方发出的包，反向（bwd）= 响应方发出的包。
 """
 
 import math
@@ -71,7 +75,11 @@ def _tcp_flags(l4: dict) -> dict:
     return flags_raw
 
 
+US = 1_000_000  # 秒 → 微秒
+
+
 def flow_key(flow: dict) -> tuple:
+    """单向五元组（事件里的 src→dst）。双向流的规范化见 flows.biflow_key。"""
     l4 = flow.get("l4", {})
     return (
         flow.get("IP", {}).get("source", ""),
@@ -100,6 +108,7 @@ def hubble_to_packet(flow: dict) -> dict:
     return {
         "ts":        _parse_ts(flow.get("time", "")),
         "direction": flow.get("traffic_direction", ""),
+        "obs_point": flow.get("trace_observation_point", ""),
         "verdict":   flow.get("verdict", ""),
         "flags":     _tcp_flags(l4),
         "is_reply":  bool(flow.get("is_reply", False)),
@@ -113,14 +122,20 @@ def hubble_to_packet(flow: dict) -> dict:
 
 
 def compute_flow(packets: list) -> dict:
+    """一条流的全部包 → 35 个特征。
+
+    包里有 "fwd"（bool，flows.FlowTable 填）时按发起方判断正反向；
+    没有时退回旧规则（direction == INGRESS 为正向）。src/dst 取发起方/响应方。
+    """
     packets = sorted(packets, key=lambda p: p["ts"])
 
     timestamps = [p["ts"] for p in packets]
-    duration   = max(timestamps[-1] - timestamps[0], 1e-6)
-    iats       = [timestamps[i+1] - timestamps[i] for i in range(len(timestamps) - 1)]
+    duration   = max(timestamps[-1] - timestamps[0], 1e-6)          # 秒，下面换算
+    iats       = [(timestamps[i+1] - timestamps[i]) * US for i in range(len(timestamps) - 1)]
 
     total = len(packets)
-    fwd   = sum(1 for p in packets if p["direction"] == "INGRESS")
+    is_fwd = [p["fwd"] if "fwd" in p else p["direction"] == "INGRESS" for p in packets]
+    fwd   = sum(is_fwd)
     bwd   = total - fwd
 
     flags_total: dict[str, int] = defaultdict(int)
@@ -133,30 +148,36 @@ def compute_flow(packets: list) -> dict:
     forwarded = sum(1 for p in packets if p["verdict"] == "FORWARDED")
     dropped   = total - forwarded
 
-    proto      = packets[0]["protocol"]
-    directions = {p["direction"] for p in packets}
+    # 发起方视角的端点：第一个正向包；全是反向包时把第一个包的两端对调
+    first_fwd = next((p for p, f in zip(packets, is_fwd) if f), None)
+    if first_fwd is not None:
+        src_ip, dst_ip = first_fwd["src_ip"], first_fwd["dst_ip"]
+        src_port, dst_port = first_fwd["src_port"], first_fwd["dst_port"]
+    else:
+        p0 = packets[0]
+        src_ip, dst_ip, src_port, dst_port = p0["dst_ip"], p0["src_ip"], p0["dst_port"], p0["src_port"]
+    proto = packets[0]["protocol"]
 
-    labels = [p["label"] for p in packets if p["label"] != ""]
+    labels = [p["label"] for p, f in zip(packets, is_fwd) if f and p["label"] != ""] \
+          or [p["label"] for p in packets if p["label"] != ""]
     label  = max(set(labels), key=labels.count) if labels else ""
 
-    dst_port = packets[0]["dst_port"]
-
     return {
-        "src_ip":    packets[0]["src_ip"],
-        "dst_ip":    packets[0]["dst_ip"],
-        "src_port":  packets[0]["src_port"],
+        "src_ip":    src_ip,
+        "dst_ip":    dst_ip,
+        "src_port":  src_port,
         "dst_port":  dst_port,
         "protocol":  proto,
-        "flow_duration":      round(duration, 4),
+        "flow_duration":      round(duration * US, 1),
         "total_packets":      total,
         "fwd_packets":        fwd,
         "bwd_packets":        bwd,
         "fwd_ratio":          _ratio(fwd, total),
         "packets_per_second": round(total / duration, 4),
-        "iat_mean": round(_mean(iats), 6) if iats else 0.0,
-        "iat_std":  round(_std(iats),  6) if iats else 0.0,
-        "iat_min":  round(min(iats),   6) if iats else 0.0,
-        "iat_max":  round(max(iats),   6) if iats else 0.0,
+        "iat_mean": round(_mean(iats), 1) if iats else 0.0,
+        "iat_std":  round(_std(iats),  1) if iats else 0.0,
+        "iat_min":  round(min(iats),   1) if iats else 0.0,
+        "iat_max":  round(max(iats),   1) if iats else 0.0,
         "syn_count": flags_total["SYN"],
         "ack_count": flags_total["ACK"],
         "fin_count": flags_total["FIN"],
@@ -172,7 +193,7 @@ def compute_flow(packets: list) -> dict:
         "forwarded_count": forwarded,
         "drop_count":      dropped,
         "drop_ratio":      _ratio(dropped, total),
-        "is_bidirectional":   int(len(directions) > 1),
+        "is_bidirectional":   int(fwd > 0 and bwd > 0),
         "is_tcp":  int(proto == "TCP"),
         "is_udp":  int(proto == "UDP"),
         "is_icmp": int(proto in ("ICMPv4", "ICMPv6")),
@@ -181,15 +202,20 @@ def compute_flow(packets: list) -> dict:
     }
 
 
-
-
 def should_skip(flow: dict) -> bool:
-    """集群内部流量（两端都是基础设施）、Kafka 自身的流量、缺 IP 的事件不参与检测。"""
+    """集群内部流量（两端都是基础设施）、Kafka 自身的流量、loopback、缺 IP 或缺端口的残缺事件不参与检测。"""
     src = flow.get("IP", {}).get("source", "")
     dst = flow.get("IP", {}).get("destination", "")
     if not src or not dst:
         return True
     if is_infrastructure(src) and is_infrastructure(dst):
         return True
+    # loopback：节点本地 socket 层的记录，不是网络上的包
+    if src.startswith("127.") or dst.startswith("127.") or src == "::1" or dst == "::1":
+        return True
     l4 = flow.get("l4", {})
+    # TCP/UDP 缺任一端口 = 残缺事件（无观测点、无方向），缺的端口不能当 0 用
+    for proto in ("TCP", "UDP"):
+        if proto in l4 and not ("source_port" in l4[proto] and "destination_port" in l4[proto]):
+            return True
     return _port(l4, "source_port") in KAFKA_PORTS or _port(l4, "destination_port") in KAFKA_PORTS

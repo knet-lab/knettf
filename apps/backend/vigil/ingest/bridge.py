@@ -1,7 +1,7 @@
 """
 后台检测线程（随 Django 进程启动，见 vigil/apps.py）：
 
-  bridge 线程：Kafka(ebpf-net-logs) → 按五元组聚合 → flow_queue
+  bridge 线程：Kafka(ebpf-net-logs) → 流表（双向流 + FIN/RST + 超时，见 flows.py）→ flow_queue
   drainer 线程：flow_queue → services.detect_batch（检测 + 存库）
 
 Kafka 地址、topic、消费组都在 settings（.env）里：VIGIL_KAFKA_BOOTSTRAP / VIGIL_KAFKA_TOPIC / VIGIL_KAFKA_GROUP_ID。
@@ -13,16 +13,17 @@ import logging
 import queue
 import threading
 import time
-from collections import defaultdict
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from django.conf import settings
 
-from .features import compute_flow, flow_key, hubble_to_packet, should_skip
+from .features import hubble_to_packet, should_skip
+from .flows import FlowTable
 
 logger = logging.getLogger("vigil.bridge")
 
-CONSUME_BATCH = 10000  # 每次从 Kafka 取的消息数，取完即聚合
+CONSUME_BATCH  = 10000  # 每次从 Kafka 取的消息数
+SWEEP_INTERVAL = 1.0    # 秒：多久检查一次超时流并把已结束的流送去检测
 
 
 # ── In-process queue (bridge thread → async consumer) ─────────────────────────
@@ -47,30 +48,25 @@ def run_bridge():
     logger.info("bridge starting → bootstrap=%s topic=%s group=%s",
                 settings.VIGIL_KAFKA_BOOTSTRAP, settings.VIGIL_KAFKA_TOPIC, settings.VIGIL_KAFKA_GROUP_ID)
 
-    open_flows: dict[tuple, list] = defaultdict(list)
-    pending:    list[dict]        = []
+    table   = FlowTable()
+    pending: list[dict] = []
+    last_sweep = time.time()
+    uncommitted = False
 
-    def _flush():
-        flush_ts = time.time()
-        for k, pkts in open_flows.items():
-            if pkts:
-                flow = compute_flow(pkts)
-                first_ts = min(p["ts"] for p in pkts)
-                flow["aggregation_ms"] = round((flush_ts - first_ts) * 1000, 1)
-                pending.append(flow)
-        open_flows.clear()
-        if pending:
-            batch = pending[:]
-            pending.clear()
-            try:
-                flow_queue.put_nowait(batch)
-            except queue.Full:
-                logger.warning("flow_queue full, dropping batch of %d flows", len(batch))
-            consumer.commit(asynchronous=True)
+    def _send():
+        if not pending:
+            return
+        batch = pending[:]
+        pending.clear()
+        try:
+            flow_queue.put_nowait(batch)
+        except queue.Full:
+            logger.warning("flow_queue full, dropping batch of %d flows", len(batch))
 
     try:
         while True:
             msgs = consumer.consume(num_messages=CONSUME_BATCH, timeout=0.1)
+            uncommitted = uncommitted or bool(msgs)
 
             for msg in msgs:
                 if msg.error():
@@ -81,22 +77,25 @@ def run_bridge():
                     event = json.loads(msg.value().decode("utf-8"))
                     flow  = event.get("flow", {})
                     if flow and not should_skip(flow):
-                        open_flows[flow_key(flow)].append(hubble_to_packet(flow))
-
+                        pending.extend(table.add(hubble_to_packet(flow)))
                 except (json.JSONDecodeError, Exception) as e:
                     logger.debug("skip malformed message: %s", e)
 
-            if open_flows:
-                _flush()
+            now = time.time()
+            if now - last_sweep >= SWEEP_INTERVAL:
+                last_sweep = now
+                pending.extend(table.expire(now))
+                _send()
+                # 提交的是"已读到"的位置；还在流表里没输出的流在进程重启时会丢失（最多一个超时周期）
+                if uncommitted:
+                    consumer.commit(asynchronous=True)
+                    uncommitted = False
 
     except Exception as e:
         logger.error("bridge error: %s", e)
     finally:
-        if pending:
-            try:
-                flow_queue.put_nowait(pending)
-            except queue.Full:
-                pass
+        pending.extend(table.flush_all())
+        _send()
         consumer.commit(asynchronous=False)
         consumer.close()
         logger.info("bridge shut down cleanly")
