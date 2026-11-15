@@ -107,4 +107,6 @@ git grep -nIE 'knettf\.com|cloudflare|/srv/netsentinel|User=netsentinel|knet-lab
 | 缺少原始训练数据 | 线上模型降维前的 35 特征训练数据不在仓库里，需要向模型方索取 |
 | 东西向单包单向流 | 正常基线里约 27% 的东西向流只有 1 个正向包、没有回包（目标多为 gRPC / redis 等长连接的服务端口），疑似长连接上的零星包（keepalive 等）的回包没有计入同一条流，原因待查。`model-kit/data/` 的样本里包含这些流 |
 | 少量流方向判断 | 服务刚启动时，大端口服务（如 gRPC 50051）的长连接可能判反，运行一段时间后会自动修正 |
+| 跨节点包重复计数（已修复，待重导基线） | 跨节点 Pod→Pod 的包经 overlay 隧道，曾在源节点 FROM_ENDPOINT 和目的节点 FROM_NETWORK 各计一次，跨节点流（约占包量 90%）包数翻倍、包间隔被打乱。已在 `vigil/ingest/flows.py` 修复；修复前导出的 `model-kit/data/` 样本受影响，需要重新导出并请模型方复核阈值 |
+| 发送端与接收端包数不一致 | 同一方向的包，发送端 FROM_ENDPOINT 的事件数明显少于接收端 TO_ENDPOINT（采样约 1.16 万 vs 1.79 万），疑似发送端 TSO/GSO 大包只上报一次。现行口径在发送端计数；接收端更接近线路上的真实包数（训练数据 CICFlowMeter 的口径）。采用哪一端需与模型方确认 |
 | 字节特征 | Hubble 没有包长。长期方案：换成不依赖 CNI 的 eBPF 流采集（如 NetObserv eBPF Agent），在内核里聚合流并补上字节和包间隔统计，再打包成 Helm chart |

@@ -23,11 +23,16 @@ _HOST_GW = "192.168.100.1"  # virbr-k8s 宿主机网关
 def is_infrastructure(ip: str) -> bool:
     """True if this IP belongs to cluster infrastructure (not external traffic)."""
     return (
-        ip.startswith("10.")
+        is_pod_ip(ip)
         or ip in _NODE_IPS
         or ip in _METALLB_IPS
         or ip == _HOST_GW
     )
+
+
+def is_pod_ip(ip: str) -> bool:
+    """Pod 地址（实验环境 Pod 网段 10.0.0.0/8）。"""
+    return ip.startswith("10.")
 
 
 def is_node_level(ip: str) -> bool:
