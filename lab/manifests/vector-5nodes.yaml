@@ -17,6 +17,9 @@ data:
           - --output=json
           # hubble-relay Service port=4245（02 的 helm install 已设置）
           - --server=hubble-relay.kube-system.svc.cluster.local:4245
+          # relay 返回全集群事件；Vector 是 DaemonSet，每个节点一份。只拉本节点的事件，
+          # 否则 5 份 Vector 各写一遍，Kafka 里每个事件重复约 5 次
+          - --node-name=${NODE_NAME}
         streaming:
           respawn_on_exit: true
           respawn_interval_secs: 5
@@ -132,6 +135,10 @@ spec:
             - --config
             - /etc/vector/vector.yaml
           env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: KAFKA_BOOTSTRAP
               valueFrom:
                 secretKeyRef:
