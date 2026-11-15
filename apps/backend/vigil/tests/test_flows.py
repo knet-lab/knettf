@@ -28,14 +28,36 @@ class FlowTableTests(SimpleTestCase):
         out += t.add(_pkt(5.0, flags={"FIN": True, "ACK": True}))
         self.assertEqual(out, [])                      # 只有一方 FIN，流未结束
         out += t.add(_back(5.1, flags={"FIN": True, "ACK": True}))
+        self.assertEqual(out, [])                      # 双方 FIN，等挥手最后的 ACK
+        out += t.add(_pkt(5.2, flags={"ACK": True}))
         self.assertEqual(len(out), 1)
         f = out[0]
         self.assertEqual((f["src_ip"], f["dst_ip"], f["dst_port"]), ("192.168.100.20", "10.0.1.5", 80))
-        self.assertEqual((f["total_packets"], f["fwd_packets"], f["bwd_packets"]), (5, 3, 2))
+        self.assertEqual((f["total_packets"], f["fwd_packets"], f["bwd_packets"]), (6, 4, 2))
         self.assertEqual(f["is_bidirectional"], 1)
-        self.assertEqual(f["flow_duration"], 5_100_000.0)
+        self.assertEqual(f["flow_duration"], 5_200_000.0)
         self.assertEqual(set(f) - {"aggregation_ms"}, set(DetectionInput.__dataclass_fields__))
         self.assertEqual(len(t), 0)
+
+    def test_close_without_last_ack_ends_after_grace(self):
+        t = FlowTable()
+        t.add(_pkt(0.0, flags={"SYN": True}))
+        t.add(_pkt(1.0, flags={"FIN": True, "ACK": True}))
+        t.add(_back(1.1, flags={"FIN": True, "ACK": True}))
+        self.assertEqual(t.expire(2.0), [])
+        out = t.expire(3.2)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["total_packets"], 3)
+
+    def test_new_syn_after_close_starts_new_flow(self):
+        t = FlowTable()
+        t.add(_pkt(0.0, flags={"SYN": True}))
+        t.add(_pkt(1.0, flags={"FIN": True, "ACK": True}))
+        t.add(_back(1.1, flags={"FIN": True, "ACK": True}))
+        out = t.add(_pkt(1.5, flags={"SYN": True}))
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["total_packets"], 3)
+        self.assertEqual(len(t), 1)
 
     def test_rst_ends_flow(self):
         t = FlowTable()
