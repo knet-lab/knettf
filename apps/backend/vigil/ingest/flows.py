@@ -64,6 +64,10 @@ class FlowTable:
         self.max_packets = max_packets
         self.max_flows = max_flows
         self._flows: dict[tuple, _Flow] = {}
+        # 已输出的流记住其发起方：超时切开的后续段、关闭后零星的包都沿用，避免方向颠倒
+        self._initiators: dict[tuple, tuple[tuple, float]] = {}
+        # 从 TCP 握手学到的服务端 (ip, port)：SYN 的目标、SYN+ACK 的发送方
+        self._servers: dict[tuple, None] = {}
 
     def __len__(self):
         return len(self._flows)
@@ -78,16 +82,22 @@ class FlowTable:
 
         # 活跃超时：老流先输出，这个包开始新的一条
         if f is not None and p["ts"] - f.first_ts >= self.active_timeout:
-            out.append(self._emit(key))
+            out.append(self._emit(key, remember=True))
             f = None
 
         if f is None:
             if len(self._flows) >= self.max_flows:
                 oldest = min(self._flows, key=lambda k: self._flows[k].last_ts)
                 out.append(self._emit(oldest))
-            # 发起方：第一个看到的包的发送方；如果它是回包（is_reply），发起方是对端
-            init = (p["dst_ip"], p["dst_port"]) if p.get("is_reply") else (p["src_ip"], p["src_port"])
-            f = self._flows[key] = _Flow(initiator=init, first_ts=p["ts"], last_ts=p["ts"])
+            f = self._flows[key] = _Flow(initiator=self._initiator(key, p),
+                                         first_ts=p["ts"], last_ts=p["ts"])
+
+        flags0 = p.get("flags") or {}
+        if flags0.get("SYN"):
+            server = (p["src_ip"], p["src_port"]) if flags0.get("ACK") else (p["dst_ip"], p["dst_port"])
+            self._servers[server] = None
+            if len(self._servers) > self.max_flows:            # 有界：丢掉最早学到的
+                self._servers.pop(next(iter(self._servers)))
 
         fwd = (p["src_ip"], p["src_port"]) == f.initiator
         f.packets.append({**p, "fwd": fwd})
@@ -99,22 +109,55 @@ class FlowTable:
                 f.fin_fwd = True
             else:
                 f.fin_bwd = True
-        if flags.get("RST") or (f.fin_fwd and f.fin_bwd) or len(f.packets) >= self.max_packets:
-            out.append(self._emit(key))
+        if flags.get("RST") or (f.fin_fwd and f.fin_bwd):
+            out.append(self._emit(key, remember=True))   # 关闭后可能还有零星的 ACK，沿用方向
+        elif len(f.packets) >= self.max_packets:
+            out.append(self._emit(key, remember=True))   # 连接还在，后续段沿用发起方
         return out
+
+    def _initiator(self, key: tuple, p: dict) -> tuple:
+        """判断连接发起方（业界常用的优先级）：
+        1. 同一连接上一段因超时输出时记下的发起方
+        2. TCP 握手：只带 SYN 的一方是发起方；SYN+ACK 的发送方是服务端
+        3. 之前从握手学到的服务端 (ip, port)
+        4. Hubble 的 is_reply（回包的发送方是服务端）
+        5. 端口：端口号小的一方是服务端（80/443/8080 vs 临时端口；对 50051 这类大端口不可靠，最后才用）
+        """
+        src, dst = (p["src_ip"], p["src_port"]), (p["dst_ip"], p["dst_port"])
+        known = self._initiators.pop(key, None)
+        if known is not None:
+            return known[0]
+        flags = p.get("flags") or {}
+        if flags.get("SYN"):
+            return dst if flags.get("ACK") else src
+        if dst in self._servers:
+            return src
+        if src in self._servers:
+            return dst
+        if p.get("is_reply"):
+            return dst
+        if p["src_port"] and p["dst_port"] and p["src_port"] < p["dst_port"]:
+            return dst
+        return src
 
     def expire(self, now: float) -> list[dict]:
         """输出空闲超时或活跃超时的流。now 与事件时间戳同一时钟（epoch 秒）。"""
         keys = [k for k, f in self._flows.items()
                 if now - f.last_ts >= self.idle_timeout or now - f.first_ts >= self.active_timeout]
-        return [self._emit(k) for k in keys]
+        out = [self._emit(k, remember=True) for k in keys]
+        # 记下的发起方只在连接可能继续时有用；空闲超时两倍后丢弃
+        for k in [k for k, (_, ts) in self._initiators.items() if now - ts >= 2 * self.idle_timeout]:
+            del self._initiators[k]
+        return out
 
     def flush_all(self) -> list[dict]:
         """进程退出时输出所有未结束的流。"""
         return [self._emit(k) for k in list(self._flows)]
 
-    def _emit(self, key: tuple) -> dict:
+    def _emit(self, key: tuple, remember: bool = False) -> dict:
         f = self._flows.pop(key)
+        if remember:
+            self._initiators[key] = (f.initiator, f.last_ts)
         flow = compute_flow(f.packets)
         # 首包到输出的延迟（含等待流结束/超时的时间），前端用来展示检测时效
         flow["aggregation_ms"] = round(max(time.time() - f.first_ts, 0.0) * 1000, 1)
