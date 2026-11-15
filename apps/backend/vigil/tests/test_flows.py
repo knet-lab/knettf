@@ -78,3 +78,46 @@ class FlowTableTests(SimpleTestCase):
         self.assertEqual(out[0]["total_packets"], 12)
         (rest,) = t.flush_all()
         self.assertEqual(rest["total_packets"], 8)
+
+
+class InitiatorTests(SimpleTestCase):
+    def test_direction_kept_across_active_timeout(self):
+        """长连接被活跃超时切开后，下一段即使先看到回包（且没有 is_reply），方向也不反。"""
+        t = FlowTable(idle_timeout=60, active_timeout=120)
+        t.add(_pkt(0.0, flags={"SYN": True}))
+        t.add(_back(0.1, flags={"SYN": True, "ACK": True}))
+        (first,) = t.expire(now=120.0)
+        resp = _back(125.0, flags={"ACK": True}); resp["is_reply"] = False
+        t.add(resp)
+        t.add(_pkt(126.0, flags={"ACK": True}))
+        (second,) = t.flush_all()
+        self.assertEqual((first["src_ip"], first["dst_port"]), ("192.168.100.20", 80))
+        self.assertEqual((second["src_ip"], second["dst_port"]), ("192.168.100.20", 80))
+        self.assertEqual((second["fwd_packets"], second["bwd_packets"]), (1, 1))
+
+    def test_synack_seen_first(self):
+        t = FlowTable()
+        sa = _back(0.0, flags={"SYN": True, "ACK": True}); sa["is_reply"] = False
+        t.add(sa)
+        (f,) = t.flush_all()
+        self.assertEqual((f["src_ip"], f["dst_port"]), ("192.168.100.20", 80))
+
+    def test_port_heuristic(self):
+        t = FlowTable()
+        p = _back(0.0, flags={"ACK": True}); p["is_reply"] = False     # 中途接入、无任何提示
+        t.add(p)
+        (f,) = t.flush_all()
+        self.assertEqual((f["src_ip"], f["dst_port"]), ("192.168.100.20", 80))
+
+    def test_learned_server_beats_port_heuristic(self):
+        """gRPC 服务端口 50051 大于客户端临时端口时，靠握手学到的服务端判断方向。"""
+        t = FlowTable()
+        cli = dict(src="10.0.2.14", dst="10.0.1.237", sport=34504, dport=50051, obs="FROM_ENDPOINT")
+        t.add(_pkt(0.0, flags={"SYN": True}, **cli))
+        t.flush_all()
+        # 另一个客户端的长连接，中途接入，先看到服务端发来的包
+        p = _pkt(5.0, src="10.0.1.237", dst="10.0.3.230", sport=50051, dport=34322,
+                 flags={"ACK": True}, obs="FROM_ENDPOINT")
+        t.add(p)
+        (f,) = t.flush_all()
+        self.assertEqual((f["src_ip"], f["dst_port"]), ("10.0.3.230", 50051))
