@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-UV="$(command -v uv 2>/dev/null || echo /home/soar009/.local/bin/uv)"
+UV="$(command -v uv 2>/dev/null || echo "$HOME/.local/bin/uv")"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="$SCRIPT_DIR/.."
