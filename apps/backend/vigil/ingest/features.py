@@ -217,6 +217,10 @@ def should_skip(flow: dict) -> bool:
     # 另一端也在集群内。Pod↔Pod（东西向）与外部↔集群（南北向）都保留检测。
     if (is_node_level(src) and is_infrastructure(dst)) or (is_node_level(dst) and is_infrastructure(src)):
         return True
+    # 发往 LoadBalancer VIP 的包在 FROM_NETWORK 处记录的是 DNAT 前的地址，随后会以 Pod 地址
+    # 在 FROM_HOST 再记录一次；只保留后者，请求和回包才能落在同一条"客户端↔Pod"双向流里
+    if flow.get("trace_observation_point") == "FROM_NETWORK" and dst in _METALLB_IPS:
+        return True
     # loopback：节点本地 socket 层的记录，不是网络上的包
     if src.startswith("127.") or dst.startswith("127.") or src == "::1" or dst == "::1":
         return True
