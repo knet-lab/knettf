@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import sys
 import environ
 from datetime import timedelta
 from pathlib import Path
@@ -208,3 +209,7 @@ if env('ENVIRONMENT') == 'linux_development':
     TF_BIN = '/usr/bin/terraform'
 elif env('ENVIRONMENT') == 'mac_os':
     TF_BIN = '/Users/soar009/Projects/terraform/terraform_1.14.7_darwin_arm64/terraform'
+# 只在跑测试时用快速的密码哈希：默认 PBKDF2 每次约 1 秒，测试里大量建用户/登录，
+# 后端测试从约 100 秒降到十几秒。线上和开发运行不受影响。
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
