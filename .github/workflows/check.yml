@@ -34,9 +34,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4   # 版本取自 apps/frontend/package.json 的 packageManager
         with:
-          version: 10.27.0
+          package_json_file: apps/frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
