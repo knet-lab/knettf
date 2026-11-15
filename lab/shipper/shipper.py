@@ -29,6 +29,7 @@ sys.path.insert(0, os.environ.get("INGEST_PARENT", str(HERE)))  # 含 ingest/ �
 import grpc                                           # noqa: E402
 from confluent_kafka import Producer                  # noqa: E402
 from google.protobuf.json_format import MessageToDict  # noqa: E402
+from flow import flow_pb2                              # noqa: E402
 from observer import observer_pb2, observer_pb2_grpc  # noqa: E402
 
 from ingest.features import hubble_to_packet, should_skip  # noqa: E402
@@ -50,9 +51,45 @@ def is_pipeline_traffic(flow: dict) -> bool:
 
 
 def keep(flow: dict, dedup: bool) -> bool:
+    """按完整的 JSON 字典判断（参照实现，测试用来和 keep_fast 对拍）。"""
     if not flow or is_pipeline_traffic(flow) or should_skip(flow):
         return False
     return counts_once(hubble_to_packet(flow)) if dedup else True
+
+
+_OBS_NAME = flow_pb2.TraceObservationPoint.Name
+
+
+def light_dict(f) -> dict:
+    """只取过滤和去重要读的字段，取值与 MessageToDict 一致（默认值字段省略）。
+
+    MessageToDict 是主要 CPU 开销，而约 85% 的事件会被丢弃，所以先用这个轻量字典判断，
+    只对保留的事件做完整转换。
+    """
+    d = {"IP": {"source": f.IP.source, "destination": f.IP.destination},
+         "source": {"namespace": f.source.namespace, "labels": list(f.source.labels)},
+         "destination": {"namespace": f.destination.namespace, "labels": list(f.destination.labels)}}
+    if f.trace_observation_point:
+        d["trace_observation_point"] = _OBS_NAME(f.trace_observation_point)
+    proto = f.l4.WhichOneof("protocol")
+    if proto:
+        l4 = {}
+        if proto in ("TCP", "UDP"):
+            m = getattr(f.l4, proto)
+            if m.source_port:
+                l4["source_port"] = m.source_port
+            if m.destination_port:
+                l4["destination_port"] = m.destination_port
+        d["l4"] = {proto: l4}
+    return d
+
+
+def keep_fast(f, dedup: bool) -> bool:
+    """与 keep(MessageToDict(flow)) 结果相同，但不做完整转换。"""
+    d = light_dict(f)
+    if is_pipeline_traffic(d) or should_skip(d):
+        return False
+    return counts_once({"obs_point": d.get("trace_observation_point", ""), "src_ip": f.IP.source}) if dedup else True
 
 
 def to_dict(resp) -> dict:
@@ -108,8 +145,8 @@ def run():
                         stats.lost += resp.lost_events.num_events_lost
                     elif kind == "flow":
                         stats.seen += 1
-                        event = to_dict(resp)
-                        if keep(event.get("flow", {}), dedup):
+                        if keep_fast(resp.flow, dedup):
+                            event = to_dict(resp)
                             produce(producer, topic, json.dumps(event, separators=(",", ":")).encode())
                             stats.sent += 1
                     stats.maybe_log()
