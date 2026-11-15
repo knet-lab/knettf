@@ -125,6 +125,7 @@ python try_my_model.py --model my_model.py:MyModel --model-dir ./my_model_files
 - `data/normal_baseline_sample.csv`：我们实验环境里的**正常流量**（`label=0`）。
   - 来源：Online Boutique 电商演示应用（11 个微服务）+ 10 个仿真外部客户端（不同网络延迟）
   - `kind` 列：`ns` = 外部客户端 → 集群；`ew` = 集群内服务之间
+  - 已知：约 1/4 的 `ew` 流只有 1 个包、没有回包（长连接上的零星包），训练时可以按需过滤（`total_packets > 1`）
 - 需要更多数据（更长时间、只要某一类）时告诉我们，我们在服务器上用 `export_flows.py` 导出。
 
 ---
