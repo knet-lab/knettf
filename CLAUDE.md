@@ -17,5 +17,5 @@ NetSentinel 检测平台 + Kubernetes eBPF 流量实验环境。总体说明见 
 
 ## 关键约定
 
-- 流的定义：双向五元组；FIN/RST 结束，空闲 60 秒、活跃 120 秒超时；`flow_duration` 和 `iat_*` 的单位是**微秒**（与 CICFlowMeter、训练数据一致）。实现见 `apps/backend/vigil/ingest/flows.py`。
+- 流的定义：双向五元组；RST 立即结束，双方 FIN 后收下挥手最后的 ACK 再结束（参照 Zeek），空闲 60 秒、活跃 120 秒超时；`flow_duration` 和 `iat_*` 的单位是**微秒**（与 CICFlowMeter、训练数据一致）。实现见 `apps/backend/vigil/ingest/flows.py`。
 - 实验环境内部网段：VM `192.168.100.0/24`，MetalLB `.200-.250`，Pod `10.0.0.0/8`，仿真客户端区 `172.30.0.0/16`。

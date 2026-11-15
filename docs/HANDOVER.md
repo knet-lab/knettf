@@ -18,7 +18,7 @@
 | 部分 | 状态 |
 |---|---|
 | 采集链路 | ✅ 每节点直连本地 Hubble socket，无重复、不采集自身流量 |
-| 流切分（`vigil/ingest`） | ✅ 双向流、FIN/RST + 空闲 60s / 活跃 120s 超时、微秒单位，参照 CICFlowMeter |
+| 流切分（`vigil/ingest`） | ✅ 双向流、RST 立即结束、双方 FIN 后收下挥手尾包再结束（参照 Zeek）+ 空闲 60s / 活跃 120s 超时、微秒单位 |
 | 正常流量基线 | ✅ Online Boutique（`04-deploy-baseline.sh`）+ 宿主机仿真客户端区（`lab/traffic/client-zone.sh`） |
 | 检测模型 | ⚠️ 现模型 `ads_ml_ocsvm` 把确定正常的流量几乎 100% 判为攻击；原因在训练数据（见第 5 节） |
 | 模型接入 | ✅ 独立接入包 [`model-kit/`](../model-kit/README.md)，模型方不需要懂平台即可开发、自测 |
@@ -105,7 +105,7 @@ git grep -nIE 'knettf\.com|cloudflare|/srv/netsentinel|User=netsentinel|knet-lab
 |---|---|
 | 现模型把正常流量判为攻击 | TON_IoT 版本：测试集和训练集是同一份；特征来自 Zeek，eBPF 大部分采不到。eBPF 版本：训练数据里正常和攻击可以只靠 IP / 端口区分；IP 编码器只认识训练时的地址；protocol 编码不一致（模型认 `'6'`，平台送 `"TCP"`）。详见 `model-kit/README.md` 第 7 节 |
 | 缺少原始训练数据 | 线上模型降维前的 35 特征训练数据不在仓库里，需要向模型方索取 |
-| 东西向单包单向流 | 正常基线里约 30% 的东西向流只有 1 个正向包、没有回包（目标多为 gRPC / redis 等长连接的服务端口），疑似长连接上的零星包（keepalive 等）的回包没有计入同一条流，原因待查。`model-kit/data/` 的样本里包含这些流 |
+| 东西向单包流（已修复） | 原因是双方 FIN 后立即输出流，挥手最后的 ACK 单独成了一条单包流（约 30%）。已改为收下尾包再结束，离线重放降到约 2%。`model-kit/data/` 里修复前导出的样本仍含这些流，需重新导出 |
 | 少量流方向判断 | 服务刚启动时，大端口服务（如 gRPC 50051）的长连接可能判反，运行一段时间后会自动修正 |
 | 跨节点包重复计数（已修复） | 跨节点 Pod→Pod 的包经 overlay 隧道，曾在源节点 FROM_ENDPOINT 和目的节点 FROM_NETWORK 各计一次，跨节点流（约占包量 90%）包数翻倍、包间隔被打乱。已在 `vigil/ingest/flows.py` 修复，`model-kit/data/` 已用修复后的数据重新导出。2026-11-15 之前存库的检测记录仍是旧口径，不要和之后的数据混用 |
 | 自动标签误标 | `ingest/features.py` 按源 IP 最后一段打 label（20–29 → 1，50–64 → 0），本意是宿主机伪造源 `192.168.100.x`，但仿真客户端 `172.30.*.20–29` 的正常流量也会被标成 1。导出训练数据时用 `export_flows.py --label` 显式指定 |

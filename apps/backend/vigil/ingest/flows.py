@@ -3,7 +3,10 @@
 
 一条流 = 同一对端点（双向五元组）之间的一次通信：
   · 双向：A→B 与 B→A 的包归入同一条流；先发包的一方是发起方（正向 fwd）
-  · 结束：TCP 出现 RST，或双方都发过 FIN → 立即输出
+  · 结束：TCP 出现 RST → 立即输出。双方都发过 FIN → 进入"关闭中"，收下挥手最后的 ACK
+    再输出（Zeek 同样把关闭后的尾包留在原连接里；第一个 FIN 就切流会把尾包切成单包流，
+    是原版 CICFlowMeter 的已知缺陷）。CLOSE_GRACE 内没等到尾包、或同一五元组出现新的 SYN
+    （端口复用）时也输出
   · 空闲超时 IDLE_TIMEOUT：这么久没有新包 → 输出
   · 活跃超时 ACTIVE_TIMEOUT：流持续超过这么久 → 先输出一段，后续包开始新的一条
   · 单条流包数上限 MAX_PACKETS：防止异常长流占满内存，达到即输出
@@ -26,6 +29,7 @@ from .features import compute_flow, is_pod_ip
 
 IDLE_TIMEOUT   = 60.0     # 秒
 ACTIVE_TIMEOUT = 120.0    # 秒（CICFlowMeter 默认 flow timeout）
+CLOSE_GRACE    = 2.0      # 秒：双方 FIN 之后等挥手尾包的时间
 MAX_PACKETS    = 10_000
 MAX_FLOWS      = 200_000  # 同时打开的流上限，超出时最早不活跃的先输出
 
@@ -58,11 +62,13 @@ class _Flow:
     packets: list = field(default_factory=list)
     fin_fwd: bool = False
     fin_bwd: bool = False
+    closing: bool = False       # 双方都发过 FIN，等挥手尾包
 
 
 class FlowTable:
     def __init__(self, idle_timeout=IDLE_TIMEOUT, active_timeout=ACTIVE_TIMEOUT,
-                 max_packets=MAX_PACKETS, max_flows=MAX_FLOWS):
+                 max_packets=MAX_PACKETS, max_flows=MAX_FLOWS, close_grace=CLOSE_GRACE):
+        self.close_grace = close_grace
         self.idle_timeout = idle_timeout
         self.active_timeout = active_timeout
         self.max_packets = max_packets
@@ -84,8 +90,10 @@ class FlowTable:
         out: list[dict] = []
         f = self._flows.get(key)
 
-        # 活跃超时：老流先输出，这个包开始新的一条
-        if f is not None and p["ts"] - f.first_ts >= self.active_timeout:
+        flags = p.get("flags") or {}
+        # 活跃超时，或已关闭的连接上出现新的 SYN（端口复用）：老流先输出，这个包开始新的一条
+        if f is not None and (p["ts"] - f.first_ts >= self.active_timeout
+                              or (f.closing and flags.get("SYN"))):
             out.append(self._emit(key, remember=True))
             f = None
 
@@ -96,9 +104,8 @@ class FlowTable:
             f = self._flows[key] = _Flow(initiator=self._initiator(key, p),
                                          first_ts=p["ts"], last_ts=p["ts"])
 
-        flags0 = p.get("flags") or {}
-        if flags0.get("SYN"):
-            server = (p["src_ip"], p["src_port"]) if flags0.get("ACK") else (p["dst_ip"], p["dst_port"])
+        if flags.get("SYN"):
+            server = (p["src_ip"], p["src_port"]) if flags.get("ACK") else (p["dst_ip"], p["dst_port"])
             self._servers[server] = None
             if len(self._servers) > self.max_flows:            # 有界：丢掉最早学到的
                 self._servers.pop(next(iter(self._servers)))
@@ -107,14 +114,17 @@ class FlowTable:
         f.packets.append({**p, "fwd": fwd})
         f.last_ts = max(f.last_ts, p["ts"])
 
-        flags = p.get("flags") or {}
         if flags.get("FIN"):
             if fwd:
                 f.fin_fwd = True
             else:
                 f.fin_bwd = True
-        if flags.get("RST") or (f.fin_fwd and f.fin_bwd):
-            out.append(self._emit(key, remember=True))   # 关闭后可能还有零星的 ACK，沿用方向
+        if flags.get("RST"):
+            out.append(self._emit(key, remember=True))   # 之后零星的包沿用方向
+        elif f.closing and not flags.get("FIN"):
+            out.append(self._emit(key, remember=True))   # 挥手最后的 ACK 已收进来
+        elif f.fin_fwd and f.fin_bwd:
+            f.closing = True                             # 等最后的 ACK（或 CLOSE_GRACE 超时）
         elif len(f.packets) >= self.max_packets:
             out.append(self._emit(key, remember=True))   # 连接还在，后续段沿用发起方
         return out
@@ -145,9 +155,10 @@ class FlowTable:
         return src
 
     def expire(self, now: float) -> list[dict]:
-        """输出空闲超时或活跃超时的流。now 与事件时间戳同一时钟（epoch 秒）。"""
+        """输出空闲超时、活跃超时、关闭后等尾包超时的流。now 与事件时间戳同一时钟（epoch 秒）。"""
         keys = [k for k, f in self._flows.items()
-                if now - f.last_ts >= self.idle_timeout or now - f.first_ts >= self.active_timeout]
+                if now - f.last_ts >= self.idle_timeout or now - f.first_ts >= self.active_timeout
+                or (f.closing and now - f.last_ts >= self.close_grace)]
         out = [self._emit(k, remember=True) for k in keys]
         # 记下的发起方只在连接可能继续时有用；空闲超时两倍后丢弃
         for k in [k for k, (_, ts) in self._initiators.items() if now - ts >= 2 * self.idle_timeout]:
