@@ -67,12 +67,14 @@ spec:
             # 连接 unix socket 需要写权限，不能 readOnly
             - name: cilium-run
               mountPath: /var/run/cilium
+          # 流量最大的节点约 4000 事件/秒；500m 时只能处理约 1350/秒，Hubble 丢失过半。
+          # 1 核留约 2 倍余量；日志里「Hubble 丢失」持续不为 0 说明还不够。
           resources:
             requests:
-              cpu: "100m"
+              cpu: "200m"
               memory: "128Mi"
             limits:
-              cpu: "500m"
+              cpu: "1000m"
               memory: "512Mi"
       volumes:
         - name: cilium-run
