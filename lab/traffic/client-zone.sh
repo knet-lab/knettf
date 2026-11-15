@@ -85,9 +85,16 @@ up() {
 
 start() {
   [ -x "$LOCUST" ] || die "找不到 $LOCUST（在 lab/ 下运行 uv sync）"
-  # shellcheck disable=SC1091
   URL=$(grep -oP '^BOUTIQUE_URL=\K.*' "${LAB_DIR}/.env" 2>/dev/null || true)
-  [ -n "$URL" ] || die "lab/.env 没有 BOUTIQUE_URL，先运行 cluster/04-deploy-baseline.sh"
+  if [ -z "$URL" ]; then
+    # root 没有 kubeconfig，以调用 sudo 的用户身份查询前端 LB 地址
+    local ip
+    ip=$(runuser -u "$RUN_USER" -- kubectl -n boutique get svc frontend-external \
+           -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+    [ -n "$ip" ] && URL="http://${ip}"
+  fi
+  [ -n "$URL" ] || die "找不到 Online Boutique 地址，先运行 cluster/04-deploy-baseline.sh"
+  say "目标：$URL"
   for i in $(seq 1 "$CLIENTS"); do
     local ns; ns=$(name "$i")
     ip netns list | grep -qw "$ns" || die "$ns 不存在，先运行 up"
