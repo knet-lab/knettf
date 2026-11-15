@@ -102,7 +102,8 @@ deploy_frontend() {
     command -v pnpm >/dev/null || die "找不到 pnpm（检查 nvm / node 是否安装）"
   fi
   cd "$ROOT/apps/frontend"
-  pnpm install --frozen-lockfile
+  # 非交互运行（systemd 无 TTY）：pnpm 版本变化需要重建 node_modules 时不再询问而是直接重建
+  CI=true pnpm install --frozen-lockfile
   pnpm build
   echo "✓ 前端已构建到 apps/frontend/dist"
 }
