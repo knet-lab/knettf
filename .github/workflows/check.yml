@@ -12,8 +12,43 @@ concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: true
 
+# 按改动范围只跑相关检查（ops/scripts/ci-targets.sh）：只改 lab/、docs/、ops/ 时不启动
+# PostgreSQL、不跑后端测试和前端构建。没跑的 job 是 skipped，自动部署视同通过。
 jobs:
-  check:
+  targets:
+    runs-on: ubuntu-24.04
+    outputs:
+      backend:  ${{ contains(steps.t.outputs.list, 'backend') }}
+      frontend: ${{ contains(steps.t.outputs.list, 'frontend') }}
+      light:    ${{ steps.t.outputs.light }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: t
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          list=$(ops/scripts/ci-targets.sh "$BASE")
+          light=$(tr ' ' '\n' <<<"$list" | grep -E '^(lab|ops)$' | paste -sd' ' || true)
+          echo "检查范围: $list"
+          echo "list=$list"   >>"$GITHUB_OUTPUT"
+          echo "light=$light" >>"$GITHUB_OUTPUT"
+
+  light:
+    needs: targets
+    if: needs.targets.outputs.light != ''
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: ops/scripts/check.sh ${{ needs.targets.outputs.light }}
+
+  backend:
+    needs: targets
+    if: needs.targets.outputs.backend == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
@@ -31,9 +66,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - run: ops/scripts/check.sh backend
+
+  frontend:
+    needs: targets
+    if: needs.targets.outputs.frontend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4   # 版本取自 apps/frontend/package.json 的 packageManager
         with:
           package_json_file: apps/frontend/package.json
@@ -42,5 +88,4 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
-      - name: ops/scripts/check.sh
-        run: ops/scripts/check.sh
+      - run: ops/scripts/check.sh frontend
