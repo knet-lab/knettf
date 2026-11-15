@@ -105,5 +105,6 @@ git grep -nIE 'knettf\.com|cloudflare|/srv/netsentinel|User=netsentinel|knet-lab
 |---|---|
 | 现模型把正常流量判为攻击 | TON_IoT 版本：测试集和训练集是同一份；特征来自 Zeek，eBPF 大部分采不到。eBPF 版本：训练数据里正常和攻击可以只靠 IP / 端口区分；IP 编码器只认识训练时的地址；protocol 编码不一致（模型认 `'6'`，平台送 `"TCP"`）。详见 `model-kit/README.md` 第 7 节 |
 | 缺少原始训练数据 | 线上模型降维前的 35 特征训练数据不在仓库里，需要向模型方索取 |
+| 东西向单包单向流 | 正常基线里约 27% 的东西向流只有 1 个正向包、没有回包（目标多为 gRPC / redis 等长连接的服务端口），疑似长连接上的零星包（keepalive 等）的回包没有计入同一条流，原因待查。`model-kit/data/` 的样本里包含这些流 |
 | 少量流方向判断 | 服务刚启动时，大端口服务（如 gRPC 50051）的长连接可能判反，运行一段时间后会自动修正 |
 | 字节特征 | Hubble 没有包长。长期方案：换成不依赖 CNI 的 eBPF 流采集（如 NetObserv eBPF Agent），在内核里聚合流并补上字节和包间隔统计，再打包成 Helm chart |
