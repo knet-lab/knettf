@@ -10,5 +10,3 @@ logs/
 *.log
 *.pid
 *.done
-replay/record_send_uuid.txt
-simulation/monitor/monitor_report_*.txt

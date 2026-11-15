@@ -372,7 +372,7 @@ TOPICS='["ebpf-net-logs"]'
 ENVEOF
 ok ".env 已更新"
 
-info "nginx 的 MetalLB IP 是 ${NGINX_IP}；若和 traffic/send_request.py 里的 DESTINATION_IP 不同，需要手动改"
+info "nginx 的 MetalLB IP 是 ${NGINX_IP}"
 
 # ══════════════════════════════════════════════
 # 完成摘要

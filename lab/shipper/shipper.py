@@ -8,7 +8,7 @@ flow-shipper：每个节点一个，替代原来的 Vector + `hubble observe`。
   should_skip 会丢弃的事件。
 · 去重（SHIPPER_DEDUP=1，默认开）：同一个包在多个观测点的重复事件只发一次，规则与后端
   vigil/ingest/flows.counts_once 完全相同（同一份代码，部署时随 ConfigMap 下发）。
-  约七成事件在节点上就被丢掉。lab/dataset 等按原始逐包事件统计的旧脚本需要关掉去重。
+  约七成事件在节点上就被丢掉。需要原始逐包事件时关掉去重（SHIPPER_DEDUP=0）。
 · 写入 Kafka 的消息格式与 `hubble observe --output=json` 相同，后端无需改动。
 
 环境变量：KAFKA_BOOTSTRAP（必填）、KAFKA_TOPIC、HUBBLE_SOCKET、SHIPPER_DEDUP、SHIPPER_STATS_SECS
