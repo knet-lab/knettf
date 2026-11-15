@@ -215,7 +215,12 @@ kubectl create secret generic flow-shipper-kafka \
   --dry-run=client -o yaml | kubectl apply -f -
 ok "Secret flow-shipper-kafka 就绪（kafka-svc.default.svc.cluster.local:9092，集群内直连）"
 
-INGEST_DIR="${LAB_DIR}/../apps/backend/vigil/ingest"
+# 后端目录：环境变量 NETSENTINEL_BACKEND_DIR 优先（运行目录只检出了 lab/，要指向线上后端，
+# 让节点去重与线上后端同一版本）；没设时用同一仓库里的 apps/backend
+BACKEND_DIR="${NETSENTINEL_BACKEND_DIR:-$(cd "$LAB_DIR" && pwd -P)/../apps/backend}"
+INGEST_DIR="${BACKEND_DIR}/vigil/ingest"
+[ -f "${INGEST_DIR}/flows.py" ] || die "找不到后端 ${INGEST_DIR}/flows.py；在运行目录里运行时请设置 NETSENTINEL_BACKEND_DIR=<线上后端目录>/apps/backend"
+info "去重规则来自 ${INGEST_DIR}"
 HUBBLE_API="${LAB_DIR}/shipper/hubble_api"
 SHIPPER_CODE_OLD=$(kubectl -n kube-system get cm flow-shipper-code -o json 2>/dev/null | sha256sum)
 kubectl -n kube-system create configmap flow-shipper-code \
