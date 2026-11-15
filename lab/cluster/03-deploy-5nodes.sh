@@ -26,6 +26,7 @@ trap 'echo ""; echo "❌ 出错。集群和已部署资源保留，修复后重�
 LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # 本脚本在 lab/cluster/ 下
 KAFKA_YAML="${LAB_DIR}/manifests/kafka-5nodes.yaml"
 VECTOR_YAML="${LAB_DIR}/manifests/vector-5nodes.yaml"
+HOSTFW_YAML="${LAB_DIR}/cluster/host-firewall-ccnp.yaml"
 
 # ══════════════════════════════════════════════
 # Step 1: 前置检查
@@ -61,6 +62,8 @@ log "Step 2: 检查部署文件"
 [ -f "$VECTOR_YAML" ] || die "找不到 VECTOR_YAML: ${VECTOR_YAML}"
 ok "KAFKA_YAML  : ${KAFKA_YAML}"
 ok "VECTOR_YAML : ${VECTOR_YAML}"
+[ -f "$HOSTFW_YAML" ] || die "找不到 HOSTFW_YAML: ${HOSTFW_YAML}"
+ok "HOSTFW_YAML : ${HOSTFW_YAML}"
 
 # ══════════════════════════════════════════════
 # Step 3: 只创建 Kafka Services
@@ -238,6 +241,15 @@ if [ "$VECTOR_RESTARTS" -gt 5 ]; then
 else
   ok "Vector Pod 稳定（重启总计 ${VECTOR_RESTARTS} 次）"
 fi
+
+# ══════════════════════════════════════════════
+# Step 8b: host 可见性策略
+#   02 已开启 hostFirewall；这条 CCNP 让发往节点 IP 的流量（含宿主机伪造源 IP
+#   .20~.29 / .50~.64 打到 master:6443、worker:80）经过 host endpoint，被 Hubble 记录
+# ══════════════════════════════════════════════
+log "Step 8b: 应用 host-visibility 策略"
+kubectl apply -f "$HOSTFW_YAML"
+ok "CiliumClusterwideNetworkPolicy/host-visibility 已应用"
 
 # ══════════════════════════════════════════════
 # Step 9: 部署 nginx 测试服务

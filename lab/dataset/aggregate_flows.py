@@ -17,7 +17,10 @@ from datetime import datetime
 from pathlib import Path
 
 
+# 采集脚本现在输出微秒精度；旧 CSV 只到秒，仍兼容（但旧数据的 IAT 类特征不可信）
 TIMESTAMP_FMTS = [
+    "%Y-%m-%d %H:%M:%S.%f %Z",
+    "%Y-%m-%d %H:%M:%S.%f",
     "%Y-%m-%d %H:%M:%S %Z",
     "%Y-%m-%d %H:%M:%S",
 ]

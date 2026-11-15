@@ -61,7 +61,7 @@ def get_port(l4: dict, side: str):
 def fmt_ts(ts_str: str) -> str:
     try:
         dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-        return dt.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        return dt.astimezone().strftime("%Y-%m-%d %H:%M:%S.%f %Z")
     except Exception:
         return ts_str
 

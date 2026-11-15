@@ -43,10 +43,13 @@ data:
         batch:
           max_events: 500
           timeout_secs: 1
+        # 缓冲满时 block：反压到 hubble observe，丢失会体现在 Hubble 的 lost events
+        # 计数里（可查），而不是在这里静默丢掉。monitorAggregation=none 后事件量
+        # 明显变大，缓冲相应调大。
         buffer:
           type: memory
-          max_events: 50000
-          when_full: drop_newest
+          max_events: 200000
+          when_full: block
 ---
 apiVersion: v1
 kind: ServiceAccount

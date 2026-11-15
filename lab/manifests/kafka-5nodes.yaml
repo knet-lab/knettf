@@ -257,8 +257,9 @@ spec:
                 printf 'offsets.topic.replication.factor=3\n'
                 printf 'default.replication.factor=3\n'
                 printf 'min.insync.replicas=2\n'
-                printf 'log.retention.hours=24\n'
+                printf 'log.retention.hours=6\n'
                 printf 'log.retention.bytes=1073741824\n'
+                printf 'log.segment.bytes=134217728\n'
                 printf 'auto.create.topics.enable=true\n'
               } >> /opt/kafka/config/server.properties
 
