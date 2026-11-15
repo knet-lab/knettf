@@ -21,6 +21,13 @@ NODE_IPS=("192.168.100.11" "192.168.100.12" "192.168.100.13" "192.168.100.14")
 NODE_NAMES=("k8s-node1" "k8s-node2" "k8s-node3" "k8s-node4")
 ALL_IPS=("$MASTER_IP" "${NODE_IPS[@]}")
 
+# helm chart 版本必须固定：不固定会装到当天最新版。
+#   MetalLB 0.16.x 的 CRD 用了 CEL isIP()（K8s ≥ 1.31 才支持），在 1.28 上安装失败。
+#   Cilium 1.19.3 是这套环境长期验证过的版本。
+# 升级 K8s 版本时再一起评估这两个版本。
+CILIUM_VERSION="1.19.3"
+METALLB_VERSION="0.14.9"
+
 SSH_USER="k8s"
 SSH_KEY="$HOME/.ssh/id_rsa"
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes"
@@ -302,6 +309,23 @@ done
 # ══════════════════════════════════════════════
 # Step 7: 安装 helm（宿主机，幂等）
 # ══════════════════════════════════════════════
+log "Step 6b: kubelet 磁盘上限（容器日志轮转 + 镜像回收）"
+# 每个容器日志最多 3×20Mi；节点磁盘超 70% 开始回收镜像，回到 50%
+for IP in "${ALL_IPS[@]}"; do
+  run_on "$IP" bash << 'KCFG'
+set -e
+F=/var/lib/kubelet/config.yaml
+sudo sed -i '/^containerLogMaxSize:/d;/^containerLogMaxFiles:/d;/^imageGCHighThresholdPercent:/d;/^imageGCLowThresholdPercent:/d' $F
+printf 'containerLogMaxSize: 20Mi\ncontainerLogMaxFiles: 3\nimageGCHighThresholdPercent: 70\nimageGCLowThresholdPercent: 50\n' | sudo tee -a $F >/dev/null
+sudo systemctl restart kubelet
+# journald 系统日志上限 200M
+sudo mkdir -p /etc/systemd/journald.conf.d
+printf '[Journal]\nSystemMaxUse=200M\n' | sudo tee /etc/systemd/journald.conf.d/size.conf >/dev/null
+sudo systemctl restart systemd-journald
+KCFG
+done
+ok "kubelet 磁盘上限已配置"
+
 log "Step 7: 检查 / 安装 helm"
 
 if command -v helm &>/dev/null; then
@@ -320,9 +344,16 @@ fi
 #   kubeProxyReplacement=true   → Cilium 完全替代 kube-proxy
 #   k8sServiceHost/Port         → 避免 ClusterIP 鸡蛋问题
 #   hubble.relay.service.type=ClusterIP → relay 仅集群内可达
-#   hubble.relay.service.port=4245     → Service port 与 relay gRPC port 对齐
+#   hubble.relay.servicePort=4245      → Service port 与 relay gRPC port 对齐（1.19 的参数名；
+#                                         旧写法 service.port 会被静默忽略）
 #                                         vector.yaml 里 --server=:4245 才能连通
 #   mtu=1450                    → virbr-k8s NAT 下安全值（宿主 MTU 1500）
+#   bpf.monitorAggregation=none → 每个包都上报事件（medium 只在连接建立/标志变化/
+#                                  每 5s 上报，事件数 ≠ 包数）。需要 master ≥ 6 vCPU（见 01）
+#   hubble.eventBufferCapacity  → 事件量变大后加大环形缓冲，减少 lost events
+#   hubble.metrics.enabled      → 流量指标（:9965），供常驻监测使用
+#   hostFirewall.enabled=true   → host-firewall-ccnp.yaml（host-visibility）依赖它，
+#                                  否则发往节点 IP 的伪造源流量 Hubble 看不到
 # ══════════════════════════════════════════════
 log "Step 8: 安装 Cilium + Hubble"
 
@@ -335,6 +366,7 @@ else
   helm repo update cilium
 
   helm install cilium cilium/cilium \
+    --version "${CILIUM_VERSION}" \
     --namespace kube-system \
     --set kubeProxyReplacement=true \
     --set k8sServiceHost="${MASTER_IP}" \
@@ -342,9 +374,12 @@ else
     --set hubble.enabled=true \
     --set hubble.relay.enabled=true \
     --set hubble.relay.service.type=ClusterIP \
-    --set hubble.relay.service.port=4245 \
+    --set hubble.relay.servicePort=4245 \
     --set hubble.ui.enabled=true \
-    --set bpf.monitorAggregation=medium \
+    --set bpf.monitorAggregation=none \
+    --set hostFirewall.enabled=true \
+    --set hubble.eventBufferCapacity=65535 \
+    --set hubble.metrics.enabled="{dns,drop,tcp,flow,port-distribution,icmp}" \
     --set mtu=1450
   ok "Cilium helm install 完成"
 
@@ -354,14 +389,9 @@ else
   sleep 15
 fi
 
-# 修正 hubble-relay Service port → 4245
-# targetPort 若是字符串（如 "grpc"）patch int 会类型报错，|| true 保底
-info "修正 hubble-relay Service port → 4245"
-kubectl patch svc hubble-relay -n kube-system \
-  --type='json' \
-  -p='[{"op":"replace","path":"/spec/ports/0/port","value":4245},
-       {"op":"replace","path":"/spec/ports/0/targetPort","value":4245}]' \
-  2>/dev/null || true
+# hubble-relay 端口由 helm 的 hubble.relay.servicePort=4245 设置。
+# 不要再 kubectl patch：patch 会让该字段归 kubectl-patch 管理，之后 helm upgrade
+# （server-side apply）会因端口合并 / 字段冲突失败。
 
 # 打印实际端口，方便排查
 HUBBLE_PORT=$(kubectl get svc hubble-relay -n kube-system \
@@ -405,6 +435,7 @@ else
   helm repo update metallb
 
   helm install metallb metallb/metallb \
+    --version "${METALLB_VERSION}" \
     --namespace metallb-system \
     --create-namespace
   ok "MetalLB helm install 完成"
@@ -415,8 +446,8 @@ else
 fi
 
 info "等待 MetalLB controller 就绪..."
-wait_rollout deployment  metallb-controller  metallb-system  120s  5
-wait_rollout daemonset   metallb-speaker     metallb-system  120s  5
+wait_rollout deployment  metallb-controller  metallb-system  300s  5
+wait_rollout daemonset   metallb-speaker     metallb-system  300s  5
 ok "MetalLB 就绪"
 
 # IP 池配置（apply 幂等）
@@ -466,7 +497,7 @@ else
   info "等待 local-path-provisioner Pod 出现（10s）..."
   sleep 10
 
-  wait_rollout deployment local-path-provisioner local-path-storage 60s 5
+  wait_rollout deployment local-path-provisioner local-path-storage 300s 5
   ok "local-path-provisioner 就绪"
 fi
 

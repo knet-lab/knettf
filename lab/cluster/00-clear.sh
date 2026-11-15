@@ -14,6 +14,12 @@ fail() { warn "$*"; ERRORS=$((ERRORS + 1)); }
 VM_NAMES=(k8s-master k8s-node1 k8s-node2 k8s-node3 k8s-node4)
 VM_IPS=(192.168.100.10 192.168.100.11 192.168.100.12 192.168.100.13 192.168.100.14)
 VM_IMAGE_DIR="/home/vm-images"
+MASTER_IMAGE_DIR="/var/lib/libvirt/images"   # 01 把 master 磁盘放在 SSD
+
+# 默认保留 cloud image 母盘（01 会用 qemu-img 检查完整性，坏了才重新下载）
+# 需要强制重新下载时：bash 00-clear.sh --purge-image
+PURGE_IMAGE=0
+[ "${1:-}" = "--purge-image" ] && PURGE_IMAGE=1
 
 # ══════════════════════════════════════════════
 # 1. 终止后台进程（先停，防止进程持有文件锁）
@@ -68,7 +74,7 @@ done
 # ══════════════════════════════════════════════
 log "清理 VM 磁盘"
 for VM in "${VM_NAMES[@]}"; do
-  DISK="${VM_IMAGE_DIR}/${VM}.qcow2"
+  for DISK in "${VM_IMAGE_DIR}/${VM}.qcow2" "${MASTER_IMAGE_DIR}/${VM}.qcow2"; do
   if [ -f "$DISK" ]; then
     sudo rm -f "$DISK" \
       && ok "磁盘 $DISK 已删除" \
@@ -76,17 +82,25 @@ for VM in "${VM_NAMES[@]}"; do
   else
     info "磁盘 $DISK 不存在，跳过"
   fi
+  done
 done
 
 # ══════════════════════════════════════════════
-# 5. 删除 cloud image（强制重新下载，防止损坏缓存）
-#    同时清理旧路径（历史上可能放在 /var/lib/libvirt/images/）
+# 5. cloud image 母盘：默认保留（--purge-image 才删除）
+#    旧路径 /var/lib/libvirt/images/ 下的遗留镜像总是清理
 # ══════════════════════════════════════════════
 log "清理 cloud image"
 BASE_IMAGE="${VM_IMAGE_DIR}/ubuntu-22.04-cloudimg.qcow2"
 LEGACY_IMAGE="/var/lib/libvirt/images/ubuntu-22.04-cloudimg.qcow2"
 
-for IMG in "$BASE_IMAGE" "$LEGACY_IMAGE"; do
+IMAGES_TO_DELETE=("$LEGACY_IMAGE")
+if [ "$PURGE_IMAGE" -eq 1 ]; then
+  IMAGES_TO_DELETE+=("$BASE_IMAGE")
+elif [ -f "$BASE_IMAGE" ]; then
+  info "保留 cloud image 母盘（下次 01 直接复用）: $BASE_IMAGE"
+fi
+
+for IMG in "${IMAGES_TO_DELETE[@]}"; do
   if [ -f "$IMG" ]; then
     sudo rm -f "$IMG" \
       && ok "cloud image 已删除: $IMG" \

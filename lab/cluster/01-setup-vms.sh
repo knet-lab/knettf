@@ -18,7 +18,10 @@ die()  { echo "  ❌ $*"; exit 1; }
 # ══════════════════════════════════════════════
 # 配置
 # ══════════════════════════════════════════════
-VM_IMAGE_DIR="/home/vm-images"
+VM_IMAGE_DIR="/home/vm-images"          # 机械盘 sdb：worker（Kafka 顺序写）
+# master 放 SSD：etcd 对 fsync 延迟极敏感，与 Kafka 同盘会导致 lease 超时、
+# scheduler/controller-manager 反复重启。master 磁盘是独立完整副本（不依赖 HDD 上的母盘）。
+MASTER_IMAGE_DIR="/var/lib/libvirt/images"
 BASE_IMAGE="${VM_IMAGE_DIR}/ubuntu-22.04-cloudimg.qcow2"
 BASE_IMAGE_URL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
 # 更轻量级
@@ -28,8 +31,12 @@ BRIDGE_NAME="virbr-k8s"
 BRIDGE_SUBNET="192.168.100"
 BRIDGE_HOST_IP="${BRIDGE_SUBNET}.1"
 
-VM_VCPUS=2
-VM_RAM_MB=8192
+# 每台 VM 的 vCPU / 内存（与 VM_NAMES 一一对应）
+# master 跑 etcd + apiserver + Kafka controller + cilium/hubble/vector，
+# monitorAggregation=none 下事件量大，2 核时 etcd 延迟飙升、scheduler/controller-manager
+# 续约超时反复重启，所以给 master 单独加配。
+VM_VCPUS_LIST=( 6 4 4 4 4 )
+VM_RAM_MB_LIST=( 16384 12288 12288 12288 12288 )
 
 VM_NAMES=( k8s-master k8s-node1 k8s-node2 k8s-node3 k8s-node4 )
 VM_IPS=(
@@ -39,7 +46,7 @@ VM_IPS=(
   "${BRIDGE_SUBNET}.13"
   "${BRIDGE_SUBNET}.14"
 )
-VM_DISKS=( 120 60 60 60 60 )
+VM_DISKS=( 40 30 30 30 30 )   # 硬上限：qcow2 最多长到这么大
 
 # 固定 MAC 地址，与 DHCP host 绑定一一对应
 VM_MACS=(
@@ -246,7 +253,10 @@ for i in "${!VM_NAMES[@]}"; do
   VM_IP="${VM_IPS[$i]}"
   VM_MAC="${VM_MACS[$i]}"
   VM_DISK_GB="${VM_DISKS[$i]}"
-  DISK_PATH="${VM_IMAGE_DIR}/${VM_NAME}.qcow2"
+  VM_VCPUS="${VM_VCPUS_LIST[$i]}"
+  VM_RAM_MB="${VM_RAM_MB_LIST[$i]}"
+  if [ "$i" -eq 0 ]; then DISK_DIR="$MASTER_IMAGE_DIR"; else DISK_DIR="$VM_IMAGE_DIR"; fi
+  DISK_PATH="${DISK_DIR}/${VM_NAME}.qcow2"
   CIDATA_DIR="/tmp/cidata-${VM_NAME}"
   CIDATA_ISO="/tmp/cidata-${VM_NAME}.iso"
 
@@ -257,10 +267,17 @@ for i in "${!VM_NAMES[@]}"; do
 
   info "─── 创建 ${VM_NAME}  IP=${VM_IP}  MAC=${VM_MAC}  磁盘=${VM_DISK_GB}GB"
 
-  sudo qemu-img create \
-    -f qcow2 -F qcow2 \
-    -b "$BASE_IMAGE" \
-    "$DISK_PATH" "${VM_DISK_GB}G"
+  sudo mkdir -p "$DISK_DIR"
+  if [ "$DISK_DIR" = "$VM_IMAGE_DIR" ]; then
+    sudo qemu-img create \
+      -f qcow2 -F qcow2 \
+      -b "$BASE_IMAGE" \
+      "$DISK_PATH" "${VM_DISK_GB}G"
+  else
+    # 不同盘：完整拷贝母盘，避免读请求回落到 HDD
+    sudo qemu-img convert -O qcow2 "$BASE_IMAGE" "$DISK_PATH"
+    sudo qemu-img resize "$DISK_PATH" "${VM_DISK_GB}G"
+  fi
   sudo chown root:libvirt "$DISK_PATH"
   sudo chmod 664          "$DISK_PATH"
   info "差量磁盘已创建: ${DISK_PATH}"
@@ -288,6 +305,11 @@ runcmd:
   - systemctl disable --now ufw || true
   - growpart /dev/vda 1 || true
   - resize2fs /dev/vda1 || true
+  # 每小时 fstrim：Kafka 删除的旧段归还给宿主机（配合 discard=unmap），否则 qcow2 只涨不缩
+  - mkdir -p /etc/systemd/system/fstrim.timer.d
+  - printf '[Timer]\nOnCalendar=\nOnCalendar=hourly\n' > /etc/systemd/system/fstrim.timer.d/hourly.conf
+  - systemctl daemon-reload
+  - systemctl enable --now fstrim.timer
 
 package_update: false
 package_upgrade: false
@@ -312,7 +334,7 @@ MDEOF
     --name         "$VM_NAME" \
     --memory       $VM_RAM_MB \
     --vcpus        $VM_VCPUS \
-    --disk         path="${DISK_PATH}",format=qcow2,bus=virtio \
+    --disk         path="${DISK_PATH}",format=qcow2,bus=virtio,discard=unmap,detect_zeroes=unmap \
     --disk         path="${CIDATA_ISO}",device=cdrom \
     --network      network=${BRIDGE_NAME},model=virtio,mac="${VM_MAC}",driver.queues=${VM_VCPUS} \
     --graphics     none \

@@ -1,0 +1,150 @@
+/* Vigil 共用样式（非 scoped，类名统一 vg- 前缀）。
+   两个页面和详情弹窗的配色、徽章、表格都从这里来，保证一致。 */
+
+.vg-root {
+  --vg-bg: #0b1120;
+  --vg-surface: #0f172a;
+  --vg-surface-2: #131c31;
+  --vg-border: #1e293b;
+  --vg-border-strong: #334155;
+  --vg-text: #e2e8f0;
+  --vg-text-2: #94a3b8;
+  --vg-text-3: #64748b;
+  --vg-accent: #60a5fa;
+  --vg-accent-bg: rgba(59, 130, 246, .14);
+  --vg-danger: #f87171;
+  --vg-danger-bg: rgba(248, 113, 113, .13);
+  --vg-ok: #4ade80;
+  --vg-ok-bg: rgba(74, 222, 128, .11);
+  --vg-warn: #fbbf24;
+  --vg-warn-bg: rgba(251, 191, 36, .13);
+  --vg-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--vg-bg);
+  color: var(--vg-text);
+}
+
+.vg-mono { font-family: var(--vg-mono); font-variant-numeric: tabular-nums; }
+.vg-muted { color: var(--vg-text-3); }
+
+/* ── Buttons / inputs ── */
+.vg-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  border-radius: 8px; border: 1px solid var(--vg-border-strong);
+  background: var(--vg-surface); color: var(--vg-text-2);
+  font-size: 13px; font-family: inherit; cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+  white-space: nowrap;
+}
+.vg-btn:hover:not(:disabled) { background: var(--vg-border); color: var(--vg-text); }
+.vg-btn:disabled { opacity: .45; cursor: not-allowed; }
+.vg-btn:focus-visible, .vg-input:focus-visible, .vg-seg button:focus-visible { outline: 2px solid var(--vg-accent); outline-offset: 1px; }
+.vg-btn.primary { color: var(--vg-accent); border-color: rgba(96, 165, 250, .4); }
+.vg-btn .spin { animation: vg-spin .8s linear infinite; }
+@keyframes vg-spin { to { transform: rotate(360deg); } }
+
+.vg-input {
+  height: 32px; padding: 0 10px;
+  border-radius: 8px; border: 1px solid var(--vg-border-strong);
+  background: var(--vg-surface); color: var(--vg-text);
+  font-size: 13px; font-family: inherit;
+  color-scheme: dark;
+}
+.vg-input.invalid { border-color: var(--vg-danger); }
+
+/* 分段选择器 */
+.vg-seg { display: inline-flex; border: 1px solid var(--vg-border-strong); border-radius: 8px; overflow: hidden; }
+.vg-seg button {
+  height: 30px; padding: 0 12px; border: none; background: var(--vg-surface);
+  color: var(--vg-text-2); font-size: 13px; font-family: inherit; cursor: pointer;
+}
+.vg-seg button + button { border-left: 1px solid var(--vg-border-strong); }
+.vg-seg button:hover { color: var(--vg-text); }
+.vg-seg button.active { background: var(--vg-accent-bg); color: var(--vg-accent); }
+
+/* ── Status dot ── */
+.vg-status { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--vg-text-3); }
+.vg-status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vg-text-3); }
+.vg-status.ok .dot { background: var(--vg-ok); box-shadow: 0 0 0 3px rgba(74, 222, 128, .15); }
+.vg-status.err { color: var(--vg-danger); }
+.vg-status.err .dot { background: var(--vg-danger); }
+.vg-status.paused .dot { background: var(--vg-warn); }
+
+/* ── Badges ── */
+.vg-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: .03em; line-height: 18px;
+  white-space: nowrap;
+}
+.vg-badge.attack { background: var(--vg-danger-bg); color: var(--vg-danger); }
+.vg-badge.normal { background: var(--vg-ok-bg); color: var(--vg-ok); }
+.vg-badge.proto  { background: var(--vg-accent-bg); color: var(--vg-accent); }
+.vg-badge.none   { background: transparent; color: var(--vg-text-3); padding-left: 0; }
+
+/* Cilium 动作：drop 最严重（红）、rate_limit 黄、alert 蓝、其他灰 */
+.vg-badge.act-drop       { background: var(--vg-danger-bg); color: var(--vg-danger); }
+.vg-badge.act-rate_limit { background: var(--vg-warn-bg); color: var(--vg-warn); }
+.vg-badge.act-alert      { background: var(--vg-accent-bg); color: var(--vg-accent); }
+.vg-badge.act-ignore     { background: var(--vg-border); color: var(--vg-text-3); }
+
+/* 判定对比 */
+.vg-badge.out-TP, .vg-badge.out-TN { background: var(--vg-ok-bg); color: var(--vg-ok); }
+.vg-badge.out-FP { background: var(--vg-warn-bg); color: var(--vg-warn); }
+.vg-badge.out-FN { background: var(--vg-danger-bg); color: var(--vg-danger); }
+
+.vg-type { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.vg-type .sw { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+/* Confidence */
+.vg-conf { display: inline-flex; align-items: center; gap: 8px; }
+.vg-conf .bar { width: 48px; height: 4px; border-radius: 4px; background: var(--vg-border); overflow: hidden; }
+.vg-conf .fill { height: 100%; border-radius: 4px; }
+.vg-conf .fill.attack { background: var(--vg-danger); }
+.vg-conf .fill.normal { background: var(--vg-ok); }
+.vg-conf .txt { font-size: 12px; color: var(--vg-text-2); min-width: 34px; font-variant-numeric: tabular-nums; }
+
+/* ── Card ── */
+.vg-card { background: var(--vg-surface); border: 1px solid var(--vg-border); border-radius: 12px; overflow: hidden; min-width: 0; }
+.vg-card-h {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid var(--vg-border);
+}
+.vg-card-t { font-size: 14px; font-weight: 600; color: var(--vg-text); }
+.vg-card-s { font-size: 12px; color: var(--vg-text-3); }
+.vg-card-b { padding: 14px 16px; }
+
+.vg-empty { padding: 32px 16px; text-align: center; color: var(--vg-text-3); font-size: 13px; line-height: 1.6; }
+
+/* ── Table ── */
+.vg-table-wrap { overflow: auto; }
+.vg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.vg-table th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--vg-surface); color: var(--vg-text-3);
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--vg-border); white-space: nowrap;
+}
+.vg-table td { padding: 8px 12px; border-bottom: 1px solid var(--vg-border); color: var(--vg-text-2); vertical-align: middle; white-space: nowrap; }
+.vg-table tbody tr { cursor: pointer; transition: background .1s; }
+.vg-table tbody tr:hover td { background: var(--vg-surface-2); }
+.vg-table tbody tr.attack td:first-child { box-shadow: inset 3px 0 0 var(--vg-danger); }
+.vg-table tbody tr.selected td { background: rgba(59, 130, 246, .1); }
+.vg-table .addr { font-family: var(--vg-mono); color: var(--vg-text); font-size: 12px; }
+.vg-table .addr .port { color: var(--vg-text-3); }
+.vg-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.vg-skel {
+  height: 12px; border-radius: 6px;
+  background: linear-gradient(90deg, var(--vg-border) 25%, #2a3548 50%, var(--vg-border) 75%);
+  background-size: 200% 100%; animation: vg-shimmer 1.3s infinite;
+}
+@keyframes vg-shimmer { to { background-position: -200% 0; } }
+
+/* ── Error banner ── */
+.vg-alert {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; border-radius: 10px; font-size: 13px;
+  background: var(--vg-danger-bg); color: var(--vg-danger); border: 1px solid rgba(248, 113, 113, .3);
+}
+.vg-alert .vg-btn { margin-left: auto; height: 28px; }
