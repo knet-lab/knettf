@@ -1,9 +1,9 @@
 """
 从平台数据库导出检测过的流（35 个特征）为 CSV，给模型训练 / 测试用。只读，不改数据库。
 
-在服务器上运行（需要平台的数据库配置）：
-  cd /srv/netsentinel/prod/apps/backend
-  ../../.venv/bin/python ~/github/knettf/model-kit/export_flows.py \
+在服务器上、平台后端目录里运行（需要平台的数据库配置）：
+  cd <线上部署目录>/apps/backend
+  ../../.venv/bin/python <仓库>/model-kit/export_flows.py \
       --since "2026-11-15 17:12" --label 0 --out ~/flows_normal.csv
 
 --label：给导出的每条流打上的标签。"0" = 正常，"1" = 攻击，不填 = 空（未知）。

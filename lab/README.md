@@ -372,4 +372,4 @@ sudo NETSENTINEL_TOKEN=<JWT> bash simulation/run.sh [1|2|3]
   ```
 - `lab/.gitignore` 排除：`*.csv`、`*.log`、`*.pid`、`*.done`、`logs/`、`.env`、`.venv/`、`replay/record_send_uuid.txt`、`simulation/monitor/monitor_report_*.txt`
 
-`replay/scripts/start_send.sh`、`start_read.sh` 在 `PATH` 中找不到 `uv` 时会回退到写死的 `/home/soar009/.local/bin/uv`，换用户运行时需确保 `uv` 在 `PATH` 中。
+`replay/scripts/start_send.sh`、`start_read.sh` 在 `PATH` 中找不到 `uv` 时会回退到当前用户的 `$HOME/.local/bin/uv`。
