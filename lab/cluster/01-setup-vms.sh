@@ -35,7 +35,10 @@ BRIDGE_HOST_IP="${BRIDGE_SUBNET}.1"
 # master 跑 etcd + apiserver + Kafka controller + cilium/hubble/flow-shipper，
 # monitorAggregation=none 下事件量大，2 核时 etcd 延迟飙升、scheduler/controller-manager
 # 续约超时反复重启，所以给 master 单独加配。
-VM_VCPUS_LIST=( 6 4 4 4 4 )
+# worker 原为 4 核：Online Boutique 的 frontend（入口服务，南北向 externalTrafficPolicy=Local
+# 也只进它所在节点）落在哪台，哪台的 flow-shipper 就处理不过来、Hubble 丢事件，造成单包单向流。
+# 现在 VM 合计 42 核，宿主机（56 核）留 14 核给平台和开发。
+VM_VCPUS_LIST=( 6 9 9 9 9 )
 VM_RAM_MB_LIST=( 16384 12288 12288 12288 12288 )
 
 VM_NAMES=( k8s-master k8s-node1 k8s-node2 k8s-node3 k8s-node4 )
