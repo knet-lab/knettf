@@ -64,7 +64,7 @@ git grep -nIE 'knettf\.com|cloudflare|/srv/netsentinel|User=netsentinel|knet-lab
 1. **准备宿主机**：Ubuntu，开启 KVM/libvirt，`/home/vm-images` 所在分区可用 ≥ 420 GB（详见 `lab/README.md`）。
 2. **创建运行用户和目录**：新建服务账户（替代 `netsentinel`）和部署目录（替代 `/srv/netsentinel`），按第 2.1 节修改 systemd 单元和脚本里的路径与用户。
 3. **数据库**：PostgreSQL（现为 Docker 容器 `pg`），在后端 `.env` 里配置 `VIGIL_DB_*`。
-4. **模型文件**：放到新的模型目录，在 `.env` 里设置 `VIGIL_ADS_ML_CONFIG`（以及 `VIGIL_MODELS`）。
+4. **模型文件**：随代码在仓库里（`apps/backend/vigil/detection/<模型名>/files/`），不需要单独迁移。
 5. **实验集群**：`lab/cluster/00 → 04`。
 6. **域名和 Cloudflare**：在新账号下创建 Tunnel，把新域名指向本机 8080；修改 `ops/deploy/cloudflared-*.yml` 和对应的 systemd 单元。
 7. **自动部署**（可选）：修改 `auto-deploy.sh` 里的仓库地址，启用 `netsentinel-autodeploy.timer`。如果不再需要自动部署，停用这个 timer 即可。

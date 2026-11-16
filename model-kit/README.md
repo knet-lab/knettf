@@ -1,6 +1,6 @@
 # 模型接入指南（model-kit）
 
-这份指南说明：检测模型怎么写、怎么测试、代码和模型文件放在哪里、怎么上线到平台、怎么更新和回滚。
+这份指南说明：检测模型怎么写、怎么测试、怎么上线到平台、怎么更新和回滚。训练由模型方自己完成，平台只接收训练好的成品，仓库里不放训练代码。
 
 平台对模型只有一个要求：**写一个 Python 类，输入一条流的 35 个特征，输出判断结果。**
 平台的采集、切流、存库、页面展示都已经做好，不需要改。
@@ -90,118 +90,112 @@ K8s 实验集群里的流量
 
 这一步不需要平台、数据库或集群，任何装了 Python 3.12 的电脑都可以。
 
-**① 复制模板**
+**① 建一个模型目录，用模型名命名**（小写英文和下划线）
 
-```bash
-cp my_model.py zsl_ocsvm.py        # 文件名 = 模型模块名，用小写英文和下划线
 ```
+zsl_ocsvm/
+├── model.py        ← 从 my_model.py 复制改写
+└── files/          ← 训练好的模型文件（.joblib、配置文件等），model.py 从这里加载
+```
+
+训练代码**不要**放进这个目录，也不进 Git：训练在各自的开发环境（例如 `<仓库>/experiments/`，已被本地排除）里做，这里只放训练好的成品。
 
 **② 改写模板里标了 `TODO` 的地方**
 
 | 位置 | 改成什么 |
 |---|---|
 | 类名 `MyModel` | 例如 `ZslOcsvmModel` |
-| `MODEL_DIR_ENV` | 模型目录的环境变量名，例如 `ZSL_OCSVM_DIR` |
-| `name` | 模型名，例如 `zsl_ocsvm_v2`（页面上显示这个名字） |
-| `__init__` | 从 `self.model_dir` 加载模型文件 |
+| `name` | 模型名，例如 `zsl_ocsvm_v1`（页面上显示这个名字；新版本结果要分开统计就换名字） |
+| `__init__` | 从 `self.model_dir`（默认就是同目录的 `files/`）加载模型文件 |
 | `predict` | 一条流 → `DetectionResult` |
 
-**③ 把模型文件放进一个目录**，例如 `./zsl_ocsvm_files/`（`.joblib`、`.pt`、配置文件等）。
-
-**④ 自测**
+**③ 自测**
 
 ```bash
-python try_my_model.py --model zsl_ocsvm.py:ZslOcsvmModel --model-dir ./zsl_ocsvm_files
-python try_my_model.py --model zsl_ocsvm.py:ZslOcsvmModel --model-dir ./zsl_ocsvm_files --data 其他数据.csv
+python try_my_model.py --model zsl_ocsvm/model.py:ZslOcsvmModel --model-dir zsl_ocsvm/files
+python try_my_model.py --model zsl_ocsvm/model.py:ZslOcsvmModel --model-dir zsl_ocsvm/files --data 其他数据.csv
 ```
 
 输出：
 1. **接口检查**：与平台上线前的检查规则相同。必须显示 `✓ 通过`。
 2. **运行结果**：判为攻击的比例、每条耗时；数据有 `label` 列时给出准确率；按南北向 / 东西向分别统计。
 
+平台目前**逐条**调用 `predict`，每条流的耗时就是模型的速度，请一并报告。
+
 **版本要求**：平台使用 Python 3.12、scikit-learn 1.7.2、numpy 2.4、pandas 3.0、joblib 1.5（没有 torch）。**用相同版本的 scikit-learn 保存模型**，否则 joblib 文件在平台上可能加载失败。
 
 ---
 
-## 6. 上线：放进平台
+## 6. 上线：全部通过 Git
 
-以下操作在平台所在的服务器上进行。路径中的占位符：
+代码和模型文件都在仓库里，**不需要登录服务器放文件、改 `.env` 或重启**：合并到 `main` 后自动部署会同步代码并重启后端。
 
-| 占位符 | 含义 | 当前的值（迁移后以实际为准，见 `docs/HANDOVER.md`） |
-|---|---|---|
-| `<仓库>` | 开发目录（git clone 的位置） | 例如 `~/github/knettf` |
-| `<部署目录>` | 线上运行的代码 | `/srv/netsentinel/prod` |
-| `<模型目录>` | 存放模型文件的位置 | `/srv/netsentinel/models` |
-| `<服务>` | 后端的 systemd 服务名 | `netsentinel.service` |
+```
+apps/backend/vigil/detection/
+├── base.py                 ← 接口（不要改）
+├── ads_ml/                 ← 每个模型一个目录，目录名 = 模型名
+│   ├── model.py …
+│   └── files/
+└── lof_baseline/
+    ├── __init__.py         ← from .model import 类名
+    ├── model.py
+    └── files/lof.joblib
+```
 
-**前提**：Linux 账户加入服务账户的用户组（当前为 `netsentinel` 组），才能写模型目录、改线上配置、重启服务。
-
-### ① 放代码（通过 GitHub PR）
+### ① 放进仓库（在 `dev/soar009` 分支上）
 
 ```bash
 cd <仓库>
-git checkout -b model/zsl-ocsvm
-cp <model-kit 工作目录>/zsl_ocsvm.py apps/backend/vigil/detection/zsl_ocsvm.py
+git checkout dev/soar009 && git pull origin main
+cp -r <你的工作目录>/zsl_ocsvm apps/backend/vigil/detection/zsl_ocsvm
+printf 'from .model import ZslOcsvmModel\n\n__all__ = ["ZslOcsvmModel"]\n' > apps/backend/vigil/detection/zsl_ocsvm/__init__.py
 ```
 
-- 代码放在 `apps/backend/vigil/detection/` 下。模板里的导入语句在平台里会自动使用平台的接口，不需要改。
+- `files/` 下的 `.joblib` / `.pkl` 允许进 Git（`.gitignore` 只对 `vigil/detection/*/files/` 放行）。
 - 需要新的 Python 库时：在 `<仓库>` 根目录运行 `uv add 库名==版本`，会更新 `pyproject.toml` 和 `uv.lock`。
-- **模型文件不要放进 Git。**
 
-在开发目录里做上线前检查：
+### ② 启用
+
+编辑 `apps/backend/backend/settings.py` 里 `VIGIL_MODELS` 的默认值：
+
+```python
+VIGIL_MODELS = env.list("VIGIL_MODELS", default=["vigil.detection.zsl_ocsvm.ZslOcsvmModel"])
+# 多个模型并行（页面上分别显示）：
+# default=["vigil.detection.lof_baseline.LofBaselineModel", "vigil.detection.zsl_ocsvm.ZslOcsvmModel"]
+```
+
+线上 `.env` 里不要再写 `VIGIL_MODELS`，否则会覆盖这里的设置。
+
+### ③ 本地检查，然后开 PR
 
 ```bash
 cd <仓库>/apps/backend
-ZSL_OCSVM_DIR=/path/to/zsl_ocsvm_files \
-  ../../.venv/bin/python manage.py check_model --model vigil.detection.zsl_ocsvm.ZslOcsvmModel
+../../.venv/bin/python manage.py check_model          # 检查 VIGIL_MODELS 里的全部模型，必须全部 ✓
+cd <仓库> && ops/scripts/check.sh backend
+git add apps/backend/vigil/detection/zsl_ocsvm apps/backend/backend/settings.py
+git commit -m "检测模型：启用 zsl_ocsvm_v1" && git push origin dev/soar009
 ```
 
-显示 `✓` 后提交，开 Pull Request。CI 检查通过、合并到 `main` 后，**平台会在几分钟内自动部署新代码**（不需要手动拉代码）。
+在 GitHub 上开 PR 到 `main`。CI 会加载启用的每个模型并检查输入输出（`vigil/tests/test_models.py`），不通过就不能合并、也不会部署。
 
-### ② 放模型文件
+### ④ 合并后确认生效
 
-每个版本一个目录，用 `current` 链接指向正在使用的版本，方便切换和回滚：
-
-```bash
-mkdir -p <模型目录>/zsl_ocsvm/v1-20261201
-cp -r ./zsl_ocsvm_files/* <模型目录>/zsl_ocsvm/v1-20261201/
-ln -sfn v1-20261201 <模型目录>/zsl_ocsvm/current
-```
-
-### ③ 登记模型
-
-编辑线上配置文件 `<部署目录>/apps/backend/backend/.env`，加入两行：
-
-```bash
-# 模型目录（变量名与 MODEL_DIR_ENV 一致）
-ZSL_OCSVM_DIR=<模型目录>/zsl_ocsvm/current
-# 要加载的模型，逗号分隔。保留原模型就把它也写上；只写新模型则只运行新模型
-VIGIL_MODELS=vigil.detection.ads_ml.AdsMLModel,vigil.detection.zsl_ocsvm.ZslOcsvmModel
-```
-
-### ④ 线上检查，然后重启
-
-```bash
-cd <部署目录>/apps/backend
-../../.venv/bin/python manage.py check_model          # 检查 .env 里登记的全部模型，必须全部 ✓
-sudo systemctl restart <服务>
-```
-
-### ⑤ 确认生效
-
-- 打开网站的 `/vigil` 页面，几分钟内应出现新模型名的检测记录。
+- 几分钟内自动部署完成（日志：`<部署目录>/../logs/auto-deploy.log`）。
+- 打开网站的 `/vigil` 页面，应出现新模型名的检测记录。
 - 没有出现时查看日志：`sudo journalctl -u <服务> -n 100 | grep -i model`。加载失败会显示 `model ... not loaded: 原因`，失败的模型不会影响平台其他部分。
 
 ---
 
 ## 7. 更新与回滚
 
+全部是改仓库、走 PR，合并后自动部署：
+
 | 操作 | 步骤 |
 |---|---|
-| **只换模型文件**（代码不变） | 新建 `<模型目录>/zsl_ocsvm/v2-日期/` 并放入文件 → `ln -sfn v2-日期 <模型目录>/zsl_ocsvm/current` → 重启服务 |
-| **回滚模型文件** | `ln -sfn v1-日期 <模型目录>/zsl_ocsvm/current` → 重启服务 |
-| **改模型代码** | 按第 6 节 ① 提交 PR，合并后自动部署 |
-| **停用某个模型** | 从 `.env` 的 `VIGIL_MODELS` 里删掉 → 重启服务 |
+| **换训练好的模型文件**（代码不变） | 覆盖 `detection/<模型名>/files/` 下的文件 → PR |
+| **改模型代码** | 改 `detection/<模型名>/model.py` → PR |
+| **换成另一个模型 / 停用某个模型** | 改 `settings.py` 里 `VIGIL_MODELS` 的默认值 → PR |
+| **回滚** | 在 GitHub 上 revert 对应的 PR |
 
 ---
 

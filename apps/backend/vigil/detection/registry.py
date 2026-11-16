@@ -3,7 +3,7 @@ Model registry — 按 settings.VIGIL_MODELS 加载模型实例。
 
 新增 / 替换模型：
   1. 写一个继承 BaseDetectionModel 的类（实现 name、predict，可选 predict_batch）
-  2. 把类的完整路径写进 .env 的 VIGIL_MODELS（逗号分隔），重启服务
+  2. 把类的完整路径写进 settings.py 里 VIGIL_MODELS 的默认值，走 PR（合并后自动部署、重启）
   3. 上线前用 python manage.py check_model --model <类路径> 检查接口
 """
 

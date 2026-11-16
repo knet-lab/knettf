@@ -181,9 +181,10 @@ VIGIL_KAFKA_BOOTSTRAP = env.str("VIGIL_KAFKA_BOOTSTRAP", default="192.168.100.20
 VIGIL_KAFKA_TOPIC = env.str("VIGIL_KAFKA_TOPIC", default="ebpf-net-logs")
 VIGIL_KAFKA_GROUP_ID = env.str("VIGIL_KAFKA_GROUP_ID", default="vigil-bridge")
 # 要加载的检测模型（BaseDetectionModel 子类的完整路径，逗号分隔）；新增 / 替换模型只改这里
-VIGIL_MODELS = env.list("VIGIL_MODELS", default=["vigil.detection.ads_ml.AdsMLModel"])
-# ads_ml 的模型文件只在服务器上（不进 Git）；开发和线上都读这一份
-VIGIL_ADS_ML_CONFIG = env.str("VIGIL_ADS_ML_CONFIG", default="/srv/netsentinel/models/ads_ml/current/config.yaml")
+# 启用哪些模型：默认值在这里（走 PR 修改），.env 里的 VIGIL_MODELS 可以临时覆盖
+VIGIL_MODELS = env.list("VIGIL_MODELS", default=["vigil.detection.lof_baseline.LofBaselineModel"])
+# 每个模型一个目录（vigil/detection/<模型名>/），模型文件放在其中的 files/ 下，随代码进 Git
+VIGIL_ADS_ML_CONFIG = env.str("VIGIL_ADS_ML_CONFIG", default=str(BASE_DIR / "vigil/detection/ads_ml/files/config.yaml"))
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True

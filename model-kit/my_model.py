@@ -6,14 +6,11 @@
   2. name 返回一个固定的模型名（英文、不带空格）
   3. predict(flow) 输入一条流（35 个特征），返回 DetectionResult
 
-模型文件（.joblib / .pt / .pkl 等）不放进 Git，放在一个目录里，在 __init__ 里加载一次。
-这个目录从哪里来：
-  · 本地自测：python try_my_model.py --model-dir ./my_model_files
-  · 平台上：平台创建模型时不传参数，模型从环境变量 MODEL_DIR_ENV 读取目录
-           （在服务器的后端配置 .env 里设置，见 README 第 6 节）
+训练好的模型文件（.joblib / .pkl 等）放在本文件旁边的 files/ 目录，在 __init__ 里加载一次。
+平台创建模型时不传参数，就从 files/ 加载；自测时可以用 --model-dir 指定别的目录。
+训练代码不放进这个目录（见 README 第 5 节）。
 """
 
-import os
 from pathlib import Path
 
 try:   # 在平台里运行
@@ -22,14 +19,13 @@ except ImportError:   # 在 model-kit 里单独运行（base.py 是平台接口�
     from base import BaseDetectionModel, DetectionInput, DetectionResult
 
 
-# TODO：改成模型自己的环境变量名（和模型名对应，避免和别的模型冲突）
-MODEL_DIR_ENV = "MY_MODEL_V1_DIR"
+FILES = Path(__file__).resolve().parent / "files"
 
 
 class MyModel(BaseDetectionModel):
 
     def __init__(self, model_dir: str | Path | None = None):
-        model_dir = model_dir or os.environ.get(MODEL_DIR_ENV) or "./my_model_files"
+        model_dir = model_dir or FILES
         self.model_dir = Path(model_dir)
         # TODO：在这里加载模型文件（只加载一次，之后每条流直接推理）
         # import joblib

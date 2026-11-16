@@ -1,0 +1,22 @@
+logging:
+  level: INFO
+
+model_paths:
+  ocsvm_pipeline: 'trained/ebpf_ocsvm_pipeline.joblib'
+  prototypes: 'trained/multi_attack_semantic_prototypes_kmeans.joblib'
+
+
+training_data_used_for_cosine_verification:
+  train_data: 'trained/step_10_final_train_data.csv'
+
+
+input:
+  eBPF_interface: 'eth0'
+  log_format: 'JSON'
+
+output:
+  report_path: 'results/Anomaly_Detection_Report.csv'
+
+#cloud:
+#  url: 'http://private-cloud.local/report'
+#  method: 'POST'
