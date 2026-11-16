@@ -129,7 +129,7 @@ def detect_batch(flows, model_name=None):
     <section id="model">
       <h2>4.6 模型：ads_ml（OCSVM + 余弦复核 + 零样本学习）</h2>
       <h3>文件</h3>
-      <p>代码在 <code>apps/backend/vigil/detection/ads_ml/</code>；线上用的模型文件在版本目录 <code class="vp">/srv/netsentinel/models/ads_ml/current</code>（见 <a href="#newmodel">4.11</a>），表里的 <code>trained/</code> 指那里的文件。</p>
+      <p>代码在 <code>apps/backend/vigil/detection/ads_ml/</code>；模型文件在 <code>ads_ml/files/</code>（随代码进 Git，当前未启用；旧位置 <code class="vp">/srv/netsentinel/models/ads_ml/current</code> 已不再使用）（见 <a href="#newmodel">4.11</a>），表里的 <code>trained/</code> 指那里的文件。</p>
       <div class="table-wrap"><table>
         <tr><th>文件</th><th>内容</th></tr>
         <tr><td><code>config.yaml</code></td><td>三个模型文件的路径（相对 config.yaml 所在目录）</td></tr>
@@ -148,7 +148,7 @@ def detect_batch(flows, model_name=None):
         <div class="step"><div class="step-title">零样本学习 <code>zero_shot_learning(X_pca, prediction, prototypes)</code></div>
           <p>正常样本：<code>Normal</code>，相似度 0。攻击样本：与每个攻击类别的每个原型算余弦相似度，取最高的；≥ <code>SEEN_SIM_THRESHOLD=0.50</code> 则为该类（<code>Seen_Attack</code>），否则 <code>Unknown_Attack</code>。</p>
           <p>当前原型里的类别名就是前端日志页写死的 9 个：<code>Dos-TCP SYN flood</code>、<code>ddos-TCP SYN flood</code>、<code>DoS Get</code>、<code>TCP sequence prediction</code>、<code>Slowloris</code>、<code>Slow-body</code>、<code>Slow-read</code>、<code>Slow-range</code>、<code>Credentials hijacking</code>。查看实际名字：</p>
-<pre class="on-prod"><code>cd <span class="vp">/srv/netsentinel/prod</span>/apps/backend &amp;&amp; ../../.venv/bin/python -c "import joblib;print(list(joblib.load('/srv/netsentinel/models/ads_ml/current/trained/multi_attack_semantic_prototypes_kmeans.joblib')))"</code></pre></div>
+<pre class="on-prod"><code>cd <span class="vp">/srv/netsentinel/prod</span>/apps/backend &amp;&amp; ../../.venv/bin/python -c "import joblib;print(list(joblib.load('vigil/detection/ads_ml/files/trained/multi_attack_semantic_prototypes_kmeans.joblib')))"</code></pre></div>
       </div>
       <h3>模型怎么接入后端</h3>
       <p>后端不直接认识 ads_ml，只认接口 <code>BaseDetectionModel</code>：一个模型就是一个实现了 <code>name</code> 和 <code>predict()</code> 的类。启动时注册表按 <code>.env</code> 的 <code>VIGIL_MODELS</code>（类的完整路径，逗号分隔，默认只有 <code>AdsMLModel</code>）逐个实例化；服务层对每条流调用全部已注册模型，每个模型的结果各写一条记录。这样换模型、加模型都不用改 bridge、服务层和数据库。</p>
@@ -197,7 +197,7 @@ def detect_batch(flows, model_name=None):
   BaseDetectionModel ..> DetectionResult : 输出</pre>
 <ol>
         <li><b>启动时</b>：导入 <code>vigil/detection/registry.py</code>，按 <code>VIGIL_MODELS</code> 逐个 <code>import_string(类路径)()</code>。</li>
-        <li><b>AdsMLModel 构造</b>：把 <code>VIGIL_ADS_ML_CONFIG</code>（<code>/srv/netsentinel/models/ads_ml/current/config.yaml</code>）解析成实际版本目录，读 <code>config.yaml</code> 和 <code>trained/</code> 下三个文件，留在内存里。失败只记 <code>model ... not loaded</code>，后端照常启动。</li>
+        <li><b>AdsMLModel 构造</b>：把 <code>VIGIL_ADS_ML_CONFIG</code>（默认 <code>vigil/detection/ads_ml/files/config.yaml</code>）解析成实际版本目录，读 <code>config.yaml</code> 和 <code>trained/</code> 下三个文件，留在内存里。失败只记 <code>model ... not loaded</code>，后端照常启动。</li>
         <li><b>每批流</b>：drainer 调 <code>services.detect_batch()</code> → 对每条流 <code>run_all()</code>，每个已注册模型 <code>predict()</code> 一次，返回 <code>DetectionResult</code>。</li>
         <li><b>写库</b>：<code>policy_for_result()</code> 给出建议动作，每个模型的结果各 INSERT 一条到 <code>vigil_detectionrecord</code>。</li>
       </ol>
@@ -249,30 +249,7 @@ uv run python lab/collect/vigil_bridge.py --backend http://localhost:8080 --toke
 
     <section id="newmodel">
       <h2>4.11 替换模型与新增模型</h2>
-      <p>线上模型文件按版本放在 <code class="vp">/srv/netsentinel/models/ads_ml/</code>，每个版本一个目录（含 <code>config.yaml</code> 和 <code>trained/</code>），<code>current</code> 软链接指向正在用的版本，<code>.env</code> 里 <code>VIGIL_ADS_ML_CONFIG=/srv/netsentinel/models/ads_ml/current/config.yaml</code>。这样新旧版本同时在盘上，切换和回滚都只是改一个软链接再重启。</p>
-      <h3>替换 ads_ml 模型文件</h3>
-<pre class="on-prod"><code>cd /srv/netsentinel/models/ads_ml
-mkdir -p v2-20261101/trained                                   <span class="c"># 版本名自定，建议 v序号-日期</span>
-cp 新的文件 v2-20261101/trained/                                <span class="c"># ebpf_ocsvm_pipeline.joblib、*_prototypes_*.joblib、训练集 CSV</span>
-cp current/config.yaml v2-20261101/                              <span class="c"># 文件名变了就改这份 config.yaml</span>
-cd /srv/netsentinel/prod/apps/backend &amp;&amp; ../../.venv/bin/python manage.py check_model --config /srv/netsentinel/models/ads_ml/v2-20261101/config.yaml
-ln -sfn v2-20261101 /srv/netsentinel/models/ads_ml/current
-sudo systemctl restart netsentinel
-sudo journalctl -u netsentinel --since '-1 min' | grep 'AdsMLModel loaded from'</code></pre>
-      <ul>
-        <li><code>check_model</code> 只检查接口：能否加载、<code>predict</code> 返回的字段和类型是否正确。检测效果由训练模型的人负责。</li>
-        <li>scikit-learn 要与训练时版本一致（当前锁定 1.7.2，见 <code>pyproject.toml</code>），否则加载失败。</li>
-        <li>攻击类别名变了：前端 <code>VigilLogView.vue</code> 的 <code>ATTACK_TYPES</code> 和 <code>response/cilium.py</code> 的映射要同步改，走正常的 PR 和发布流程。</li>
-        <li>回滚：<code>ln -sfn 旧版本目录名 /srv/netsentinel/models/ads_ml/current</code>，再重启。旧版本目录确认不再需要之前不要删。</li>
-      </ul>
-      <h3>新增一个模型（与现有模型并行）</h3>
-      <ol>
-        <li>在 <code>apps/backend/vigil/detection/</code> 下写一个继承 <code>BaseDetectionModel</code> 的类，实现 <code>name</code>（唯一，会存进记录的 <code>model_name</code>）和 <code>predict()</code>；参考 <code>example_threshold.py</code>。需要模型文件就像 <code>AdsMLModel</code> 一样接收 <code>config_path</code>，在构造函数里加载一次。</li>
-        <li>检查接口：<code>../../.venv/bin/python manage.py check_model --model vigil.detection.my_model.MyModel</code></li>
-        <li>代码走 PR 和 <code>deploy.sh -backend</code> 上线。</li>
-        <li>在线上 <code>.env</code> 里加：<code>VIGIL_MODELS=vigil.detection.ads_ml.AdsMLModel,vigil.detection.my_model.MyModel</code>，重启。</li>
-      </ol>
-      <p>结果：<code>/api/vigil/models/</code> 返回两个名字，看板 Model Coverage 出现两行；每条流每个模型各写一条记录，记录数随模型数增加。只想换掉旧模型时，<code>VIGIL_MODELS</code> 里只留新类。<code>POST /api/vigil/detect/</code> 带 <code>"model": "名字"</code> 可以单独调用某个模型。</p>
+      <p>每个模型一个目录 <code>apps/backend/vigil/detection/&lt;模型名&gt;/</code>（<code>model.py</code> + <code>files/</code> 下训练好的模型文件，都进 Git），启用列表在 <code>settings.py</code> 的 <code>VIGIL_MODELS</code>，全部走 PR、合并后自动部署。当前启用 <code>lof_baseline_v1</code>；<code>ads_ml</code> 仍在仓库里，未启用。完整步骤见 <a href="/help/model">更换检测模型</a>。</p>
     </section>
   </div>
 </template>

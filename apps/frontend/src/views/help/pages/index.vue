@@ -127,7 +127,7 @@
         <tr><td>Python 环境</td><td><code class="vn">/home/NEWUSER/github/knettf/.venv/</code>（开发）、<code class="vp">/srv/netsentinel/prod/.venv/</code>（线上）</td><td>都用 <code>uv sync</code> 按 <code>uv.lock</code> 生成，Python 3.12</td></tr>
         <tr><td>default 数据库</td><td><code class="vp">/srv/netsentinel/prod/apps/backend/db.sqlite3</code>（开发用 <code class="vn">/home/NEWUSER/github/knettf/apps/backend/db.sqlite3</code>）</td><td>SQLite：用户、集群、Terraform 配置、扫描报告</td></tr>
         <tr><td>vigil 数据库</td><td>Docker 容器 <code>pg</code>，<code>127.0.0.1:5432</code>，线上库 <code>vigil</code>、开发库 <code>vigil_dev</code>，用户 <code>vigil</code></td><td>PostgreSQL：检测记录（按天分区）</td></tr>
-        <tr><td>模型文件</td><td><code class="vp">/srv/netsentinel/models/ads_ml/current</code>（指向当前版本目录）</td><td>OCSVM 流水线、攻击原型、训练数据</td></tr>
+        <tr><td>模型文件</td><td><code>apps/backend/vigil/detection/&lt;模型名&gt;/files/</code>（随代码进 Git）</td><td>OCSVM 流水线、攻击原型、训练数据</td></tr>
         <tr><td>后端服务定义</td><td><code>deploy/systemd/netsentinel.service</code></td><td>装到 <code>/etc/systemd/system/</code> 的系统服务，以 <code>netsentinel</code> 账户运行</td></tr>
         <tr><td>集群脚本</td><td><code>/srv/netsentinel/lab/cluster/</code></td><td>00 清理 / 01 建 VM / 02 装集群 / 03 部署数据管道</td></tr>
         <tr><td>集群凭证</td><td><code>/home/NEWUSER/.kube/config</code></td><td>宿主机上 <code>kubectl</code> 用它；登记集群时把它的内容贴到网页上</td></tr>
@@ -200,7 +200,7 @@
         <tr><td>REST 批量检测</td><td><code>lab/collect/vigil_bridge.py --token &lt;JWT&gt;</code></td><td><code>POST /api/vigil/detect/batch/</code></td><td>JWT access 默认 2 小时过期；长期运行用 <code>generate_bridge_token</code> 生成 10 年 token</td></tr>
         <tr><td>评估监听 WebSocket</td><td><code>simulation/monitor/monitor.py</code> 连接 <code>ws://localhost:8080/ws/vigil/</code></td><td><b>后端没有这个路由</b>（只有未使用的 <code>ws/detector/push/</code> 和 Pod 日志）</td><td>monitor 目前连不上；需在 <code>vigil/routing.py</code> 补广播 consumer 或改 monitor 轮询 REST</td></tr>
         <tr><td>离线导入</td><td><code>simulation/simulate_4.py</code></td><td><code>vigil.services.detect_batch(flows, model_name)</code></td><td>移动目录或改函数签名都会破坏</td></tr>
-        <tr><td>模型文件</td><td>—</td><td><code>/srv/netsentinel/models/ads_ml/current</code>（<code>.env</code> 的 <code>VIGIL_ADS_ML_CONFIG</code>）</td><td>改模型后重启后端</td></tr>
+        <tr><td>模型文件</td><td>—</td><td><code>vigil/detection/&lt;模型名&gt;/files/</code>（进 Git，见 <a href="/help/model">更换检测模型</a>）</td><td>改模型后重启后端</td></tr>
       </table></div>
     </section>
 
@@ -250,7 +250,7 @@
 <li><code>views.py · serializers.py · urls.py · models.py（DetectionRecord, managed=False）</code></li>
 <li><code>migrations/0001_initial.py</code><span>手写 SQL：分区表 + 91 个日分区</span></li>
 <li><code>management/commands/ generate_bridge_token.py · rotate_partitions.py</code></li>
-<li><code class="dir">detection/</code><span>base.py（DetectionInput / DetectionResult）· registry.py · ads_ml/（ads_ml_ocsvm）· example_threshold.py（未注册）</span></li>
+<li><code class="dir">detection/</code><span>base.py（DetectionInput / DetectionResult）· registry.py · lof_baseline/（lof_baseline_v1，启用中）· ads_ml/（ads_ml_ocsvm，未启用）· example_threshold.py（未注册）</span></li>
 <li><code class="dir">ingest/</code><span>bridge.py（入口 A：Kafka 消费 → 聚合 → flow_queue → drainer）· features.py（35 个特征）</span></li>
 <li><code class="dir">response/</code><span>cilium.py：检测结果 → drop / rate_limit / alert / ignore（apply_action 是 stub）</span></li>
 <li><code class="dir">tests/</code><span>test_api · test_features</span></li>

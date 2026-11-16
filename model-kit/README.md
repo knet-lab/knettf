@@ -128,6 +128,8 @@ python try_my_model.py --model zsl_ocsvm/model.py:ZslOcsvmModel --model-dir zsl_
 
 ## 6. 上线：全部通过 Git
 
+网站帮助手册里有同样内容的操作页面：**更换检测模型**（`/help/model`），包括资源消耗对比。
+
 代码和模型文件都在仓库里，**不需要登录服务器放文件、改 `.env` 或重启**：合并到 `main` 后自动部署会同步代码并重启后端。
 
 ```
@@ -142,11 +144,11 @@ apps/backend/vigil/detection/
     └── files/lof.joblib
 ```
 
-### ① 放进仓库（在 `dev/soar009` 分支上）
+### ① 放进仓库（在任务分支上）
 
 ```bash
 cd <仓库>
-git checkout dev/soar009 && git pull origin main
+git switch main && git pull origin main && git switch -c model/zsl-ocsvm
 cp -r <你的工作目录>/zsl_ocsvm apps/backend/vigil/detection/zsl_ocsvm
 printf 'from .model import ZslOcsvmModel\n\n__all__ = ["ZslOcsvmModel"]\n' > apps/backend/vigil/detection/zsl_ocsvm/__init__.py
 ```
@@ -173,7 +175,7 @@ cd <仓库>/apps/backend
 ../../.venv/bin/python manage.py check_model          # 检查 VIGIL_MODELS 里的全部模型，必须全部 ✓
 cd <仓库> && ops/scripts/check.sh backend
 git add apps/backend/vigil/detection/zsl_ocsvm apps/backend/backend/settings.py
-git commit -m "检测模型：启用 zsl_ocsvm_v1" && git push origin dev/soar009
+git commit -m "检测模型：启用 zsl_ocsvm_v1" && git push -u origin HEAD
 ```
 
 在 GitHub 上开 PR 到 `main`。CI 会加载启用的每个模型并检查输入输出（`vigil/tests/test_models.py`），不通过就不能合并、也不会部署。

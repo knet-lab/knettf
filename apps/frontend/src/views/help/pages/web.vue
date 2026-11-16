@@ -77,7 +77,7 @@
       <p>A machine-learning model watches traffic inside the lab cluster and flags flows that look like attacks. The dashboard <code>/vigil</code> refreshes every <b>30 seconds</b>, the log <code>/vigil/log</code> every <b>15 seconds</b>; <span class="ui">Refresh now</span> reloads immediately.</p>
       <div class="table-wrap"><table>
         <tr><th>Area</th><th>Meaning</th></tr>
-        <tr><td>Detection model</td><td>Should show <code>ads_ml_ocsvm</code>. “No models registered” means the model failed to load — tell the operator</td></tr>
+        <tr><td>Detection model</td><td>Should show the enabled model (currently <code>lof_baseline_v1</code>). “No models registered” means the model failed to load — tell the operator</td></tr>
         <tr><td>Total Inspected / Attacks Detected / Normal Flows / Attack Rate</td><td>All-time totals over the whole database, not since the page opened</td></tr>
         <tr><td>Attack Type Breakdown</td><td>Count per attack type</td></tr>
         <tr><td>Recent Attack Events</td><td>Latest 30 attacks; <span class="ui">View log →</span> opens the full log</td></tr>

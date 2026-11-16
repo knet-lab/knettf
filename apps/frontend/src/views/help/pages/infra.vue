@@ -201,7 +201,6 @@ git clone git@github.com:knet-lab/knettf.git <span class="vp">/srv/netsentinel/p
 sudo chown -R netsentinel:netsentinel <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; sudo chmod -R g+rwX <span class="vp">/srv/netsentinel/prod</span>
 git -C <span class="vp">/srv/netsentinel/prod</span> config core.sharedRepository group
 cd <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; uv sync --frozen
-ls <span class="vp">/srv/netsentinel/models/ads_ml/current</span>/config.yaml   <span class="c"># 模型不在 Git 里，需从旧机器复制 /srv/netsentinel/models/</span>
 cp <span class="vn">/home/NEWUSER/github/knettf</span>/apps/frontend/.env <span class="vp">/srv/netsentinel/prod</span>/apps/frontend/.env
 <span class="c"># 线上 .env：ENVIRONMENT=linux_development、DEBUG=False、SECRET_KEY=&lt;随机&gt;、</span>
 <span class="c"># ALLOWED_HOSTS=knettf.com,localhost,127.0.0.1,192.168.100.1、CSRF_EXTRA_ORIGINS=https://knettf.com、VIGIL_DB_NAME=vigil</span>
