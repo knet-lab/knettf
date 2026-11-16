@@ -5,7 +5,7 @@
 在单台宿主机上用 libvirt 起 5 台 VM 组成 K8s 集群，Cilium 以 eBPF 方式观测所有流量，Hubble 流事件经 flow-shipper 写入 Kafka；宿主机通过绑定伪造源 IP 向集群发送正常 / 攻击流量，用于：
 
 - 采集带标签的数据集（包级 → 流级 30 特征）
-- 把流量实时送到 NetSentinel 检测后端（Django `vigil` 应用，模型由 `VIGIL_MODELS` 配置，默认 `AdsMLModel`/OCSVM）并评估检测效果
+- 把流量实时送到 NetSentinel 检测后端（Django `vigil` 应用，模型由 `VIGIL_MODELS` 配置，默认 `LofBaselineModel`）并评估检测效果
 
 > 本目录是 knettf 仓库的 `lab/` 部分，有独立的 Python 环境（`lab/pyproject.toml`，只用 **uv** 管理）。下文路径除特别说明外都相对 `lab/`。
 > 运行目录：`/srv/netsentinel/lab`（软链接到 `/srv/netsentinel/lab-repo/lab`，一个只检出 `lab/` 的 Git 工作树，由 `lab/sync-to-srv.sh` 拉取 GitHub `main`；数据只放在那里）。
@@ -224,8 +224,8 @@ lab/
 
 后端相关配置（`apps/backend/backend/settings.py`，可用环境变量覆盖）：
 
-- `VIGIL_MODELS`：要加载的模型类列表，默认 `vigil.detection.ads_ml.AdsMLModel`
-- `VIGIL_ADS_ML_CONFIG`：AdsMLModel 的配置文件，默认 `/srv/netsentinel/models/ads_ml/current/config.yaml`；模型目录在启动时解析软链接，切换版本需重启后端
+- `VIGIL_MODELS`：要加载的模型类列表，默认值写在 `settings.py`（当前 `vigil.detection.lof_baseline.LofBaselineModel`），走 PR 修改
+- `VIGIL_ADS_ML_CONFIG`：AdsMLModel 的配置文件，默认仓库里的 `vigil/detection/ads_ml/files/config.yaml`
 - `VIGIL_KAFKA_GROUP_ID`：后端自带的 Kafka 消费桥（`vigil/ingest/bridge.py`，随后端启动）使用的 consumer group，默认 `vigil-bridge`
 - `VIGIL_BRIDGE_TOKEN`：`vigil-bridge` 服务账号的长期 JWT（脚本调用 REST 用）；也是保留未用的 `ws/detector/push/` 的认证 token
 

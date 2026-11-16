@@ -78,9 +78,10 @@ terraform/
 .cloudflared/
 
 
-# 模型文件、训练数据、日志只在服务器上（/srv/netsentinel/models/），不进仓库
+# 模型文件不进仓库，例外：已上线模型的成品放在 vigil/detection/<模型名>/files/ 下，随代码进 Git
 *.joblib
 *.pkl
+!apps/backend/vigil/detection/*/files/**
 
 Linux Host Info.md
 

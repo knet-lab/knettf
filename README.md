@@ -105,7 +105,7 @@ git config user.email "<GitHub 上已验证的邮箱>"
 |------|------|
 | `apps/backend/backend/.env` | `ENVIRONMENT=linux_development`、`VIGIL_BRIDGE_TOKEN`、`VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev` |
 | `apps/frontend/.env` | `VITE_API_BASE`、`VITE_WS_BASE` |
-| `/srv/netsentinel/models/ads_ml/current` | 模型文件（不进 Git，由 `.env` 的 `VIGIL_ADS_ML_CONFIG` 指向） |
+| `apps/backend/vigil/detection/<模型名>/files/` | 模型文件（随代码进 Git；启用哪些模型见 `settings.py` 的 `VIGIL_MODELS`） |
 
 ### 启动
 
@@ -187,7 +187,7 @@ ops/scripts/check.sh frontend        # 只查一部分
 |------|------|
 | `/srv/netsentinel/prod` | 线上平台代码（只由部署脚本更新，**不要在里面改代码**） |
 | `/srv/netsentinel/lab` → `lab-repo/lab` | 实验环境：代码由部署脚本更新，数据集 / 日志 / CSV 也在这里 |
-| `/srv/netsentinel/models/` | 模型文件 |
+| `/srv/netsentinel/models/` | 旧的模型文件目录（模型文件已随代码进 Git，不再使用） |
 | `/srv/netsentinel/logs/` | 自动部署、分区滚动的日志 |
 | `/srv/netsentinel/tools/` | 部署用的 uv、node，以及 checkov |
 | `/srv/netsentinel/backups/` | 备份 |

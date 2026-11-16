@@ -4,7 +4,7 @@
 
   python manage.py check_model                                        # settings.VIGIL_MODELS 里的全部模型
   python manage.py check_model --model vigil.detection.ads_ml.AdsMLModel \\
-      --config /srv/netsentinel/models/ads_ml/<版本>/config.yaml       # 指定类和模型目录（新版本切换前）
+      --config <路径>/config.yaml                                     # ads_ml：指定别的配置文件
 """
 
 from django.conf import settings
