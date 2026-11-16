@@ -89,11 +89,15 @@ def detect_batch(flows_data: list[dict], model_name: str | None = None) -> list[
 
 
 def get_stats() -> dict:
-    from django.db.models import Count
+    from django.db.models import Count, Q
     from .serializers import DetectionRecordSerializer
 
-    total = DetectionRecord.objects.count()
-    attacks = DetectionRecord.objects.filter(is_attack=True).count()
+    # One query so total/attacks come from the same snapshot; two separate
+    # counts race with the ingest writer and can yield attacks > total.
+    agg = DetectionRecord.objects.aggregate(
+        total=Count("id"), attacks=Count("id", filter=Q(is_attack=True))
+    )
+    total, attacks = agg["total"], agg["attacks"]
     by_type = list(
         DetectionRecord.objects.filter(is_attack=True)
         .values("attack_type")
