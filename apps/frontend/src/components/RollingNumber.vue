@@ -3,7 +3,7 @@
     <span v-if="chars === null" class="rn-dash">—</span>
     <template v-else>
       <template v-for="(item, i) in chars" :key="item.key">
-        <span v-if="item.ch === '.'" class="rn-dot">.</span>
+        <span v-if="item.ch === '.' || item.ch === '-'" class="rn-dot">{{ item.ch }}</span>
         <span v-else class="rn-slot">
           <span class="rn-strip" :style="{ transform: `translateY(-${parseInt(item.ch) * 10}%)` }">
             <span v-for="d in 10" :key="d" class="rn-cell">{{ d - 1 }}</span>
@@ -32,7 +32,7 @@ const chars = computed(() => {
   // key digits right-to-left so units slot keeps its key when digit count grows
   const arr = s.split('')
   const len = arr.length
-  return arr.map((ch, i) => ({ ch, key: ch === '.' ? `dot-${i}` : String(len - 1 - i) }))
+  return arr.map((ch, i) => ({ ch, key: ch === '.' || ch === '-' ? `${ch}-${i}` : String(len - 1 - i) }))
 })
 </script>
 
