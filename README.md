@@ -165,6 +165,34 @@ ops/scripts/check.sh frontend        # 只查一部分
 
 ---
 
+## 检测模型（更换与上线）
+
+**全部走 Git，不在服务器上手动放文件、改 `.env` 或重启。** 完整步骤见网站手册 **更换检测模型**（`/help/model`，源文件 `apps/frontend/src/views/help/pages/model.vue`）和 [model-kit/README.md](model-kit/README.md)。
+
+| 什么 | 放在哪 |
+|---|---|
+| 推理代码 | `apps/backend/vigil/detection/<模型名>/model.py`（+ `__init__.py`），每个模型一个目录，目录名 = 模型名 |
+| 训练好的模型文件 | `apps/backend/vigil/detection/<模型名>/files/`，随代码进 Git |
+| 启用哪些模型 | `apps/backend/backend/settings.py` 的 `VIGIL_MODELS` 默认值（线上 `.env` 不要写 `VIGIL_MODELS`） |
+| 训练代码、训练数据 | **不进 Git**，由模型方在自己的环境里训练 |
+
+拿到一个训练好的 `.joblib`：
+
+1. **同一个模型的新版本**（算法、特征、预处理不变）：覆盖 `detection/<模型名>/files/` 下的同名文件。
+2. **新模型**：新建 `detection/<模型名>/`，从 `model-kit/my_model.py` 写 `model.py`（按训练时的特征和预处理调用模型，返回 `DetectionResult`），再把类加进 `VIGIL_MODELS`。
+3. 检查：`cd apps/backend && ../../.venv/bin/python manage.py check_model`，并用 `model-kit/try_my_model.py` 在正常数据上看误报率和**每条耗时**。
+4. 任务分支 → PR → CI（`test_models` 会加载并检查每个启用的模型）→ 合并 → 自动部署并重启。回滚：revert 这个 PR。
+
+**资源消耗很重要。** 平台逐条调用 `predict`，模型慢会让流积压、后端 CPU 长期占满，并扰动实验集群采到的时间特征。2026-11-17 把 `ads_ml_ocsvm` 换成 `lof_baseline_v1` 的实测：
+
+| | ads_ml_ocsvm | lof_baseline_v1 |
+|---|---|---|
+| 单条流推理（逐条、单线程） | 154 ms | 1.9 ms |
+| 后端服务平均 CPU | 约 86% | 约 42%（含 Kafka、切流、写库） |
+| 后端内存 | 峰值 276 MB | 约 270 MB（不随流量增长，上限 3 GB） |
+
+上线新模型前必须看每条耗时，建议不超过几毫秒；同时启用多个模型时耗时和写库量按个数叠加。
+
 ## 运维速查
 
 | 要做的事 | 命令 |

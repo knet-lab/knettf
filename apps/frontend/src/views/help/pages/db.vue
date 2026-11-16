@@ -147,7 +147,7 @@
         <tr><td><code>src_port</code> · <code>dst_port</code></td><td>INTEGER</td><td>是</td><td>五元组；ICMP 为 0</td></tr>
         <tr><td><code>protocol</code></td><td>VARCHAR(10)</td><td>是</td><td><code>TCP</code> / <code>UDP</code> / <code>ICMPv4</code> / <code>ICMPv6</code> / <code>OTHER</code></td></tr>
         <tr><td><code>flow_input</code></td><td>JSONB</td><td>是</td><td>送入模型的完整特征（<code>asdict(DetectionInput)</code>）</td></tr>
-        <tr><td><code>model_name</code></td><td>VARCHAR(100)</td><td>是</td><td>当前只有 <code>ads_ml_ocsvm</code></td></tr>
+        <tr><td><code>model_name</code></td><td>VARCHAR(100)</td><td>是</td><td>当前为 <code>lof_baseline_v1</code>（2026-11-17 之前为 <code>ads_ml_ocsvm</code>）</td></tr>
         <tr><td><code>is_attack</code></td><td>BOOLEAN</td><td>是</td><td>OCSVM 判定（含余弦复核）</td></tr>
         <tr><td><code>confidence</code></td><td>DOUBLE</td><td>是</td><td>与最近攻击原型的余弦相似度；正常流为 0.0</td></tr>
         <tr><td><code>attack_type</code></td><td>VARCHAR(100)</td><td>否</td><td>9 类原型名之一或 <code>Unknown_Attack</code>；正常为 NULL</td></tr>
@@ -231,11 +231,11 @@ SELECT avg((raw_output-&gt;&gt;'inference_ms')::float), avg((raw_output-&gt;&gt;
     </section>
 
     <section id="model">
-      <h2>8.7 检测模型 ads_ml_ocsvm</h2>
+      <h2>8.7 检测模型 ads_ml_ocsvm（当前未启用，见 <a href="/help/model">更换检测模型</a>）</h2>
       <h3>文件</h3>
       <div class="table-wrap"><table>
         <tr><th>文件</th><th>内容</th></tr>
-        <tr><td><code>/srv/netsentinel/models/ads_ml/current/config.yaml</code></td><td>模型路径、训练数据路径、报告路径</td></tr>
+        <tr><td><code>vigil/detection/ads_ml/files/config.yaml</code></td><td>模型路径、训练数据路径、报告路径</td></tr>
         <tr><td><code>trained/ebpf_ocsvm_pipeline.joblib</code>（69 KB）</td><td>dict：encoder（OrdinalEncoder）、scaler、PCA(20)、detector=<code>OneClassSVM(nu=0.01)</code>、列定义、clip 范围</td></tr>
         <tr><td><code>trained/multi_attack_semantic_prototypes_kmeans.joblib</code>（43 KB）</td><td>9 类攻击的 KMeans 原型向量，共 190 个</td></tr>
         <tr><td><code>trained/step_10_final_train_data.csv</code>（11 MB）</td><td>PCA 后的训练样本（PC1..PC20），用于余弦复核</td></tr>

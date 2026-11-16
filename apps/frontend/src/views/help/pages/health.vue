@@ -59,7 +59,7 @@ du -sh <span class="vp">/srv/netsentinel/prod</span>/../logs</code></pre></div><
       <div class="table-wrap"><table>
         <tr><th>看哪里</th><th>正常</th><th>为什么看 / 不正常时</th></tr>
         <tr><td>能否打开并登录</td><td>能登录</td><td>打不开但命令行第 1 步正常 → 隧道问题，<code>sudo systemctl status cloudflared-knettf</code></td></tr>
-        <tr><td><span class="ui">AI Vigil</span> 左侧 Detection model</td><td><code>ads_ml_ocsvm</code></td><td>显示 No models registered = 模型加载失败，查日志 <code>AdsMLModel not loaded</code></td></tr>
+        <tr><td><span class="ui">AI Vigil</span> 左侧 Detection model</td><td><code>lof_baseline_v1</code>（当前启用的模型，见 <a href="/help/model">更换检测模型</a>）</td><td>显示 No models registered = 模型加载失败，查日志 <code>AdsMLModel not loaded</code></td></tr>
         <tr><td>检测日志最新一条的时间</td><td>有实验时在几分钟内</td><td>有流量却没新记录 → bridge 多半已退出，重启后端</td></tr>
         <tr><td>Attack Rate、攻击类型</td><td>与实验计划相符</td><td>没做实验却有大量攻击、陌生源 IP → 截图上报</td></tr>
         <tr><td>管理后台 <span class="ui">Users</span></td><td>都认识</td><td>注册接口对公网开放，任何人都能注册 → 陌生账号删除并上报</td></tr>

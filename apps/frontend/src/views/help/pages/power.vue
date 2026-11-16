@@ -204,8 +204,7 @@ cd <span class="vp">/srv/netsentinel/prod</span> &amp;&amp; rm -rf .venv apps/fr
         <tr><td>vigil 库</td><td><code>docker exec pg pg_dump -U vigil -Fc vigil &gt; /srv/netsentinel/backups/vigil_$(date +%F).dump</code></td><td>见下方</td></tr>
         <tr><td>上传的 .tf 文件</td><td><code class="vp">tar czf tf_$(date +%F).tgz -C /srv/netsentinel/prod/apps/backend terraform</code></td><td>解压回 <code>backend/</code></td></tr>
         <tr><td>后端 .env</td><td><code class="vp">cp /srv/netsentinel/prod/apps/backend/backend/.env /home/NEWUSER/netsentinel_env_$(date +%F)</code></td><td>复制回去，重启后端</td></tr>
-        <tr><td>模型文件</td><td><code class="vp">tar czf ads_ml_$(date +%F).tgz -C /srv/netsentinel models/ads_ml</code></td><td>解压回去，重启后端</td></tr>
-        <tr><td>knetsentinel 全部</td><td><code>tar czf /srv/netsentinel/backups/lab_$(date +%F).tgz -C /srv/netsentinel --exclude='lab/.venv' lab</code></td><td>解压，<code>uv sync</code></td></tr>
+                <tr><td>knetsentinel 全部</td><td><code>tar czf /srv/netsentinel/backups/lab_$(date +%F).tgz -C /srv/netsentinel --exclude='lab/.venv' lab</code></td><td>解压，<code>uv sync</code></td></tr>
         <tr><td>kubeconfig</td><td><code>cp /home/NEWUSER/.kube/config /home/NEWUSER/kubeconfig_$(date +%F)</code></td><td>集群没重建时才有用</td></tr>
         <tr><td>systemd / cloudflared</td><td><code>sudo tar czf /srv/netsentinel/backups/sys_$(date +%F).tgz /etc/systemd/system/netsentinel.service /etc/systemd/system/cloudflared-knettf.service /etc/cloudflared/knettf /etc/cron.d/netsentinel /etc/sudoers.d/netsentinel</code></td><td>解压，<code>sudo systemctl daemon-reload</code></td></tr>
         <tr><td>定时任务</td><td>在上一行的 <code>/etc/cron.d/netsentinel</code> 里，源文件 <code>deploy/cron.netsentinel</code></td><td>解压或从仓库重装</td></tr>

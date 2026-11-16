@@ -33,7 +33,7 @@
         <tr><td>Users, clusters, Terraform data</td><td>SQLite <code>/srv/netsentinel/prod/apps/backend/db.sqlite3</code></td></tr>
         <tr><td>Detection records</td><td>PostgreSQL in Docker container <code>pg</code>, database <code>vigil</code> (development uses <code>vigil_dev</code>)</td></tr>
         <tr><td>Secrets</td><td><code>/srv/netsentinel/prod/apps/backend/backend/.env</code> (not in Git)</td></tr>
-        <tr><td>Model files</td><td><code>/srv/netsentinel/models/ads_ml/current</code> (symlink to the active version)</td></tr>
+        <tr><td>Model files</td><td><code>apps/backend/vigil/detection/&lt;model&gt;/files/</code> (in Git; enabled models are listed in <code>VIGIL_MODELS</code> in <code>settings.py</code>)</td></tr>
         <tr><td>Daily partition job</td><td><code>/etc/cron.d/netsentinel</code>, runs <code>rotate_partitions</code> as <code>netsentinel</code> at midnight</td></tr>
         <tr><td>Lab VMs</td><td>libvirt <code>k8s-master</code> (<code>192.168.100.10</code>), <code>k8s-node1–4</code> (<code>.11–.14</code>); disks in <code>/home/vm-images/</code></td></tr>
       </table></div>

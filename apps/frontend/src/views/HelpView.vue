@@ -26,6 +26,7 @@ const BOOKS: Book[] = [
     { name: '日常运维', pages: [
       { key: 'health', title: '每日健康检查' },
       { key: 'deploy', title: '改动上线' },
+      { key: 'model', title: '更换检测模型', desc: '训练好的模型怎么放进项目、启用、回滚；资源消耗' },
       { key: 'power', title: '开关机 · 重建 · 备份' },
       { key: 'trouble', title: '排障与日志' },
       { key: 'handover', title: '人员交接' },

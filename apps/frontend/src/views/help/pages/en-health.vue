@@ -48,7 +48,7 @@ kubectl get pods -A | grep -vE 'Running|Completed'</code></pre></div></div>
       <div class="table-wrap"><table>
         <tr><th>Look at</th><th>Normal</th><th>If not</th></tr>
         <tr><td>Sign in at knettf.com</td><td>Works</td><td>Step 1 fine but site down → tunnel: <code>sudo systemctl status cloudflared-knettf</code></td></tr>
-        <tr><td>AI Vigil → Detection model</td><td><code>ads_ml_ocsvm</code></td><td>Model failed to load</td></tr>
+        <tr><td>AI Vigil → Detection model</td><td><code>lof_baseline_v1</code> (the enabled model)</td><td>Model failed to load</td></tr>
         <tr><td>Newest log entry</td><td>Minutes old while experiments run</td><td>Restart the backend</td></tr>
         <tr><td>Admin → Users</td><td>You know everyone</td><td>Anyone can register; delete strangers and report</td></tr>
         <tr><td>Admin → TF Tools</td><td>All 5 enabled</td><td>Find out why before re-enabling</td></tr>

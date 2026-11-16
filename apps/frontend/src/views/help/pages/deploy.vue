@@ -129,9 +129,8 @@ sudo systemctl start netsentinel</code></pre></div></div>
     </section>
 
     <section id="model">
-      <h2>检测模型文件（ads_ml）</h2>
-      <p>模型文件不在 Git 里，也不随 <code>deploy.sh</code> 发布：线上按版本放在 <code class="vp">/srv/netsentinel/models/ads_ml/current</code> 指向的目录，由 <code>.env</code> 的 <code>VIGIL_ADS_ML_CONFIG</code> 指定。换版本 = 新建版本目录 → <code>manage.py check_model --config …</code> → 改 <code>current</code> 软链接 → 重启；回滚把软链接指回旧版本再重启。完整步骤和流程图见 <a href="/help/detect#newmodel">4.11 替换模型与新增模型</a>。</p>
-      <p>新增一个模型类（代码）照常走 PR 和 <code>deploy.sh -backend</code>，上线后在 <code>.env</code> 的 <code>VIGIL_MODELS</code> 里启用。</p>
+      <h2>检测模型</h2>
+      <p>模型代码和训练好的模型文件都在仓库里（<code>apps/backend/vigil/detection/&lt;模型名&gt;/</code>），启用哪些模型由 <code>settings.py</code> 的 <code>VIGIL_MODELS</code> 决定，全部走 PR，合并后自动部署。完整步骤、回滚和资源消耗见 <a href="/help/model">更换检测模型</a>。</p>
     </section>
 
     <section id="other">
