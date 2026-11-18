@@ -22,5 +22,11 @@ export default defineConfigWithVueTs(
 
   ...pluginOxlint.buildFromOxlintConfigFile('.oxlintrc.json'),
 
+  {
+    // 页面组件（如 help/pages/detect.vue）按路由用单词命名
+    name: 'app/rules',
+    rules: { 'vue/multi-word-component-names': 'off' },
+  },
+
   skipFormatting,
 )

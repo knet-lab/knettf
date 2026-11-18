@@ -190,8 +190,8 @@ def detect_batch(flows, model_name=None):
     explanation str
     recommended_action
   }
-  BaseDetectionModel <|-- AdsMLModel
-  BaseDetectionModel <|-- ThresholdModel
+  BaseDetectionModel &lt;|-- AdsMLModel
+  BaseDetectionModel &lt;|-- ThresholdModel
   ModelRegistry o-- BaseDetectionModel : VIGIL_MODELS
   BaseDetectionModel ..> DetectionInput : 输入
   BaseDetectionModel ..> DetectionResult : 输出</pre>

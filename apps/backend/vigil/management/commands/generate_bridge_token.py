@@ -35,7 +35,6 @@ class Command(BaseCommand):
         self.stdout.write(f"VIGIL_BRIDGE_TOKEN={token_str}")
 
         if options["write_env"]:
-            import os
             from pathlib import Path
             env_path = Path(__file__).resolve().parents[4] / "backend" / ".env"
             lines = env_path.read_text().splitlines() if env_path.exists() else []
