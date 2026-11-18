@@ -290,8 +290,9 @@ async function loadAll(manual = false) {
     await Promise.all([loadStats(), loadRecords()])
     lastOk.value = Date.now()
     lastError.value = null
-  } catch (e: any) {
-    lastError.value = e?.name === 'AbortError' ? 'timeout' : (e?.message || 'network error')
+  } catch (e: unknown) {
+    const err = e as { name?: string; message?: string }
+    lastError.value = err?.name === 'AbortError' ? 'timeout' : (err?.message || 'network error')
   } finally {
     loading.value = false
     refreshing.value = false

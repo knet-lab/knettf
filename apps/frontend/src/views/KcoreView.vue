@@ -438,7 +438,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, onUnmounted } from 'vue'
-import { Plus, Loading, Folder, Refresh, Upload, ArrowDown, List } from '@element-plus/icons-vue'
+import { Plus, Loading, Refresh, Upload, ArrowDown, List } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useKcoreStore } from '@/stores/kcore'

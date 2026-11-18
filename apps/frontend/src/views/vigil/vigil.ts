@@ -35,7 +35,7 @@ export interface VigilStats {
 
 export function useVigilApi() {
   const auth = useAuthStore()
-  return async function apiGet<T = any>(path: string, timeoutMs = 10000): Promise<T> {
+  return async function apiGet<T = unknown>(path: string, timeoutMs = 10000): Promise<T> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {

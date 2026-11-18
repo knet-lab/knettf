@@ -267,8 +267,9 @@ async function loadRecords(silent = false) {
     if (selectedId != null) detailIdx.value = records.value.findIndex(r => r.id === selectedId)
     lastOk.value = Date.now()
     lastError.value = null
-  } catch (e: any) {
-    if (seq === reqSeq) lastError.value = e?.name === 'AbortError' ? 'timeout' : (e?.message || 'network error')
+  } catch (e: unknown) {
+    const err = e as { name?: string; message?: string }
+    if (seq === reqSeq) lastError.value = err?.name === 'AbortError' ? 'timeout' : (err?.message || 'network error')
   } finally {
     if (seq === reqSeq) loading.value = false
   }

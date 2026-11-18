@@ -895,12 +895,6 @@ function viewHtmlReport() {
     window.open(url, '_blank')
 }
 
-const hasFindings = computed(() => {
-    const tools = report.value?.result?.tools
-    if (!tools) return false
-    return Object.values(tools).some((t) => t.items?.length > 0)
-})
-
 const totalFindings = computed(() => {
     const s = report.value?.result?.summary
     if (!s) return 0
@@ -930,12 +924,6 @@ function reportStatusType(s: string) {
 function reportStatusLabel(s: string) {
     const map: Record<string, string> = { pending: 'Pending', running: 'Running', done: 'Done', failed: 'Failed' }
     return map[s] ?? s
-}
-
-function severityType(s: string) {
-    if (s === 'HIGH' || s === 'CRITICAL') return 'danger'
-    if (s === 'MEDIUM') return 'warning'
-    return 'info'
 }
 
 onMounted(() => {

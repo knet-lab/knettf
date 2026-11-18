@@ -2,7 +2,7 @@
   <span class="rn-wrap">
     <span v-if="chars === null" class="rn-dash">—</span>
     <template v-else>
-      <template v-for="(item, i) in chars" :key="item.key">
+      <template v-for="item in chars" :key="item.key">
         <span v-if="item.ch === '.' || item.ch === '-'" class="rn-dot">{{ item.ch }}</span>
         <span v-else class="rn-slot">
           <span class="rn-strip" :style="{ transform: `translateY(-${parseInt(item.ch) * 10}%)` }">

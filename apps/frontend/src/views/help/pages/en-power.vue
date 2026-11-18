@@ -43,7 +43,7 @@ sudo iptables -C FORWARD -d 192.168.100.0/24 -j ACCEPT 2>/dev/null || sudo iptab
       </div>
       <div class="task"><h4><span class="n">2</span>Start the master, then the workers</h4>
         <div class="do"><div><pre><code>virsh -c qemu:///system start k8s-master
-until kubectl get --raw=/readyz >/dev/null 2>&1; do sleep 5; done; echo apiserver ready
+until kubectl get --raw=/readyz &gt;/dev/null 2&gt;&amp;1; do sleep 5; done; echo apiserver ready
 for v in k8s-node1 k8s-node2 k8s-node3 k8s-node4; do virsh -c qemu:///system start $v; done
 kubectl wait --for=condition=Ready node --all --timeout=600s</code></pre></div></div>
         <div class="why"><div>Workers register with the master, so the master must be ready first.</div></div>
