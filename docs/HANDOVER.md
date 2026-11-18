@@ -39,7 +39,7 @@
 | 域名 | `knettf.com` | `ops/deploy/cloudflared-knettf.yml`、`README.md`、帮助页面；后端通过线上 `.env` 的 `CSRF_EXTRA_ORIGINS` 配置（代码里没有写死） |
 | Cloudflare Tunnel | 隧道名、凭证文件路径 | `ops/deploy/cloudflared-knettf.yml`、`ops/deploy/systemd/cloudflared-knettf.service` |
 | 运行用户 | `netsentinel` | `ops/deploy/systemd/*.service`、`ops/deploy/sudoers.netsentinel`、`ops/deploy/cron.netsentinel` |
-| 部署目录 | `/srv/netsentinel/{prod,lab-repo,models,logs}` | `ops/scripts/{deploy,auto-deploy}.sh`、`lab/sync-to-srv.sh`、`ops/deploy/systemd/*`、`settings.py`（`VIGIL_ADS_ML_CONFIG`）；运行 `lab/cluster/03` 时用环境变量 `NETSENTINEL_BACKEND_DIR` 指向 `prod/apps/backend` |
+| 部署目录 | `/srv/netsentinel/{prod,lab-repo,logs}`（弃用内容归档在 `legacy/`，见其中 README.txt） | `ops/scripts/{deploy,auto-deploy}.sh`、`lab/sync-to-srv.sh`、`ops/deploy/systemd/*`；运行 `lab/cluster/03` 时用环境变量 `NETSENTINEL_BACKEND_DIR` 指向 `prod/apps/backend` |
 | GitHub 仓库 | `knet-lab/knettf` | `ops/scripts/auto-deploy.sh`（查询 CI 结果的 API 地址） |
 | 无效路径 | `/Users/soar009/.../terraform`（Mac 路径） | `settings.py` 的 `TF_BIN`，在 Linux 上本来就无效，应改为环境变量 |
 
