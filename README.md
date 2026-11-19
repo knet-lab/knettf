@@ -23,7 +23,7 @@ flowchart LR
 
 ---
 
-> **交接与迁移**：见 [docs/HANDOVER.md](docs/HANDOVER.md)（现状、和当前环境绑定的值、迁移步骤、离开前检查清单）。开发规则见 [CLAUDE.md](CLAUDE.md)。模型方接入见 [model-kit/](model-kit/README.md)。
+> **交接与迁移**：见 [docs/HANDOVER.md](docs/HANDOVER.md)（现状、和当前环境绑定的值、迁移步骤、离开前检查清单）。数据规范（过滤、切流、35 个特征、标签）见 [docs/data-spec-v1.md](docs/data-spec-v1.md)。模型方接入见 [model-kit/](model-kit/README.md)。
 
 ---
 
