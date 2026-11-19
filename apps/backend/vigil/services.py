@@ -7,7 +7,7 @@ from dataclasses import asdict
 
 from .detection import flow_from_dict, registry, run_all, run_one
 from .response import apply_action, policy_for_result
-from .models import DetectionRecord
+from .models import CollectRecord, DetectionRecord
 
 
 
@@ -78,7 +78,10 @@ def detect_flow(flow_data: dict) -> list[dict]:
 
 
 def detect_batch(flows_data: list[dict], model_name: str | None = None) -> list[dict]:
+    from django.conf import settings
     from django.db import transaction
+    if settings.VIGIL_COLLECT_ONLY:
+        return collect_batch(flows_data)
     results = []
     with transaction.atomic():
         for d in flows_data:
@@ -86,6 +89,29 @@ def detect_batch(flows_data: list[dict], model_name: str | None = None) -> list[
                 d = {**d, "model": model_name}
             results.extend(detect_flow(d))
     return results
+
+
+def collect_batch(flows_data: list[dict]) -> list[dict]:
+    """Collect-only mode: store raw flows in CollectRecord. No model, no verdict, no Cilium action."""
+    rows = []
+    for d in flows_data:
+        d = dict(d)
+        d.pop("model", None)
+        d.pop("aggregation_ms", None)
+        flow = flow_from_dict(d)
+        if not flow.src_ip or not flow.dst_ip:
+            continue
+        rows.append(CollectRecord(
+            src_ip=flow.src_ip,
+            dst_ip=flow.dst_ip,
+            src_port=flow.src_port,
+            dst_port=flow.dst_port,
+            protocol=flow.protocol,
+            flow_input=asdict(flow),
+            label=int(flow.label) if flow.label != "" else None,
+        ))
+    CollectRecord.objects.bulk_create(rows)
+    return []
 
 
 def get_stats() -> dict:

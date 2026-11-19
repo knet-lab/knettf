@@ -27,7 +27,7 @@ import django  # noqa: E402
 django.setup()
 
 from vigil.detection.base import DetectionInput  # noqa: E402
-from vigil.models import DetectionRecord  # noqa: E402
+from vigil.models import CollectRecord, DetectionRecord  # noqa: E402
 
 COLUMNS = [f.name for f in fields(DetectionInput)]
 
@@ -47,17 +47,26 @@ def main():
     ap.add_argument("--label", choices=["0", "1"], help="给每条流打的标签")
     ap.add_argument("--kind", choices=["ns", "ew", "all"], default="all")
     ap.add_argument("--limit", type=int, default=0, help="最多导出多少条（0 = 不限）")
+    ap.add_argument("--source", choices=["collect", "detection"], default="collect",
+                    help="collect = CollectRecord（只采集模式）；detection = DetectionRecord（检测模式，每条流只取一个模型）")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
     tz = ZoneInfo("Asia/Seoul")
-    q = DetectionRecord.objects.filter(
-        created_at__gte=datetime.fromisoformat(a.since).replace(tzinfo=tz))
-    if a.until:
-        q = q.filter(created_at__lt=datetime.fromisoformat(a.until).replace(tzinfo=tz))
-    # 同一条流会被每个已加载的模型各检测一次，只取一个模型的记录，避免重复
-    first_model = q.values_list("model_name", flat=True).first()
-    q = q.filter(model_name=first_model).order_by("id")
+    since = datetime.fromisoformat(a.since).replace(tzinfo=tz)
+    until = datetime.fromisoformat(a.until).replace(tzinfo=tz) if a.until else None
+    if a.source == "collect":
+        q = CollectRecord.objects.filter(created_at__gte=since)
+        if until:
+            q = q.filter(created_at__lt=until)
+        q = q.order_by("id")
+    else:
+        q = DetectionRecord.objects.filter(created_at__gte=since)
+        if until:
+            q = q.filter(created_at__lt=until)
+        # 同一条流会被每个已加载的模型各检测一次，只取一个模型的记录，避免重复
+        first_model = q.values_list("model_name", flat=True).first()
+        q = q.filter(model_name=first_model).order_by("id")
 
     n = 0
     with open(os.path.expanduser(a.out), "w", newline="") as f:
