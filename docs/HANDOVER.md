@@ -18,7 +18,7 @@
 | 部分 | 状态 |
 |---|---|
 | 采集链路 | ✅ 每节点直连本地 Hubble socket，无重复、不采集自身流量 |
-| 流切分（`vigil/ingest`） | ✅ 双向流、RST 立即结束、双方 FIN 后收下挥手尾包再结束（参照 Zeek）+ 空闲 60s / 活跃 120s 超时、微秒单位 |
+| 流切分（`vigil/ingest`） | ✅ 双向流、RST 立即结束、双方 FIN 后收下挥手尾包再结束（参照 Zeek）+ 空闲 60s / 活跃 120s 超时、微秒单位。完整规范见 [data-spec-v1.md](data-spec-v1.md) |
 | 正常流量基线 | ✅ Online Boutique（`04-deploy-baseline.sh`）+ 宿主机仿真客户端区（`lab/traffic/client-zone.sh`） |
 | 检测模型 | ⚠️ 现模型 `ads_ml_ocsvm` 把确定正常的流量几乎 100% 判为攻击；原因在训练数据（见第 5 节） |
 | 模型接入 | ✅ 独立接入包 [`model-kit/`](../model-kit/README.md)，模型方不需要懂平台即可开发、自测 |
