@@ -1,42 +1,52 @@
-"""scripts 公共配置与安全检查。
+"""scripts 公共配置、连接与安全检查。
 
-所有数据路径和数据库连接都来自环境变量，仓库里不写入任何数据：
+架构（见 docs/LAYOUT.md 与 docs/ONBOARDING.md）：
+  - 线上库：容器 pg，端口 5432，库 vigil。脚本只用只读账号 knettf_reader 通过 TCP+密码读取。
+  - 开发库：容器 pg-dev，端口 5433（只监听 127.0.0.1），库 vigil_dev，账号 knettf_dev。脚本只写这里。
+  - 所有连接都是 TCP + 密码（psycopg2），不使用 docker exec。
 
-  KNETTF_DATA_DIR        数据目录（快照、归档、导出结果），默认 ~/knettf-data（权限 700）
-  KNETTF_PG_CONTAINER    Postgres 容器名，默认 pg
-  KNETTF_SRC_DB/_USER    线上库（只读来源），默认 vigil / vigil（见下文，应改为只读角色）
-  KNETTF_SRC_PASSWORD    线上只读账号的密码（可选，经环境变量传给容器，不进命令行）
-  KNETTF_DST_DB/_USER    开发库（唯一写入目标），默认 vigil_dev / vigil
-  KNETTF_DST_PASSWORD    开发库账号密码（可选）
-  KNETTF_MAX_GB          归档目录容量上限，默认 20
-  KNETTF_OVERLAP         增量同步的重叠条数，默认 5000
+配置来自环境变量（由 ~/.config/knettf/*.env 提供，权限 600，不在仓库里）：
+  KNETTF_SRC_HOST / _PORT / _DB / _USER / _PASSWORD    线上只读来源（默认 127.0.0.1:5432 vigil knettf_reader）
+  KNETTF_DST_HOST / _PORT / _DB / _USER / _PASSWORD    开发库写入目标（默认 127.0.0.1:5433 vigil_dev knettf_dev）
+  KNETTF_DATA_DIR      数据目录（快照、归档、导出结果），默认 ~/knettf-data
+  KNETTF_MAX_GB        归档目录容量上限，默认 20
+  KNETTF_OVERLAP       增量同步的重叠条数，默认 5000
 
-安全规则：
-  - check_safety()：写入目标必须是 vigil_dev；线上库和开发库不能相同；
-    数据目录不能在开发仓库内，也不能在线上部署目录 /srv/netsentinel 下。
-  - verify_src()：线上连接账号不能对采集表有 INSERT/UPDATE/DELETE/TRUNCATE 权限，不能是超级用户，
-    连接的数据库必须是 SRC_DB。不满足则拒绝读取。
-  - verify_dst()：连接的数据库必须是 DST_DB，写入前确认。
+安全规则（每次运行都检查）：
+  - 写入目标必须是 vigil_dev，且端口不是线上的 5432，主机是本机。
+  - 线上连接账号不能有 INSERT/UPDATE/DELETE/TRUNCATE 权限，不能是超级用户，库名必须是 SRC_DB。
+  - 线上和开发不能是同一个 host:port/db。
+  - 数据目录不能在仓库内，也不能在 /srv/netsentinel 下。
 """
 
+import io
 import os
-import subprocess
 import sys
 from pathlib import Path
 
+import psycopg2
+
 REPO = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("KNETTF_DATA_DIR", str(Path.home() / "knettf-data"))).expanduser().resolve()
-PG_CONTAINER = os.environ.get("KNETTF_PG_CONTAINER", "pg")
-SRC_DB = os.environ.get("KNETTF_SRC_DB", "vigil")
-SRC_USER = os.environ.get("KNETTF_SRC_USER", "vigil")
-SRC_PASSWORD = os.environ.get("KNETTF_SRC_PASSWORD", "")
-DST_DB = os.environ.get("KNETTF_DST_DB", "vigil_dev")
-DST_USER = os.environ.get("KNETTF_DST_USER", "vigil")
-DST_PASSWORD = os.environ.get("KNETTF_DST_PASSWORD", "")
-MAX_GB = float(os.environ.get("KNETTF_MAX_GB", "20"))
-OVERLAP = int(os.environ.get("KNETTF_OVERLAP", "5000"))
 TABLE = "vigil_collectrecord"
 SUBDIRS = ("snapshots", "increments", "exports", "restored")
+MAX_GB = float(os.environ.get("KNETTF_MAX_GB", "20"))
+OVERLAP = int(os.environ.get("KNETTF_OVERLAP", "5000"))
+
+SRC = {
+    "host": os.environ.get("KNETTF_SRC_HOST", "127.0.0.1"),
+    "port": int(os.environ.get("KNETTF_SRC_PORT", "5432")),
+    "dbname": os.environ.get("KNETTF_SRC_DB", "vigil"),
+    "user": os.environ.get("KNETTF_SRC_USER", "knettf_reader"),
+    "password": os.environ.get("KNETTF_SRC_PASSWORD", ""),
+}
+DST = {
+    "host": os.environ.get("KNETTF_DST_HOST", "127.0.0.1"),
+    "port": int(os.environ.get("KNETTF_DST_PORT", "5433")),
+    "dbname": os.environ.get("KNETTF_DST_DB", "vigil_dev"),
+    "user": os.environ.get("KNETTF_DST_USER", "knettf_dev"),
+    "password": os.environ.get("KNETTF_DST_PASSWORD", ""),
+}
 
 
 def die(msg: str):
@@ -44,107 +54,97 @@ def die(msg: str):
     sys.exit(1)
 
 
-def check_safety():
-    """所有会访问数据库或写数据的命令都先调用这里（静态检查，不连数据库）。"""
-    if DST_DB != "vigil_dev":
-        die(f"写入目标必须是 vigil_dev（当前：{DST_DB}）")
-    if SRC_DB == DST_DB:
-        die("线上库和开发库相同，已中止")
+def _dsn(c: dict) -> dict:
+    return {"host": c["host"], "port": c["port"], "dbname": c["dbname"],
+            "user": c["user"], "password": c["password"], "connect_timeout": 5}
+
+
+def check_static():
+    """不连数据库的检查：目标是否是开发库，两端是否相同，数据目录位置。"""
+    if DST["dbname"] != "vigil_dev":
+        die(f"写入目标库必须是 vigil_dev（当前：{DST['dbname']}）")
+    if DST["port"] == SRC["port"] and DST["host"] == SRC["host"]:
+        die("开发库和线上库是同一个 host:port，已中止（开发库必须是独立实例，例如 pg-dev 的 5433）")
+    if DST["host"] not in ("127.0.0.1", "localhost"):
+        die(f"开发库必须在本机（当前主机：{DST['host']}）")
+    if not DST["password"] or not SRC["password"]:
+        die("缺少数据库密码：请设置 KNETTF_SRC_PASSWORD 和 KNETTF_DST_PASSWORD（见 ~/.config/knettf/）")
     if DATA_DIR == REPO or REPO in DATA_DIR.parents:
         die(f"数据目录位于开发仓库内，已中止：{DATA_DIR}")
     if str(DATA_DIR).startswith("/srv/netsentinel"):
         die(f"数据目录位于线上部署目录内，已中止：{DATA_DIR}")
     for sub in SUBDIRS:
         (DATA_DIR / sub).mkdir(parents=True, exist_ok=True)
-    DATA_DIR.chmod(0o700)  # 数据含流量明细，只允许本人读写
-
-
-def _run(args, stdin: bytes | None = None, env: dict | None = None) -> bytes:
-    res = subprocess.run(args, input=stdin, capture_output=True, env=env)
-    if res.returncode != 0:
-        die(f"命令失败：{' '.join(args[:4])} …\n{res.stderr.decode(errors='replace')}")
-    return res.stdout
-
-
-def _psql(db: str, user: str, password: str, extra: list[str], stdin: bytes | None = None) -> bytes:
-    """经 docker exec 调用容器内的 psql。密码走环境变量 PGPASSWORD，不出现在命令行参数里。"""
-    cmd = ["docker", "exec"]
-    env = os.environ.copy()
-    if stdin is not None:
-        cmd.append("-i")
-    if password:
-        cmd += ["-e", "PGPASSWORD"]
-        env["PGPASSWORD"] = password
-    cmd += [PG_CONTAINER, "psql", "-U", user, "-d", db, "-X", "-q", *extra]
-    return _run(cmd, stdin=stdin, env=env)
-
-
-# ── 线上库：只读 ──────────────────────────────────────────────────────────────
-def src_copy_out(sql: str) -> bytes:
-    """只读：执行 COPY ... TO STDOUT，返回原始字节。"""
-    return _psql(SRC_DB, SRC_USER, SRC_PASSWORD, ["-c", sql])
-
-
-def src_scalar(sql: str) -> str:
-    """只读：执行一条查询，返回文本结果（多列用 | 分隔）。"""
-    return _psql(SRC_DB, SRC_USER, SRC_PASSWORD, ["-Atc", sql]).decode().strip()
-
-
-def src_dump_table() -> bytes:
-    """只读：pg_dump 整张采集表（schema + 数据）。"""
-    cmd = ["docker", "exec"]
-    env = os.environ.copy()
-    if SRC_PASSWORD:
-        cmd += ["-e", "PGPASSWORD"]
-        env["PGPASSWORD"] = SRC_PASSWORD
-    cmd += [PG_CONTAINER, "pg_dump", "-U", SRC_USER, "-d", SRC_DB,
-            "-t", TABLE, "--clean", "--if-exists", "--no-owner", "--no-privileges"]
-    return _run(cmd, env=env)
+    DATA_DIR.chmod(0o700)
 
 
 def src_access() -> dict:
-    """查询线上连接账号的权限（只读），返回报告字典，不做判断。"""
-    row = src_scalar(
-        f"SELECT has_table_privilege(current_user, '{TABLE}', 'INSERT'),"
-        f" has_table_privilege(current_user, '{TABLE}', 'UPDATE'),"
-        f" has_table_privilege(current_user, '{TABLE}', 'DELETE'),"
-        f" has_table_privilege(current_user, '{TABLE}', 'TRUNCATE'),"
-        f" (SELECT rolsuper FROM pg_roles WHERE rolname = current_user),"
-        f" current_database(), current_user"
-    )
-    ins, upd, dele, trunc, sup, db, who = row.split("|")
-    return {
-        "user": who, "database": db,
-        "can_write": "t" in (ins, upd, dele, trunc),
-        "superuser": sup == "t",
-    }
+    """连接线上（只读账号）并查询权限，返回报告。不写任何东西。"""
+    with psycopg2.connect(**_dsn(SRC)) as conn, conn.cursor() as cur:
+        cur.execute(
+            f"SELECT has_table_privilege(current_user, '{TABLE}', 'INSERT'),"
+            f" has_table_privilege(current_user, '{TABLE}', 'UPDATE'),"
+            f" has_table_privilege(current_user, '{TABLE}', 'DELETE'),"
+            f" has_table_privilege(current_user, '{TABLE}', 'TRUNCATE'),"
+            f" (SELECT rolsuper FROM pg_roles WHERE rolname = current_user),"
+            f" current_database(), current_user"
+        )
+        ins, upd, dele, trunc, sup, db, who = cur.fetchone()
+    return {"user": who, "database": db,
+            "can_write": any([ins, upd, dele, trunc]), "superuser": bool(sup)}
 
 
 def verify_src():
-    """读取线上前必须调用：账号不能有写权限、不能是超级用户、数据库必须是 SRC_DB。"""
+    """读取线上前必须调用。"""
     acc = src_access()
-    if acc["database"] != SRC_DB:
-        die(f"线上连接的数据库是 {acc['database']}，不是 {SRC_DB}，已中止")
+    if acc["database"] != SRC["dbname"]:
+        die(f"线上连接的数据库是 {acc['database']}，不是 {SRC['dbname']}，已中止")
     if acc["can_write"] or acc["superuser"]:
-        die(f"线上连接账号 {acc['user']} 有写权限或是超级用户，拒绝读取。"
-            f"请改用只读角色（见 scripts/sql/readonly_role.sql，并设置 KNETTF_SRC_USER / KNETTF_SRC_PASSWORD）")
-
-
-# ── 开发库：唯一写入目标 ─────────────────────────────────────────────────────
-def dst_scalar(sql: str) -> str:
-    return _psql(DST_DB, DST_USER, DST_PASSWORD, ["-Atc", sql]).decode().strip()
-
-
-def dst_script(sql_bytes: bytes):
-    """在开发库执行一段 SQL 脚本（可包含 COPY ... FROM STDIN 的数据）。"""
-    _psql(DST_DB, DST_USER, DST_PASSWORD, ["-v", "ON_ERROR_STOP=1", "-f", "-"], stdin=sql_bytes)
+        die(f"线上连接账号 {acc['user']} 有写权限或是超级用户，拒绝读取。请使用只读角色 knettf_reader")
 
 
 def verify_dst():
-    """写入前必须调用：连接的数据库必须是 DST_DB。"""
-    name = dst_scalar("SELECT current_database()")
-    if name != DST_DB:
-        die(f"开发库连接指向 {name}，不是 {DST_DB}，已中止写入")
+    """写入开发库前必须调用：确认连接的确实是 vigil_dev。"""
+    with psycopg2.connect(**_dsn(DST)) as conn, conn.cursor() as cur:
+        cur.execute("SELECT current_database()")
+        name = cur.fetchone()[0]
+    if name != DST["dbname"]:
+        die(f"开发库连接指向 {name}，不是 {DST['dbname']}，已中止写入")
+
+
+def src_copy_out(sql: str) -> str:
+    """线上只读：COPY ... TO STDOUT，返回文本（CSV）。"""
+    buf = io.StringIO()
+    with psycopg2.connect(**_dsn(SRC)) as conn, conn.cursor() as cur:
+        conn.set_session(readonly=True, autocommit=True)
+        cur.copy_expert(sql, buf)
+    return buf.getvalue()
+
+
+def dst_scalar(sql: str):
+    with psycopg2.connect(**_dsn(DST)) as conn, conn.cursor() as cur:
+        cur.execute(sql)
+        return cur.fetchone()[0]
+
+
+def dst_replace_tail(from_id: int, csv_text: str):
+    """开发库：删除 id > from_id，再导入 csv_text，并校正序列。同一事务。"""
+    with psycopg2.connect(**_dsn(DST)) as conn, conn.cursor() as cur:
+        cur.execute(f"DELETE FROM {TABLE} WHERE id > %s", (from_id,))
+        cur.copy_expert(f"COPY {TABLE} FROM STDIN WITH CSV HEADER", io.StringIO(csv_text))
+        cur.execute(f"SELECT setval(pg_get_serial_sequence('{TABLE}', 'id'), "
+                    f"(SELECT COALESCE(MAX(id), 1) FROM {TABLE}))")
+        conn.commit()
+
+
+def dst_replace_all(csv_text: str):
+    """开发库：清空采集表，再导入 csv_text（整库覆盖）。同一事务。"""
+    with psycopg2.connect(**_dsn(DST)) as conn, conn.cursor() as cur:
+        cur.execute(f"TRUNCATE {TABLE}")
+        cur.copy_expert(f"COPY {TABLE} FROM STDIN WITH CSV HEADER", io.StringIO(csv_text))
+        cur.execute(f"SELECT setval(pg_get_serial_sequence('{TABLE}', 'id'), "
+                    f"(SELECT COALESCE(MAX(id), 1) FROM {TABLE}))")
+        conn.commit()
 
 
 def enforce_retention(folder: Path, pattern: str):

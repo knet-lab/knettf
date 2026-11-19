@@ -12,20 +12,23 @@ from dataclasses import fields
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from knettf_common import DATA_DIR, DST_DB, REPO, check_safety, die, next_number, verify_dst
+from knettf_common import DATA_DIR, DST, REPO, check_static, die, next_number, verify_dst
 
 TZ = ZoneInfo("Asia/Seoul")
 
 
 def _setup_django():
+    """Django 必须连接开发库（pg-dev）。连接参数来自环境变量 VIGIL_DB_*（见 ~/.config/knettf/dev.env）。"""
     sys.path.insert(0, str(REPO / "apps" / "backend"))
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings")
     import django
     django.setup()
-    # Django 连接的 vigil 库必须是开发库，否则拒绝导出（防止误连线上库）
     from django.conf import settings
-    if settings.DATABASES["vigil"]["NAME"] != DST_DB:
-        die(f"导出脚本的 Django 连接指向 {settings.DATABASES['vigil']['NAME']}，不是 {DST_DB}，已中止")
+    db = settings.DATABASES["vigil"]
+    if (db["NAME"] != DST["dbname"] or str(db["PORT"]) != str(DST["port"])
+            or db["HOST"] not in ("127.0.0.1", "localhost")):
+        die(f"导出脚本的 Django 连接指向 {db['HOST']}:{db['PORT']}/{db['NAME']}，"
+            f"必须是 {DST['host']}:{DST['port']}/{DST['dbname']}，已中止")
 
 
 def kind_of(src: str, dst: str) -> str:
@@ -45,7 +48,7 @@ def _stamp(dt: datetime) -> str:
 
 
 def run(args):
-    check_safety()
+    check_static()
     verify_dst()
     _setup_django()
     from vigil.detection.base import DetectionInput

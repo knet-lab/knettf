@@ -1,19 +1,21 @@
-"""增量同步：线上新增记录 → 压缩归档 → 开发库。每小时定时任务调用。
+"""增量同步：线上新增记录 → 压缩归档 → 开发库（pg-dev）。
 
+可手动随时执行，也由定时任务每小时执行。
 每次从开发库的最大 id 往回多取 OVERLAP 条（覆盖事务延迟提交的记录）；
 开发库里 id > 起点 的部分先删再写，同一事务，重复运行安全。
 """
 
 import gzip
 
-from knettf_common import (DATA_DIR, MAX_GB, OVERLAP, TABLE, check_safety, dst_script, dst_scalar,
-                           enforce_retention, src_copy_out, verify_dst, verify_src)
+from knettf_common import (DATA_DIR, MAX_GB, OVERLAP, TABLE, check_static, dst_scalar,
+                           dst_replace_tail, enforce_retention, src_copy_out, verify_dst, verify_src)
 
 
 def run(_args=None):
-    check_safety()
+    check_static()
     verify_src()   # 线上账号必须只读
     verify_dst()   # 写入目标必须是 vigil_dev
+
     dst_max = int(dst_scalar(f"SELECT COALESCE(MAX(id), 0) FROM {TABLE}"))
     from_id = dst_max - OVERLAP if dst_max > OVERLAP else 0
 
@@ -24,24 +26,15 @@ def run(_args=None):
     if rows <= 0:
         print("没有新记录，已结束")
         return
-    to_id = int(lines[-1].split(b",")[0])
+    to_id = int(lines[-1].split(",")[0])
 
     archive = DATA_DIR / "increments" / f"collect-{from_id}-{to_id}.csv.gz"
     print(f"2/4 压缩归档 {rows} 条 → {archive}")
-    with gzip.open(archive, "wb") as f:
+    with gzip.open(archive, "wt", encoding="utf-8", newline="") as f:
         f.write(data)
 
     print("3/4 写入开发库（替换 id > 起点 的部分，同一事务）")
-    script = b"".join([
-        b"BEGIN;\n",
-        f"DELETE FROM {TABLE} WHERE id > {from_id};\n".encode(),
-        f"COPY {TABLE} FROM STDIN WITH CSV HEADER;\n".encode(),
-        data if data.endswith(b"\n") else data + b"\n",
-        b"\\.\n",
-        f"SELECT setval(pg_get_serial_sequence('{TABLE}', 'id'), (SELECT COALESCE(MAX(id), 1) FROM {TABLE}));\n".encode(),
-        b"COMMIT;\n",
-    ])
-    dst_script(script)
+    dst_replace_tail(from_id, data)
 
     print("4/4 核对")
     new_max = int(dst_scalar(f"SELECT COALESCE(MAX(id), 0) FROM {TABLE}"))

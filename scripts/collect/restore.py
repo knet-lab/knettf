@@ -8,11 +8,11 @@ import gzip
 from datetime import datetime
 from pathlib import Path
 
-from knettf_common import DATA_DIR, check_safety
+from knettf_common import DATA_DIR, check_static
 
 
 def run(args):
-    check_safety()
+    check_static()
     inc_dir = DATA_DIR / "increments"
     if args.files:
         # 相对路径按数据目录的 increments/ 解析，绝对路径原样使用
