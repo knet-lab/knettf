@@ -22,9 +22,9 @@ class HubbleToPacketTests(SimpleTestCase):
     def test_fields_and_label(self):
         p = hubble_to_packet(_event("2026-01-01T00:00:00Z", flags={"SYN": True}))
         self.assertEqual((p["src_ip"], p["dst_port"], p["protocol"]), ("192.168.100.20", 80, "TCP"))
-        self.assertEqual(p["label"], "1")          # .20–.29 为攻击源
+        self.assertEqual(p["label"], "")           # 采集时不打标签（源 IP 末段不代表攻击）
         self.assertEqual(p["flags"], {"SYN": True})
-        self.assertEqual(hubble_to_packet(_event("2026-01-01T00:00:00Z", src="192.168.100.55"))["label"], "0")
+        self.assertEqual(hubble_to_packet(_event("2026-01-01T00:00:00Z", src="192.168.100.55"))["label"], "")
 
     def test_flow_key(self):
         self.assertEqual(flow_key(_event("x")), ("192.168.100.20", "192.168.100.210", 50000, 80, "TCP"))
@@ -66,7 +66,7 @@ class ComputeFlowTests(SimpleTestCase):
         self.assertEqual(f["syn_ratio"], 0.6667)
         self.assertEqual((f["reply_count"], f["drop_count"], f["forwarded_count"]), (1, 1, 2))
         self.assertEqual((f["is_bidirectional"], f["is_tcp"], f["is_well_known_port"]), (1, 1, 1))
-        self.assertEqual(f["label"], "1")
+        self.assertEqual(f["label"], "")
 
     def test_matches_detection_input(self):
         """聚合结果的字段必须正好能构造 DetectionInput（新增 / 删减特征时两边要同步）。"""

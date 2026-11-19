@@ -105,15 +105,9 @@ def hubble_to_packet(flow: dict) -> dict:
     src_ip       = flow.get("IP", {}).get("source", "")
     dst_port_val = _port(l4, "destination_port")
 
+    # 不在采集时打标签：源 IP 末段不能代表攻击 / 正常（集群内 Pod IP 也会落在 20–29）。
+    # 标签只在导出时按注入日志（时间窗口 + 发送方）决定。
     label = ""
-    try:
-        last = int(src_ip.split(".")[-1])
-        if 20 <= last <= 29:
-            label = "1"
-        elif 50 <= last <= 64:
-            label = "0"
-    except Exception:
-        pass
 
     return {
         "ts":        _parse_ts(flow.get("time", "")),
