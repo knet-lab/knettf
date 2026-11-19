@@ -1,5 +1,7 @@
 """ingest.flows：双向流、去重、FIN/RST 结束、超时。不依赖数据库和模型文件。"""
 
+from typing import Any
+
 from django.test import SimpleTestCase
 
 from vigil.detection import DetectionInput
@@ -78,7 +80,7 @@ class FlowTableTests(SimpleTestCase):
     def test_cross_node_pod_packet_counted_once(self):
         # 跨节点 Pod→Pod：源节点 FROM_ENDPOINT，目的节点 FROM_NETWORK 再报一次，只能算一个包
         t = FlowTable()
-        kw = dict(src="10.0.2.14", dst="10.0.1.237", sport=34504, dport=6379)
+        kw: dict[str, Any] = dict(src="10.0.2.14", dst="10.0.1.237", sport=34504, dport=6379)
         for obs in ("FROM_ENDPOINT", "TO_OVERLAY", "TO_NETWORK", "FROM_NETWORK", "FROM_OVERLAY", "TO_ENDPOINT"):
             t.add(_pkt(0.0, obs=obs, **kw))
         [f] = t.flush_all()
@@ -149,7 +151,7 @@ class InitiatorTests(SimpleTestCase):
     def test_learned_server_beats_port_heuristic(self):
         """gRPC 服务端口 50051 大于客户端临时端口时，靠握手学到的服务端判断方向。"""
         t = FlowTable()
-        cli = dict(src="10.0.2.14", dst="10.0.1.237", sport=34504, dport=50051, obs="FROM_ENDPOINT")
+        cli: dict[str, Any] = dict(src="10.0.2.14", dst="10.0.1.237", sport=34504, dport=50051, obs="FROM_ENDPOINT")
         t.add(_pkt(0.0, flags={"SYN": True}, **cli))
         t.flush_all()
         # 另一个客户端的长连接，中途接入，先看到服务端发来的包
