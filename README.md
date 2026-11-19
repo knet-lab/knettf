@@ -139,6 +139,20 @@ ops/scripts/check.sh frontend        # 只查一部分
 
 后端：依赖、`manage.py check`、漏生成的迁移、Django 测试；前端：`pnpm build`（含类型检查）；lab、detector：Python / Shell 语法。不连 Kafka、不改线上数据。
 
+此外还有两项检查，CI 不跑，只在本地运行：
+
+```bash
+.venv/bin/ruff check apps/backend lab model-kit ops    # Python lint（规则在 pyproject.toml）
+(cd apps/frontend && npx eslint . && npx oxlint . --deny-warnings)
+
+# 集群只读检查：用当前代码处理集群 Kafka 里最近的真实流量，约 5 秒
+cd apps/backend && VIGIL_KAFKA_GROUP_ID=vigil-bridge-dev ../../.venv/bin/python manage.py cluster_check
+```
+
+`cluster_check` 检查节点、flow-shipper、Kafka 是否就绪、最近有没有新消息，再用当前分支的拼流代码和 `VIGIL_MODELS` 里的模型处理最近的消息，确认 35 个特征齐全、取值合理（时间单位是微秒），模型输出合法。只读：不写库、不提交 Kafka 偏移量、不发包。退出码 0 通过，1 失败，2 集群不可达。
+
+建议在自己的检出里装一个推送前钩子（`.git/hooks/pre-push`，不进仓库），依次运行以上全部检查，集群不可达时只提示不拦截，紧急时用 `git push --no-verify` 跳过。
+
 ---
 
 ## 自动部署做了什么
