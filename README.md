@@ -6,6 +6,8 @@
 
 本仓库由原 `NetSentinel`（平台）和 `knetsentinel`（实验环境）两个仓库合并而来，保留了两边的提交历史。
 
+**新人入口**：先读 [docs/LAYOUT.md](docs/LAYOUT.md)（目录结构，哪些东西不在仓库里），再读 [docs/ONBOARDING.md](docs/ONBOARDING.md)（数据流程和日常操作）。数据脚本统一用 `python3 scripts/manage.py --help` 查看。
+
 ```mermaid
 flowchart LR
     subgraph LAB["lab/ · 实验集群（5 台 KVM VM）"]
