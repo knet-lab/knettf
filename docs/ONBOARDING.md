@@ -1,115 +1,130 @@
 # 新人接手手册
 
 > 读者：接手 knettf / NetSentinel 的新同事。
-> 目标：读完本文后，你能说清楚数据从哪里来、到哪里去、每一步由什么脚本完成，并且能独立完成日常操作和排查常见问题。
+> 目标：读完本文后，你能说清楚数据从哪里来、到哪里去、每一步由什么脚本完成，并能独立排查常见问题。
 > 本文描述的是 2026-11-20 的状态。如果与代码不一致，以代码为准，并更新本文。
 
 配套文档：
 - [LAYOUT.md](LAYOUT.md)：仓库目录结构，哪些东西不在仓库里。
-- [HANDOVER.md](HANDOVER.md)：迁移到新环境时要改哪些值（域名、用户、路径）。
+- [HANDOVER.md](HANDOVER.md)：迁移到新环境时要改哪些值。
 - [../model-kit/README.md](../model-kit/README.md)：模型接入规范，35 个特征的定义。
-- [data-spec-v1.md](data-spec-v1.md)：流的切分规则（双向流、结束条件、单位）。
+- [data-spec-v1.md](data-spec-v1.md)：流的切分规则。
 - [../lab/README.md](../lab/README.md)：实验集群和仿真流量。
 
 ---
 
 ## 0. 一分钟概述
 
-- 实验集群（5 台 VM，K8s）里的流量被 eBPF（Cilium/Hubble）抓取，经 Kafka 进入线上平台后端。
-- 后端把包切成双向流，计算 35 个特征。
-- 现在的线上后端处于**采集模式**：流量写入 `vigil_collectrecord` 表，不再跑检测模型。之前的检测记录停在 2026-11-20 00:16（KST）。
-- 每小时一个定时任务，把线上新增的采集记录只读拉到开发库，并压缩归档到本机数据目录。
-- 需要数据时，用 `scripts/manage.py` 导出 CSV。
-- 异常流量注入还没有实现，目前只有壳子。
+- 实验集群（5 台 VM，K8s）的流量经 eBPF（Cilium/Hubble）抓取，进入线上平台后端，切成双向流，算出 35 个特征。
+- 线上后端现在处于**采集模式**：流量写入线上库的 `vigil_collectrecord`，不跑检测模型。
+- **自动同步**：每小时一个定时任务，用只读账号从线上拉取新增记录，压缩归档，写入开发库 `pg-dev`。开发库为空时，第一次运行会自动全量拉取。你不需要手动做任何同步。
+- **导出**：需要数据时，用 `scripts/manage.py collect export` 从开发库导出 CSV。
+- **注入**：异常流量注入还没有实现，目前只有壳子。
 
 ---
 
-## 1. 系统组成和位置
+## 1. 架构
+
+```
+┌──────── 实验环境 ────────┐
+│ K8s 集群（5 台 VM）        │
+│ 正常流量：Boutique + 仿真客户端（netns）│
+│ 异常流量：未实现（壳子）    │
+└────────────┬─────────────┘
+             │ Cilium/Hubble → flow-shipper → Kafka
+┌────────────▼──────────────────────────────────────────┐
+│ 线上后端 netsentinel.service（8080，Cloudflare 对外）      │
+│   Bridge → vigil/ingest（切流、35 特征、不打标签）           │
+│   采集模式 → 写入 线上库 vigil_collectrecord               │
+└────────────┬──────────────────────────────────────────┘
+             │ 只读（账号 knettf_reader，TCP+密码，运行时验证）
+┌────────────▼──────────────────────────────────────────┐
+│ 定时任务 knettf-snapshot.timer（每小时）                   │
+│   manage.py collect sync：增量拉取 → 压缩归档 → 写入开发库     │
+└────────────┬──────────────────────────────────────────┘
+             │ 写入（账号 knettf_dev，只能写开发库）
+┌────────────▼──────────────────────────────────────────┐
+│ 开发数据库 pg-dev（容器，127.0.0.1:5433，库 vigil_dev）    │
+│ 数据目录 ~/knettf-data（快照、归档、导出结果，权限 700）       │
+└───────────────────────────────────────────────────────┘
+```
+
+线上数据库容器是 `pg`（端口 5432，库 `vigil`）。开发数据库是独立的容器 `pg-dev`（端口 5433，库 `vigil_dev`）。两者是**两个实例**，开发脚本没有任何写线上库的凭据。
 
 | 组件 | 位置 | 说明 |
 |---|---|---|
-| 宿主机 | 一台 Linux 机器 | 同时运行开发、线上和实验集群，**不能做物理隔离** |
-| 开发仓库 | `~/github/knettf`，分支 `dev/soar009` | 你日常修改代码、脚本、文档的地方 |
-| 线上部署目录 | `/srv/netsentinel/prod` | 从 `main` 自动部署，**不要在这里改代码** |
-| 线上后端 | `netsentinel.service`（uvicorn，`0.0.0.0:8080`） | 通过 Cloudflare Tunnel 对外 |
-| 同步定时任务 | `knettf-snapshot.timer` / `.service`（用户级 systemd） | 每小时运行 `manage.py collect sync` |
-| 数据库容器 | Docker 容器 `pg`（Postgres 18.x，端口 5432） | 同一个实例里有 `vigil`（线上）和 `vigil_dev`（开发） |
-| 数据目录 | `~/knettf-data`（权限 700） | 快照、归档、导出结果，**不在仓库里** |
-| 实验环境 | `lab/`，K8s 集群在 libvirt 的 VM 里 | 正常流量、注入壳子 |
+| 开发仓库 | `~/github/knettf`，分支 `dev/soar009` | 代码、脚本、文档 |
+| 线上部署目录 | `/srv/netsentinel/prod` | 从 `main` 自动部署，不要在这里改代码 |
+| 线上后端 | `netsentinel.service`（8080） | 采集模式 |
+| 线上数据库 | 容器 `pg`，5432，库 `vigil` | 线上读写；脚本只读 |
+| 开发数据库 | 容器 `pg-dev`，127.0.0.1:5433，库 `vigil_dev` | 脚本唯一写入目标 |
+| 定时任务 | `knettf-snapshot.timer` / `.service`（用户级 systemd） | 每小时增量同步 |
+| 凭据 | `~/.config/knettf/`（权限 600，不在仓库里） | `reader.env`、`dev.env`、`pgdev-admin.env` |
+| 数据目录 | `~/knettf-data/` | `snapshots/`、`increments/`、`exports/`、`restored/` |
 
-查看定时任务和容器：
+查看状态：
 
 ```bash
 systemctl --user list-timers knettf-snapshot.timer --no-pager
-docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | grep pg
+docker ps --format '{{.Names}}\t{{.Status}}' | grep -E '^pg'
 ```
 
 ---
 
-## 2. 数据流（从流量到 CSV）
+## 2. 数据流
 
 ```
-K8s 集群（Cilium/Hubble 抓包）
-  → flow-shipper → Kafka（ebpf-net-logs）
-  → 线上后端 Bridge → vigil/ingest（切流、35 特征、不打标签）
-  → 采集模式：写入 vigil_collectrecord（线上库 vigil）
-  → 每小时 sync：只读拉取新增 → 压缩归档（increments/）→ 写入 vigil_dev
-  → 手动 export：vigil_dev → exports/NN/*.csv + *.txt
-  → 手动 restore：increments/*.csv.gz → restored/*.csv（可合并去重）
+线上 vigil_collectrecord
+  → sync（定时，只读）：id > 开发库最大 id − 5000 的记录
+      → 压缩归档 increments/collect-<起>-<止>.csv.gz
+      → 开发库 pg-dev：删除 id > 起点 后导入（同一事务）
+  → export（手动）：开发库 → exports/NN/<时段>.csv + .txt
+  → restore（手动）：increments/*.csv.gz → restored/*.csv（--merge 去重）
 ```
 
-### 2.1 采集（线上后端内）
-- 入口：`apps/backend/vigil/ingest/bridge.py`，把 Kafka 消息转成包，再由 `flows.py` 切成双向流，`features.py` 计算特征。
-- 采集模式的写入：`apps/backend/vigil/services.py` 的 `collect_batch`，由 `VIGIL_COLLECT_ONLY=True` 启用。
-- **标签规则**：采集时不打标签（PR #41 之后）。以前按源 IP 末段打标签的做法会误标正常流量（集群内 Pod IP 的末段也可能在 20–29），已经停用。
-- 检测模式（关闭采集模式时）：`VIGIL_MODELS` 默认是 `lof_baseline`，结果写入 `vigil_detectionrecord`，并在 `/vigil` 页面显示。
+### 2.1 增量同步（自动，每小时）
+`scripts/collect/sync.py`
+1. 验证线上账号只读（不能有 INSERT/UPDATE/DELETE/TRUNCATE 权限，不能是超级用户，库名必须正确）。
+2. 验证开发库库名是 `vigil_dev`。
+3. 读取开发库最大 `id` 记为 `DST_MAX`，起点取 `DST_MAX − 5000`（重叠，覆盖事务延迟提交的记录）。
+4. 线上只读：`COPY (... WHERE id > 起点) TO STDOUT`。
+5. 压缩归档，然后在开发库同一事务中删除 `id > 起点` 并导入。
+6. 核对开发库最大 `id` ≥ 本批终点。
+7. 归档目录超过 `KNETTF_MAX_GB`（默认 20GB）时删除最旧的。
 
-### 2.2 增量同步（每小时）
-`scripts/collect/sync.py`：
-1. 读取开发库的最大 `id`，记为 `DST_MAX`；起点取 `DST_MAX − 5000`（重叠，覆盖事务延迟提交的记录）。
-2. 线上只读：`COPY (SELECT * FROM vigil_collectrecord WHERE id > 起点) TO STDOUT WITH CSV HEADER`。
-3. 压缩归档到 `~/knettf-data/increments/collect-<起点>-<终点>.csv.gz`。
-4. 写入开发库：同一事务里 `DELETE id > 起点` 后 `COPY` 导入，并校正序列。
-5. 核对：开发库最大 `id` ≥ 本批终点，否则报错退出。
-6. 保留：归档目录超过 `KNETTF_MAX_GB`（默认 20GB）时，从最旧的删除。
+**首次运行**：开发库为空，`DST_MAX = 0`，所以第一次会自动全量拉取。2026-11-20 首次运行拉取了 46669 条。
 
-### 2.3 整库快照（手动）
-`scripts/collect/snapshot.py`：`pg_dump -t vigil_collectrecord` → 压缩到 `~/knettf-data/snapshots/` → 导入开发库 → 核对行数。
-快照是完整的，适合重建开发库；增量同步则适合日常更新。
+### 2.2 整库覆盖（手动，慎用）
+`scripts/collect/reseed.py`：线上全量读取（只读）→ 保存到 `snapshots/` → 清空开发库采集表并重新导入 → 核对行数。
+会覆盖开发库的采集表，但不影响线上。正常情况下不需要用，同步已经是自动的。
 
-### 2.4 导出（手动）
-`scripts/collect/export.py`：
-- 读取**开发库**（Django 的 `vigil` 连接必须指向 `vigil_dev`，否则拒绝）。
-- 输出：`~/knettf-data/exports/NN/{time1}-{time2}.csv` 和 `.txt`（采集时间、数据时段、条数、类型统计）。
-- 标签：只用 `--label 0|1` 显式指定，**不沿用**采集时写入的标签（历史数据里有误标）。
+### 2.3 导出（手动）
+`scripts/collect/export.py`
+- Django 连接的是开发库（`VIGIL_DB_*` 环境变量），必须是 `127.0.0.1:5433/vigil_dev`，否则拒绝运行。
+- 输出：`~/knettf-data/exports/NN/{时间1}-{时间2}.csv` 和 `.txt`。
+- 标签只用 `--label` 显式指定，**不沿用**采集时写入的标签（历史数据里有误标）。
+- 导出只需要开发库凭据，不需要线上凭据。
 
-### 2.5 还原（手动）
-`scripts/collect/restore.py`：把增量归档还原为 CSV。`--merge` 时按第一列 `id` 去重（归档之间有重叠）。
-**注意**：只处理增量归档。`id` ≤ 1019 的基础数据只在整库快照里，目前没有脚本能直接导出为 CSV。
+### 2.4 还原（手动）
+`scripts/collect/restore.py`：把增量归档还原为 CSV，`--merge` 时按第一列 `id` 去重。只处理增量归档，不处理整库覆盖快照。
 
-### 2.6 注入（未实现）
-`lab/traffic/inject_attack.sh`：
-- 攻击类型是占位（`syn_flood`、`port_scan`、`http_flood`），函数里只打印 TODO。
-- 默认演练模式，不发送流量。要真正执行需要 `ENABLE=1 DRY_RUN=0` 和 `TARGET`。
-- 执行后追加一行到 `lab/traffic/inject_log.csv`（起止时间、类型、源、目标）。以后导出时，标签应按这份日志的时间窗口决定。
+### 2.5 注入（未实现）
+`lab/traffic/inject_attack.sh`：攻击类型是占位（`syn_flood`、`port_scan`、`http_flood`）。默认演练模式，不发流量。真正执行需要 `ENABLE=1 DRY_RUN=0` 和 `TARGET`。执行后追加一行到 `lab/traffic/inject_log.csv`。以后导出时，标签应按这份日志的时间窗口决定。
 
 ---
 
 ## 3. 数据库
 
-| 库 | 用途 | 谁写 | 主要表 |
-|---|---|---|---|
-| `vigil`（线上） | 线上后端的数据 | 线上后端（账号 `vigil`） | `vigil_collectrecord`（采集）、`vigil_detectionrecord`（检测，按天分区） |
-| `vigil_dev`（开发） | 本机的开发副本 | 脚本（账号 `vigil`，只写这个库） | `vigil_collectrecord`（同步来的副本） |
+| 实例 | 库 | 用户 | 权限 | 用途 |
+|---|---|---|---|---|
+| 容器 `pg`（5432） | `vigil` | `vigil` | 读写 | 线上后端 |
+| 容器 `pg`（5432） | `vigil` | `knettf_reader` | 只读（仅采集表 SELECT） | 同步、查询 |
+| 容器 `pg-dev`（5433） | `vigil_dev` | `knettf_dev` | 读写（库的所有者） | 脚本写入、导出 |
+| 容器 `pg-dev`（5433） | `vigil_dev` | `postgres` | 超级用户 | 仅用于建库建用户，凭据在 `pgdev-admin.env` |
 
 - `vigil_collectrecord`：流的五元组、`flow_input`（JSON，35 个特征）、`label`（采集时为空）、`created_at`。
-- `vigil_detectionrecord`：`managed=False`，DDL 由手写 SQL 管理，见 `apps/backend/vigil/migrations/0001_initial.py`。
-- 迁移：`vigil` 库的迁移**不会**被部署自动执行，需要手动执行 `manage.py migrate --database=vigil`。
-- 查询线上行数（只读）：
-
-```bash
-docker exec pg psql -U vigil -d vigil -Atc "select count(*), max(id), max(created_at) from vigil_collectrecord"
-```
+- `vigil_detectionrecord`：按天分区，DDL 由手写 SQL 管理，见 `apps/backend/vigil/migrations/0001_initial.py`。
+- 迁移：`vigil` 库的迁移不会被部署自动执行，需要手动执行。开发库 `pg-dev` 的迁移已经执行过。
 
 ---
 
@@ -118,80 +133,80 @@ docker exec pg psql -U vigil -d vigil -Atc "select count(*), max(id), max(create
 ### 4.1 线上后端（`apps/backend/backend/settings.py`，线上 `.env`）
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `VIGIL_MODELS` | `vigil.detection.lof_baseline.LofBaselineModel` | 检测模式下启用的模型。默认值走 PR 修改 |
-| `VIGIL_COLLECT_ONLY` | `False` | `True` 时只采集，不跑模型，不写检测记录，不做 Cilium 处置 |
-| `VIGIL_DB_*` | 开发默认值 | 线上 `.env` 里只覆盖了 `VIGIL_DB_NAME` |
-| `VIGIL_KAFKA_GROUP_ID` | `vigil-bridge` | **开发环境必须设为 `vigil-bridge-dev`**，否则和线上抢数据 |
+| `VIGIL_MODELS` | `lof_baseline` | 检测模式下启用的模型 |
+| `VIGIL_COLLECT_ONLY` | `False` | `True` 时只采集，不跑模型（线上当前为采集模式） |
+| `VIGIL_KAFKA_GROUP_ID` | `vigil-bridge` | 开发环境必须设为 `vigil-bridge-dev` |
 
-> 线上 `.env` 的密码和密钥不要复制到文档、仓库或聊天里。
+### 4.2 脚本（环境变量，由 `~/.config/knettf/` 提供）
+| 变量 | 说明 |
+|---|---|
+| `KNETTF_SRC_HOST` / `_PORT` / `_DB` / `_USER` / `_PASSWORD` | 线上只读来源，默认 `127.0.0.1:5432 vigil knettf_reader`。密码在 `reader.env` |
+| `KNETTF_DST_HOST` / `_PORT` / `_DB` / `_USER` / `_PASSWORD` | 开发库写入目标，默认 `127.0.0.1:5433 vigil_dev knettf_dev`。密码在 `dev.env` |
+| `KNETTF_DATA_DIR` | 数据目录，默认 `~/knettf-data`，不能在仓库内或 `/srv/netsentinel` 下 |
+| `KNETTF_MAX_GB` | 归档目录容量上限，默认 20 |
+| `KNETTF_OVERLAP` | 增量同步的重叠条数，默认 5000 |
 
-### 4.2 脚本（`scripts/knettf_common.py`，环境变量）
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `KNETTF_DATA_DIR` | `~/knettf-data` | 数据目录，不能在仓库内或 `/srv/netsentinel` 下 |
-| `KNETTF_PG_CONTAINER` | `pg` | Postgres 容器名 |
-| `KNETTF_SRC_DB` / `KNETTF_SRC_USER` | `vigil` / `vigil` | 线上来源。**应改为只读角色 `knettf_reader`** |
-| `KNETTF_SRC_PASSWORD` | 空 | 只读账号的密码，经环境变量传给容器 |
-| `KNETTF_DST_DB` / `KNETTF_DST_USER` | `vigil_dev` / `vigil` | 写入目标，必须是 `vigil_dev` |
-| `KNETTF_MAX_GB` | `20` | 归档目录容量上限 |
-| `KNETTF_OVERLAP` | `5000` | 增量同步的重叠条数 |
+凭据文件（权限 600，都不在仓库里）：
+- `~/.config/knettf/reader.env`：线上只读账号（`KNETTF_SRC_USER`、`KNETTF_SRC_PASSWORD`）。
+- `~/.config/knettf/dev.env`：开发库账号（`KNETTF_DST_*`），也包含导出时 Django 用的 `VIGIL_DB_*`。
+- `~/.config/knettf/pgdev-admin.env`：`pg-dev` 容器的超级用户密码，只用于容器本身。
 
-凭据文件：`~/.config/knettf/reader.env`（权限 600，不在仓库里）。定时任务通过 `EnvironmentFile=-%h/.config/knettf/reader.env` 读取。
+定时任务的服务单元读取 `dev.env` 和 `reader.env`。
 
 ---
 
-## 5. 日常操作手册
+## 5. 日常操作
 
-> 所有脚本在开发仓库根目录运行。`sync`、`restore` 只用系统 `python3`；`export` 需要 `.venv/bin/python`。
+> 运行脚本一律用仓库的 `.venv`：`.venv/bin/python scripts/manage.py ...`。
 
-### 5.1 检查状态（只读，每次接手先做）
+### 5.1 检查状态（每次接手先做）
 ```bash
-python3 scripts/manage.py check          # 显示配置；检查线上账号是否只读、开发库名是否正确
+set -a && . ~/.config/knettf/dev.env && . ~/.config/knettf/reader.env && set +a
+cd ~/github/knettf && .venv/bin/python scripts/manage.py check
+```
+期望输出：`线上连接 ... 可写=否 ... ✓ 只读`，`开发连接 库=vigil_dev → ✓`，退出码 0。
+
+定时任务状态：
+```bash
 systemctl --user list-timers knettf-snapshot.timer --no-pager
 systemctl --user show knettf-snapshot.service -p Result --no-pager
 journalctl --user -u knettf-snapshot.service -n 30 --no-pager
 ```
-`check` 当前会返回 1，因为线上账号还不是只读。这是预期的，直到只读角色建好。
 
-### 5.2 手动增量同步
+### 5.2 手动触发一次同步（一般不需要）
 ```bash
-python3 scripts/manage.py collect sync
+systemctl --user start knettf-snapshot.service
 ```
-在只读角色建好之前，这条命令会被拒绝运行。
+这会使用定时任务的真实配置运行一次。
 
-### 5.3 整库快照
+### 5.3 导出 CSV
 ```bash
-python3 scripts/manage.py collect snapshot
+set -a && . ~/.config/knettf/dev.env && set +a
+cd ~/github/knettf && .venv/bin/python scripts/manage.py collect export \
+  --since "2026-11-20 00:00" --until "2026-11-20 06:00" [--label 0|1] [--kind ns|ew|all]
 ```
-会覆盖开发库的采集表。开发库的数据可以随时从线上重建，所以这一步相对安全，但仍然要先看 `check` 的结果。
+输出在 `~/knettf-data/exports/NN/`。
 
-### 5.4 导出 CSV
+### 5.4 还原归档
 ```bash
-.venv/bin/python scripts/manage.py collect export --since "2026-11-20 00:00" --until "2026-11-20 06:00" [--label 0|1] [--kind ns|ew|all]
-```
-输出在 `~/knettf-data/exports/NN/`。`--label` 不填则为空；**不要**把采集时的标签当作真值。
-
-### 5.5 还原归档
-```bash
-python3 scripts/manage.py collect restore            # 每个归档一个 CSV
-python3 scripts/manage.py collect restore --merge    # 合并去重为一个 CSV
+.venv/bin/python scripts/manage.py collect restore --merge
 ```
 输出在 `~/knettf-data/restored/`。
 
-### 5.6 切换采集模式（需要线上权限）
+### 5.5 切换采集/检测模式（需要线上权限）
 开启采集（停止检测）：
-1. 确认 `vigil` 库的迁移已执行：`manage.py showmigrations vigil --database=vigil` 应显示 `[X] 0003_collectrecord`。
-2. 在线上 `.env` 中设置 `VIGIL_COLLECT_ONLY=true`（修改前先备份 `.env`）。
-3. `sudo systemctl restart netsentinel.service`，然后检查：`systemctl status netsentinel.service`，并确认 `vigil_collectrecord` 在增长，`vigil_detectionrecord` 不再增长。
+1. 确认迁移：`manage.py showmigrations vigil --database=vigil` 显示 `[X] 0003_collectrecord`。
+2. 线上 `.env` 设置 `VIGIL_COLLECT_ONLY=true`（先备份）。
+3. `sudo systemctl restart netsentinel.service`，然后确认 `vigil_collectrecord` 在增长。
 
-恢复检测：把 `VIGIL_COLLECT_ONLY` 改为 `false`（或删除该行），重启。已采集的数据保留。
+恢复检测：设为 `false` 或删除该行，重启。
 
-> 以上操作都需要线上权限。不要自行在线上执行迁移或改 `.env`，先与负责人确认。
+> 以上需要线上权限。不要自行在线上执行迁移或修改 `.env`，先与负责人确认。
 
-### 5.7 发布代码
-1. 在 `dev/soar009` 上修改，运行 `ops/scripts/check.sh backend`（必要时加 `lab`、`ops`）。
+### 5.6 发布代码
+1. 在 `dev/soar009` 上修改，运行 `ops/scripts/check.sh backend`。
 2. 推送到 `origin/dev/soar009`，在 GitHub 上开 PR 到 `main`。
-3. CI 通过后合并。合并会触发线上自动部署（约 2 分钟内），部署日志在 `/srv/netsentinel/logs/auto-deploy.log`。
+3. CI 通过后合并。合并会触发线上自动部署，日志在 `/srv/netsentinel/logs/auto-deploy.log`。
 4. 合并后检查：`systemctl is-active netsentinel.service` 为 `active`，`curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/` 返回 200。
 
 ---
@@ -200,105 +215,101 @@ python3 scripts/manage.py collect restore --merge    # 合并去重为一个 CSV
 
 ```
 apps/backend/
-  backend/settings.py            配置（VIGIL_* 变量在这里）
-  backend/db_router.py           数据库路由：kcore → default，vigil → vigil
+  backend/settings.py            配置（VIGIL_* 变量）
+  backend/db_router.py           路由：kcore → default，vigil → vigil
   vigil/ingest/                  切流、特征、Kafka Bridge
-  vigil/services.py              采集/检测写库的入口（collect_batch、detect_batch）
-  vigil/models.py                DetectionRecord（检测）、CollectRecord（采集）
-  vigil/detection/               检测模型（模型方提供的代码与模型文件）
-  vigil/response/cilium.py       Cilium 处置（apply_action 目前是 stub）
-  vigil/migrations/              vigil 库的迁移（0003 为采集表）
+  vigil/services.py              采集/检测写库入口（collect_batch、detect_batch）
+  vigil/models.py                DetectionRecord、CollectRecord
+  vigil/detection/               检测模型（模型方提供）
+  vigil/response/cilium.py       Cilium 处置（apply_action 为 stub）
+  vigil/migrations/              vigil 库迁移（0003 为采集表）
   vigil/tests/                   测试
 
 scripts/                         数据脚本（不含数据）
   manage.py                      唯一入口
-  knettf_common.py               配置、安全检查、数据库访问封装
-  collect/sync.py                增量同步
-  collect/snapshot.py            整库快照
+  knettf_common.py               配置、连接（psycopg2 TCP）、安全检查
+  collect/sync.py                增量同步（定时任务执行）
+  collect/reseed.py              整库覆盖（手动）
   collect/restore.py             归档还原
   collect/export.py              导出 CSV
-  sql/readonly_role.sql          线上只读角色（由线上管理员执行，脚本不执行）
+  sql/readonly_role.sql          只读角色（已执行；保留作为记录）
 
 lab/traffic/                     实验流量：boutique_locust.py、client-zone.sh、inject_attack.sh（壳子）
-model-kit/                       模型接入说明与样本（normal_baseline_sample.csv）
+model-kit/                       模型接入说明与样本
 docs/                            交接、数据规范、本文、LAYOUT
 ```
 
 ---
 
-## 7. 安全规则（必须遵守）
+## 7. 安全规则
 
-1. **线上库只读**。同步和快照前会验证连接账号：不能有 INSERT/UPDATE/DELETE/TRUNCATE 权限，不能是超级用户。不满足就拒绝运行。不要绕过这个检查。
-2. **写入只到 `vigil_dev`**。脚本写入前验证库名。不要把 `KNETTF_DST_DB` 改成别的库。
-3. **数据不进仓库**。快照、归档、导出结果都在 `KNETTF_DATA_DIR`。如果在仓库里看到 CSV、`.sql`、`.gz`，那是误操作，先移出。
-4. **不要在开发环境运行会修改线上的命令**，包括 `migrate --database=vigil`、修改线上 `.env`、重启线上服务。这些需要线上权限，先确认。
-5. **不要把密码写进仓库、文档或命令行**。凭据放在 `~/.config/knettf/reader.env`（权限 600）。
-6. **开发机和线上同一台机器**。采集期间避免训练、编译和大型测试，因为 CPU 抢占会扰动时间特征（`flow_duration`、`iat_*`）。
-7. **注入只在有确认的攻击方式和速率后才运行**，并且保证注入日志完整。
+1. **线上只读**：同步前验证账号没有写权限、不是超级用户。不满足就拒绝运行，不要绕过。
+2. **写入只到 `pg-dev` 的 `vigil_dev`**：脚本写入前验证库名。开发侧没有线上库的写凭据。
+3. **数据不进仓库**：快照、归档、导出结果都在 `~/knettf-data`。仓库里出现 CSV、`.gz` 是误操作。
+4. **凭据不进仓库、文档、聊天、开发库**：全部放在 `~/.config/knettf/`，权限 600。密码丢了就重设，不要存进数据库。
+5. **不在开发环境执行会修改线上的命令**：包括线上迁移、线上 `.env`、重启线上服务。
+6. **开发机和线上在同一台机器**：采集期间避免训练、编译、大型测试，以免干扰时间特征。
+7. **注入只在攻击方式和速率确认后运行**，并保证注入日志完整。
 
 ---
 
 ## 8. 已知问题与未决事项
 
-| # | 问题 | 影响 | 状态 |
-|---|---|---|---|
-| 1 | 只读角色 `knettf_reader` 未建 | 每小时同步被拒绝运行，开发库不更新 | 等线上管理员执行 `scripts/sql/readonly_role.sql` |
-| 2 | 线上和开发库在同一个 Postgres 实例 | 隔离靠运行时验证和账号权限，不是物理隔离 | 可评估另起开发实例 |
-| 3 | 注入未实现 | 没有异常流量，无法训练和评估异常检测 | 等待攻击方式和速率确认 |
-| 4 | 线上历史错误标签（约 494 条被标为 1） | 历史数据标签不可用于训练 | 导出时已忽略；清理需要线上写入，待确认 |
-| 5 | `restore` 不处理整库快照 | `id ≤ 1019` 的基础数据不能直接导出 CSV | 可以增加从快照导出的选项 |
-| 6 | 交接文档写的是 `ads_ml_ocsvm`，代码默认是 `lof_baseline` | 文档与实际不一致 | 需要更新交接文档 |
-| 7 | Cilium 处置是 stub | `apply_action` 只记录日志，不下发策略 | 待实现 |
-| 8 | 线上 `vigil_detectionrecord` 停止增长（检测已关闭） | 页面 `/vigil` 不再有新记录 | 采集模式的预期结果 |
+| # | 问题 | 状态 |
+|---|---|---|
+| 1 | 线上 `vigil` 库里旧的 `vigil_dev` 库仍然存在 | 等 `pg-dev` 稳定运行几天后，由负责人决定是否删除 |
+| 2 | 注入未实现 | 等待攻击方式和速率确认 |
+| 3 | 线上历史错误标签（约 494 条被标为 1） | 导出时已忽略；清理需要线上写入，待确认 |
+| 4 | `restore` 不处理整库覆盖快照 | 可以增加从快照导出的选项 |
+| 5 | 交接文档写的是 `ads_ml_ocsvm`，代码默认是 `lof_baseline` | 需要更新交接文档 |
+| 6 | Cilium 处置是 stub | 待实现 |
+| 7 | `scripts/` 的新架构改动已提交到本地 `dev/soar009`（`a84676e`），尚未推送 | 需要推送并开 PR |
 
 ---
 
 ## 9. 第一周清单
 
-- [ ] 阅读 LAYOUT.md、HANDOVER.md、data-spec-v1.md 和 model-kit/README.md。
-- [ ] 在开发仓库运行 `python3 scripts/manage.py check`，理解每一行输出。
-- [ ] 查看定时任务的状态和最近一次日志（见 5.1）。
-- [ ] 查看 `~/knettf-data` 的目录结构，确认没有数据在仓库里。
-- [ ] 手动运行一次 `export`（时间范围选一个已有数据的小窗口），打开 CSV 和 txt 看一下字段。
-- [ ] 在 `vigil_dev` 里执行一次只读查询，确认能读到数据。
-- [ ] 找负责人确认：只读角色的执行时间、注入的攻击方式、历史标签的处理方式。
-- [ ] 把发现的文档错误或不一致记下来，更新本文。
+- [ ] 阅读 LAYOUT.md、HANDOVER.md、data-spec-v1.md、model-kit/README.md。
+- [ ] 运行 5.1 的 `check`，理解每一行输出。
+- [ ] 查看定时任务状态和日志（5.1）。
+- [ ] 确认 `~/knettf-data` 里有数据，仓库里没有。
+- [ ] 手动导出一个小时段（5.3），打开 CSV 和 txt 看字段。
+- [ ] 找负责人确认：注入的攻击方式、历史标签处理、旧 `vigil_dev` 的删除时间。
+- [ ] 把发现的文档错误记下来，更新本文。
 
 ---
 
-## 10. 常见问题排查
+## 10. 常见问题
 
 | 现象 | 可能原因 | 处理 |
 |---|---|---|
-| `sync` 报"线上连接账号有写权限或是超级用户" | 还在用 `vigil` 账号 | 等只读角色建好，设置 `reader.env` |
-| `export` 输出 0 条 | 时间范围不对，或者开发库没有数据 | 检查 `--since`/`--until`（Asia/Seoul），用 `check` 确认开发库名 |
-| `export` 报"Django 连接指向 …" | 环境变量指向了别的库 | 检查 `KNETTF_DST_DB`，应为 `vigil_dev` |
-| `pg_dump` 或 `psql` 找不到 | 没有用容器里的工具 | 脚本通过 `docker exec pg` 调用，本机不需要安装 |
-| 编辑器报"无法解析导入 vigil.detection.base" 或 `common` 相关错误 | 编辑器的 Python 路径不对 | 确认解释器为 `.venv`，重新加载窗口。`scripts/knettf_common.py` 不应与 `apps/backend/common` 重名 |
-| `InvalidCursorName` 紧跟着 `UndefinedTable` | 第一个错误是表不存在，第二个是连锁报错 | 先解决表不存在的问题（迁移） |
-| 线上 `/vigil` 页面没有新记录 | 采集模式开启，检测停止 | 这是预期行为；需要检测时按 5.6 恢复 |
-| 定时任务 `Result=exit-code` | 同步被拒绝，或者网络/容器问题 | 看 `journalctl --user -u knettf-snapshot.service` 的最后几行 |
-| 归档目录空间快速增长 | 采集速度变快，或保留上限设置过大 | 检查 `KNETTF_MAX_GB`，必要时手动清理 `increments/` 中最旧的文件 |
+| `check` 显示"缺少密码" | 没有加载对应的凭据文件 | 先 `. ~/.config/knettf/dev.env` 和 `reader.env` 再运行 |
+| `check` 显示线上"可写=是" | 账号不是只读角色 | 检查 `KNETTF_SRC_USER` 是否为 `knettf_reader` |
+| `check` 显示线上连接失败 | 密码错误，或容器未运行 | 密码错误就用 `\password knettf_reader` 重设，并更新 `reader.env` |
+| `export` 报"Django 连接指向 …" | 没有加载 `dev.env` | 加载 `dev.env`，`VIGIL_DB_*` 应指向 `127.0.0.1:5433/vigil_dev` |
+| 定时任务 `Result=exit-code` | 同步失败 | `journalctl --user -u knettf-snapshot.service -n 50` 看最后的报错 |
+| `/vigil` 页面没有新记录 | 线上是采集模式 | 预期行为；需要检测时按 5.5 切换 |
+| 归档目录增长很快 | 采集速度变快 | 检查 `KNETTF_MAX_GB`，必要时手动清理 `increments/` 最旧的文件 |
+| 编辑器报"无法解析导入" | 解释器不对 | 选择仓库的 `.venv` 解释器，重新加载窗口 |
 
 ---
 
 ## 附：关键命令速查
 
 ```bash
+# 加载凭据（一个终端里只需要做一次）
+set -a && . ~/.config/knettf/dev.env && . ~/.config/knettf/reader.env && set +a
+cd ~/github/knettf
+
 # 状态
-python3 scripts/manage.py check
+.venv/bin/python scripts/manage.py check
 systemctl --user list-timers knettf-snapshot.timer --no-pager
-docker exec pg psql -U vigil -d vigil -Atc "select count(*), max(id) from vigil_collectrecord"       # 线上（只读）
-docker exec pg psql -U vigil -d vigil_dev -Atc "select count(*), max(id) from vigil_collectrecord"   # 开发
 
 # 数据
-python3 scripts/manage.py collect sync
-python3 scripts/manage.py collect snapshot
-python3 scripts/manage.py collect restore --merge
 .venv/bin/python scripts/manage.py collect export --since "YYYY-MM-DD HH:MM" --until "YYYY-MM-DD HH:MM"
+.venv/bin/python scripts/manage.py collect restore --merge
 
 # 线上（需要权限）
 sudo systemctl restart netsentinel.service
-systemctl is-active netsentinel.service
 curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/
 ```
