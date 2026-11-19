@@ -183,6 +183,8 @@ VIGIL_KAFKA_GROUP_ID = env.str("VIGIL_KAFKA_GROUP_ID", default="vigil-bridge")
 # 要加载的检测模型（BaseDetectionModel 子类的完整路径，逗号分隔）；新增 / 替换模型只改这里
 # 启用哪些模型：默认值在这里（走 PR 修改），.env 里的 VIGIL_MODELS 可以临时覆盖
 VIGIL_MODELS = env.list("VIGIL_MODELS", default=["vigil.detection.lof_baseline.LofBaselineModel"])
+# 只采集不检测：True 时流量写入 CollectRecord（不跑模型、不写 DetectionRecord、不做 Cilium 处置）
+VIGIL_COLLECT_ONLY = env.bool("VIGIL_COLLECT_ONLY", default=False)
 # 每个模型一个目录（vigil/detection/<模型名>/），模型文件放在其中的 files/ 下，随代码进 Git
 VIGIL_ADS_ML_CONFIG = env.str("VIGIL_ADS_ML_CONFIG", default=str(BASE_DIR / "vigil/detection/ads_ml/files/config.yaml"))
 
