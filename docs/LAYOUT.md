@@ -49,7 +49,8 @@
 | 内容 | 位置 | 说明 |
 |---|---|---|
 | 数据目录 | `~/knettf-data/` | `snapshots/`、`increments/`、`exports/`、`restored/`，权限 700 |
-| 只读角色凭据 | `~/.config/knettf/reader.env` | 权限 600，定时任务读取 |
+| 凭据 | `~/.config/knettf/{reader.env,dev.env,pgdev-admin.env}` | 权限 600。`reader.env` 为线上只读账号，`dev.env` 为开发库账号，`pgdev-admin.env` 为 `pg-dev` 容器的超级用户 |
+| 开发数据库 | 容器 `pg-dev`，`127.0.0.1:5433`，库 `vigil_dev` | 独立实例，脚本唯一写入目标；线上库在容器 `pg`（5432） |
 | 线上部署 | `/srv/netsentinel/prod/` | 从 `main` 自动部署，**不在这里改代码** |
 | 线上日志 | `/srv/netsentinel/logs/auto-deploy.log` | 自动部署日志 |
 | 定时任务 | `~/.config/systemd/user/knettf-snapshot.{service,timer}` | 每小时 `scripts/manage.py collect sync` |

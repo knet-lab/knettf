@@ -48,7 +48,7 @@ def _stamp(dt: datetime) -> str:
 
 
 def run(args):
-    check_static()
+    check_static(need_src=False)   # 导出只读开发库，不需要线上凭据
     verify_dst()
     _setup_django()
     from vigil.detection.base import DetectionInput

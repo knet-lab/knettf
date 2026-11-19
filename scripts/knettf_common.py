@@ -59,16 +59,20 @@ def _dsn(c: dict) -> dict:
             "user": c["user"], "password": c["password"], "connect_timeout": 5}
 
 
-def check_static():
-    """不连数据库的检查：目标是否是开发库，两端是否相同，数据目录位置。"""
+def check_static(need_src: bool = True):
+    """不连数据库的检查：目标是否是开发库，两端是否相同，数据目录位置。
+    need_src=False 时（如导出）只检查开发库一侧。"""
     if DST["dbname"] != "vigil_dev":
         die(f"写入目标库必须是 vigil_dev（当前：{DST['dbname']}）")
-    if DST["port"] == SRC["port"] and DST["host"] == SRC["host"]:
-        die("开发库和线上库是同一个 host:port，已中止（开发库必须是独立实例，例如 pg-dev 的 5433）")
     if DST["host"] not in ("127.0.0.1", "localhost"):
         die(f"开发库必须在本机（当前主机：{DST['host']}）")
-    if not DST["password"] or not SRC["password"]:
-        die("缺少数据库密码：请设置 KNETTF_SRC_PASSWORD 和 KNETTF_DST_PASSWORD（见 ~/.config/knettf/）")
+    if not DST["password"]:
+        die("缺少开发库密码：请设置 KNETTF_DST_PASSWORD（见 ~/.config/knettf/dev.env）")
+    if need_src:
+        if DST["port"] == SRC["port"] and DST["host"] == SRC["host"]:
+            die("开发库和线上库是同一个 host:port，已中止（开发库必须是独立实例，例如 pg-dev 的 5433）")
+        if not SRC["password"]:
+            die("缺少线上只读账号密码：请设置 KNETTF_SRC_PASSWORD（见 ~/.config/knettf/reader.env）")
     if DATA_DIR == REPO or REPO in DATA_DIR.parents:
         die(f"数据目录位于开发仓库内，已中止：{DATA_DIR}")
     if str(DATA_DIR).startswith("/srv/netsentinel"):
