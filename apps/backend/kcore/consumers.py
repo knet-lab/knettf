@@ -9,15 +9,16 @@ from common.kclient import KubeClient
 
 class PodLogConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.cluster_id = self.scope['url_route']['kwargs']['cluster_id']
-        self.namespace = self.scope['url_route']['kwargs']['namespace']
-        self.pod_name = self.scope['url_route']['kwargs']['pod_name']
+        kwargs = self.scope['url_route']['kwargs']  # pyright: ignore[reportTypedDictNotRequiredAccess]  URLRouter 匹配后一定有
+        self.cluster_id = kwargs['cluster_id']
+        self.namespace = kwargs['namespace']
+        self.pod_name = kwargs['pod_name']
         self._streaming = True
 
         await self.accept()
         await self.stream_logs()
 
-    async def disconnect(self, close_code):
+    async def disconnect(self, code):
         self._streaming = False
 
     async def stream_logs(self):

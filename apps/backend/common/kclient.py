@@ -1,4 +1,6 @@
 # k8s client tools
+from typing import cast
+
 import yaml
 from kubernetes import client, config
 
@@ -168,7 +170,9 @@ class KubeClient:
                 self.apps.patch_namespaced_deployment, name, namespace
             )
         else:
-            dep = self.apps.read_namespaced_deployment(name, namespace)
+            dep = cast(client.V1Deployment, self.apps.read_namespaced_deployment(name, namespace))
+            if dep.spec is None:   # API 返回的 Deployment 一定有 spec；兜底给出明确错误（调用方按 502 返回）
+                raise RuntimeError(f'deployment {namespace}/{name} has no spec')
             self._force_delete_pods(namespace, dep.spec.selector.match_labels)
 
     def restart_daemonset(self, namespace: str, name: str, force: bool = False) -> None:
@@ -177,7 +181,9 @@ class KubeClient:
                 self.apps.patch_namespaced_daemon_set, name, namespace
             )
         else:
-            ds = self.apps.read_namespaced_daemon_set(name, namespace)
+            ds = cast(client.V1DaemonSet, self.apps.read_namespaced_daemon_set(name, namespace))
+            if ds.spec is None:   # 同上
+                raise RuntimeError(f'daemonset {namespace}/{name} has no spec')
             self._force_delete_pods(namespace, ds.spec.selector.match_labels)
 
     # DeamonSet

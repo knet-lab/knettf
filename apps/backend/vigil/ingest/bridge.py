@@ -69,12 +69,13 @@ def run_bridge():
             uncommitted = uncommitted or bool(msgs)
 
             for msg in msgs:
-                if msg.error():
-                    if msg.error().code() != KafkaError._PARTITION_EOF:
-                        raise KafkaException(msg.error())
+                err = msg.error()
+                if err:
+                    if err.code() != KafkaError._PARTITION_EOF:
+                        raise KafkaException(err)
                     continue
                 try:
-                    event = json.loads(msg.value().decode("utf-8"))
+                    event = json.loads((msg.value() or b"").decode("utf-8"))
                     flow  = event.get("flow", {})
                     if flow and not should_skip(flow):
                         pending.extend(table.add(hubble_to_packet(flow)))

@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.test import SimpleTestCase
 
 from vigil.detection.base import DetectionResult
@@ -7,7 +9,7 @@ from vigil.management.commands.cluster_check import (
 
 
 def _flow(**over):
-    d = {k: 0 for k in FEATURES}
+    d: dict[str, Any] = {k: 0 for k in FEATURES}
     d.update(src_ip="10.0.0.1", dst_ip="10.0.0.2", protocol="TCP",
              total_packets=3, fwd_packets=2, bwd_packets=1,
              flow_duration=2_000_000.0, iat_min=500_000.0, iat_mean=1_000_000.0, iat_max=1_500_000.0,

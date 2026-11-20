@@ -78,6 +78,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "django-stubs>=5.2.9,<5.3",
+    "djangorestframework-stubs>=3.16.9,<3.17",
     "ruff>=0.17.5",
 ]
 
@@ -87,3 +89,15 @@ extend-exclude = ["apps/backend/vigil/detection", "**/*_pb2.py", "**/*_pb2_grpc.
 
 [tool.ruff.lint]
 select = ["F", "E9"]
+
+# 类型检查（VS Code 的 Pylance 与命令行 pyright 共用这份配置）
+# Django / DRF 的类型来自 dev 组里的 django-stubs、djangorestframework-stubs
+[tool.pyright]
+include = ["apps/backend"]
+# 检测模型目录（vigil/detection）与 Django 生成的迁移文件不做类型检查
+exclude = ["apps/backend/vigil/detection", "**/migrations", "**/__pycache__"]
+extraPaths = ["apps/backend"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+typeCheckingMode = "standard"

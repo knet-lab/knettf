@@ -5,7 +5,7 @@ from .models import TerraformConfig, TerraformTool, ScanReport
 # ── TerraformTool ──────────────────────────────────────────────────────────────
 
 class TerraformToolSerializer(serializers.ModelSerializer):
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = TerraformTool
         fields = [
             'id', 'name', 'version', 'is_enabled',
@@ -17,7 +17,7 @@ class TerraformToolSerializer(serializers.ModelSerializer):
 
 
 class TerraformToolWriteSerializer(serializers.ModelSerializer):
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = TerraformTool
         fields = [
             'name', 'version', 'is_enabled',
@@ -34,7 +34,7 @@ class ScanReportSummarySerializer(serializers.ModelSerializer):
     """Embedded in config list / detail — lightweight, no full result."""
     tools = TerraformToolSerializer(many=True, read_only=True)
 
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = ScanReport
         fields = ['id', 'status', 'tools', 'scanned_at']
 
@@ -43,7 +43,7 @@ class ScanReportDetailSerializer(serializers.ModelSerializer):
     """Full report including result JSON."""
     tools = TerraformToolSerializer(many=True, read_only=True)
 
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = ScanReport
         fields = ['id', 'status', 'tools', 'result', 'scanned_at']
 
@@ -54,7 +54,7 @@ class TerraformConfigListSerializer(serializers.ModelSerializer):
     """Config list — lightweight, embeds report summary if exists."""
     report = serializers.SerializerMethodField()
 
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = TerraformConfig
         fields = [
             'id', 'name', 'is_scanned', 'created_at', 'updated_at', 'report',
@@ -72,7 +72,7 @@ class TerraformConfigDetailSerializer(serializers.ModelSerializer):
     """Config detail — full info + report summary (no full findings)."""
     report = serializers.SerializerMethodField()
 
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = TerraformConfig
         fields = [
             'id', 'name', 'file', 'is_scanned', 'created_at', 'updated_at', 'report',
@@ -88,7 +88,7 @@ class TerraformConfigDetailSerializer(serializers.ModelSerializer):
 
 class TerraformConfigCreateSerializer(serializers.ModelSerializer):
     """File upload path."""
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = TerraformConfig
         fields = ['name', 'file']
 

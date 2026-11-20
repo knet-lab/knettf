@@ -4,7 +4,7 @@ from .models import User, KubeCluster
 
 # 输出
 class UserResponseSerializer(serializers.ModelSerializer):
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = User
         fields = ['id', 'username', 'email', 'is_staff']
 
@@ -12,7 +12,7 @@ class UserResponseSerializer(serializers.ModelSerializer):
 class KubeClusterResponseSerializer(serializers.ModelSerializer):
     owner = UserResponseSerializer(read_only=True)
 
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = KubeCluster
         fields = ['id', 'name', 'owner', 'kubeconfig',
                   'is_active', 'last_synced_at', 'created_at']
@@ -20,7 +20,7 @@ class KubeClusterResponseSerializer(serializers.ModelSerializer):
 
 # 输入
 class UserCreateSerializer(serializers.ModelSerializer):
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = User
         fields = ['username', 'email', 'password']
         extra_kwargs = {'password': {'write_only': True}}
@@ -42,7 +42,7 @@ class UserUpdateSerializer(serializers.Serializer):
 
 
 class KubeClusterCreateSerializer(serializers.ModelSerializer):
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = KubeCluster
         fields = ['name', 'kubeconfig']
 
@@ -54,7 +54,7 @@ class KubeClusterCreateSerializer(serializers.ModelSerializer):
 
 
 class KubeClusterUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = KubeCluster
         fields = ['name', 'kubeconfig']
         extra_kwargs = {

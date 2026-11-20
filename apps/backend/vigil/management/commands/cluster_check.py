@@ -205,8 +205,9 @@ class Command(BaseCommand):
             while len(done) < len(assign) and time.time() < deadline:
                 for m in consumer.consume(num_messages=500, timeout=1.0):
                     p = m.partition()
-                    if m.error():
-                        if m.error().code() == KafkaError._PARTITION_EOF:
+                    err = m.error()
+                    if err:
+                        if err.code() == KafkaError._PARTITION_EOF:
                             done.add(p)
                         continue
                     if m.offset() < end[p]:

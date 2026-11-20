@@ -1,7 +1,14 @@
+from typing import TYPE_CHECKING
+
 from django.db import models
 
 
 class TerraformConfig(models.Model):
+    if TYPE_CHECKING:
+        # Django 运行时自动生成的属性，类型检查器看不到，这里声明一下（不影响模型和迁移）
+        owner_id: int                    # 外键 owner 的主键
+        scan_report: 'ScanReport'        # ScanReport.config 的反向一对一（不存在时抛 DoesNotExist）
+
     APPLY_SUCCESS = 'success'
     APPLY_FAILED  = 'failed'
     APPLY_STATUS_CHOICES = [
