@@ -60,7 +60,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(f"✗ {path}"))
                 for e in errors:
                     self.stdout.write(f"    {e}")
-            else:
+            elif m is not None:   # 没有错误时 m 一定已加载
                 self.stdout.write(self.style.SUCCESS(f"✓ {path}（name={m.name}）"))
         if failed:
             raise CommandError("有模型未通过接口检查")

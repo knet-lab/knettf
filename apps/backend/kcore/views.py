@@ -1,3 +1,5 @@
+from typing import Any
+
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAdminUser
@@ -128,6 +130,7 @@ class KubeResourceList(APIView, ResponseMixin):
         cluster = KubeClusterService.get_cluster_by_id(cluster_id)
         check_owner(request, cluster.owner.pk)
         bk_service = KubeResourceService(cluster)
+        resource: Any   # kubernetes 客户端无类型标注，运行时是 V1Xxx 对象
         if resource_type == 'namespaces':
             name = request.data.get('name')
             if not name:
@@ -192,6 +195,7 @@ class KubeResourceList(APIView, ResponseMixin):
         cluster = KubeClusterService.get_cluster_by_id(cluster_id)
         check_owner(request, cluster.owner.pk)
         bk_service = KubeResourceService(cluster)
+        resource: Any   # kubernetes 客户端无类型标注，运行时是 V1Xxx 对象
         namespace = request.data.get('namespace')
         if not namespace:
             return self.error_response('Namespace is required for update', status=status.HTTP_400_BAD_REQUEST)
@@ -282,22 +286,24 @@ class KubeResourceDetail(APIView, ResponseMixin):
         cluster = KubeClusterService.get_cluster_by_id(cluster_id)
         check_owner(request, cluster.owner.pk)
         bk_service = KubeResourceService(cluster)
+        namespaced_delete = {
+            'pods': bk_service.delete_pod,
+            'deployments': bk_service.delete_deployment,
+            'services': bk_service.delete_service,
+            'configmaps': bk_service.delete_configmap,
+            'daemonsets': bk_service.delete_daemonset,
+        }
+        if resource_type != 'namespaces' and resource_type not in namespaced_delete:
+            return self.error_response('Invalid resource type', status=status.HTTP_400_BAD_REQUEST)
         namespace = request.data.get('namespace') or None
+        # 带命名空间的资源必须给 namespace（与创建 / 更新接口一致），否则会把 None 传给 K8s 客户端
+        if resource_type != 'namespaces' and not namespace:
+            return self.error_response('Namespace is required', status=status.HTTP_400_BAD_REQUEST)
         try:
             if resource_type == 'namespaces':
                 bk_service.delete_namespace(name)
-            elif resource_type == 'pods':
-                bk_service.delete_pod(namespace, name)
-            elif resource_type == 'deployments':
-                bk_service.delete_deployment(namespace, name)
-            elif resource_type == 'services':
-                bk_service.delete_service(namespace, name)
-            elif resource_type == 'configmaps':
-                bk_service.delete_configmap(namespace, name)
-            elif resource_type == 'daemonsets':
-                bk_service.delete_daemonset(namespace, name)
-            else:
-                return self.error_response('Invalid resource type', status=status.HTTP_400_BAD_REQUEST)
+            elif namespace:
+                namespaced_delete[resource_type](namespace, name)
         except Exception as e:
             return self.error_response(str(e), status=status.HTTP_502_BAD_GATEWAY)
         return self.success_response({'message': f'{resource_type[:-1].capitalize()} "{name}" deleted'})

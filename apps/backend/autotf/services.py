@@ -2,8 +2,10 @@ import json
 import os
 import subprocess
 import tempfile
+from typing import Any
 
 from django.conf import settings
+from django.db.models import QuerySet
 from django.core.files.base import ContentFile
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
@@ -20,7 +22,7 @@ class TerraformConfigService:
             raise NotFound('Config not found')
 
     @staticmethod
-    def get_configs_by_user(user) -> list:
+    def get_configs_by_user(user) -> QuerySet[TerraformConfig]:
         return TerraformConfig.objects.filter(owner=user)
 
     @staticmethod
@@ -302,7 +304,7 @@ class ScanService:
     # ── Parsers ───────────────────────────────────────────────────
 
     @staticmethod
-    def _get_nested(obj: dict, path: str):
+    def _get_nested(obj: Any, path: str) -> Any:
         """Traverse dot-separated path, e.g. 'results.failed_checks' or 'range.start.line'."""
         for key in path.split('.'):
             if isinstance(obj, list):

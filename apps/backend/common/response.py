@@ -1,3 +1,5 @@
+from typing import Any
+
 from rest_framework.response import Response
 
 
@@ -18,8 +20,11 @@ from rest_framework.response import Response
 """
 
 
-class ResponseMixin(Response):
-    def __init__(self, data = None, status: int = None, message: str = None, code: int = None):
+class ApiResponse(Response):
+    """统一格式的响应：{status, code, message, data}。"""
+
+    def __init__(self, data: Any = None, status: int | None = None,
+                 message: str | None = None, code: int | None = None):
         base_data = {
             'status': 'success' if code == 0 else 'error',
             'code': code,
@@ -29,29 +34,29 @@ class ResponseMixin(Response):
         super().__init__(data=base_data, status=status)
 
 
+class ResponseMixin:
+    """视图用的辅助方法（与 APIView 一起继承）。只提供方法，本身不是响应对象。"""
 
-    def success_response(self, data: dict = None, status: int = 200):
-        return ResponseMixin(data=data, status=status, code=0, message='Success')
+    def success_response(self, data: Any = None, status: int = 200) -> ApiResponse:
+        return ApiResponse(data=data, status=status, code=0, message='Success')
 
+    def created_response(self, data: Any = None, status: int = 201) -> ApiResponse:
+        return ApiResponse(data=data, status=status, code=0, message='Created')
 
-    def created_response(self, data: dict = None, status: int = 201):
-        return ResponseMixin(data=data, status=status, code=0, message='Created')
-    
+    def bad_request_response(self, message: str = 'Bad Request', status: int = 400) -> ApiResponse:
+        return ApiResponse(data=None, status=status, message=message, code=1)
 
-    def bad_request_response(self, message: str = 'Bad Request', status: int = 400):
-        return ResponseMixin(data=None, status=status, message=message, code=1)
-    
-    def unauthorized_response(self, message: str = 'Unauthorized', status: int = 401):
-        return ResponseMixin(data=None, status=status, message=message, code=1)
-    
-    def forbidden_response(self, message: str = 'Forbidden', status: int = 403):
-        return ResponseMixin(data=None, status=status, message=message, code=1)
+    def unauthorized_response(self, message: str = 'Unauthorized', status: int = 401) -> ApiResponse:
+        return ApiResponse(data=None, status=status, message=message, code=1)
 
-    def not_found_response(self, message: str = 'Not Found', status: int = 404):
-        return ResponseMixin(data=None, status=status, message=message, code=1)
+    def forbidden_response(self, message: str = 'Forbidden', status: int = 403) -> ApiResponse:
+        return ApiResponse(data=None, status=status, message=message, code=1)
 
-    def error_response(self, message: str, status: int = 400, data: dict = None):
-        return ResponseMixin(data=data, status=status, message=message, code=1)
+    def not_found_response(self, message: str = 'Not Found', status: int = 404) -> ApiResponse:
+        return ApiResponse(data=None, status=status, message=message, code=1)
 
-    def server_error_response(self, message: str = 'Internal Server Error', status: int = 500):
-        return ResponseMixin(data=None, status=status, message=message, code=2)
+    def error_response(self, message: str, status: int = 400, data: Any = None) -> ApiResponse:
+        return ApiResponse(data=data, status=status, message=message, code=1)
+
+    def server_error_response(self, message: str = 'Internal Server Error', status: int = 500) -> ApiResponse:
+        return ApiResponse(data=None, status=status, message=message, code=2)

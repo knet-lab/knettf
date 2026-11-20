@@ -3,7 +3,7 @@ from .models import DetectionRecord
 
 
 class DetectionRecordSerializer(serializers.ModelSerializer):
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]  DRF 存根已声明 Meta，子类重定义属正常用法
         model = DetectionRecord
         fields = "__all__"
 
@@ -65,7 +65,7 @@ class FlowInputSerializer(serializers.Serializer):
     is_well_known_port = serializers.IntegerField(default=0)
 
     # ── metadata ──────────────────────────────────────────────────────────────
-    label = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
+    label = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")  # pyright: ignore[reportAssignmentType]  字段名与 Field.label 同名，运行时由元类取走，不冲突
     model = serializers.CharField(required=False, allow_null=True, default=None)
 
 

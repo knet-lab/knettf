@@ -1,3 +1,6 @@
+# django-environ 没有类型标注，pyright 会把 env.str/bool/list 的 default 参数推断成 NoValue，
+# 传任何默认值都报错（库的问题，不是配置写错）。本文件只是配置，关掉这两条规则。
+# pyright: reportArgumentType=false, reportOperatorIssue=false
 """
 Django settings for backend project.
 

@@ -30,8 +30,8 @@ class DetectorPushConsumer(AsyncWebsocketConsumer):
             return parts[1] == expected
         return False
 
-    async def disconnect(self, close_code):
-        logger.info("detector pod disconnected: %s", close_code)
+    async def disconnect(self, code):
+        logger.info("detector pod disconnected: %s", code)
 
     async def receive(self, text_data=None, bytes_data=None):
         if not text_data:

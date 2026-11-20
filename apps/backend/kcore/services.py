@@ -1,3 +1,5 @@
+from django.db.models import QuerySet
+
 from .models import User, KubeCluster
 from rest_framework.exceptions import NotFound
 from common.kclient import KubeClient
@@ -11,7 +13,7 @@ class UserService:
             raise NotFound('User not found')
 
     @staticmethod
-    def get_users_list() -> list:
+    def get_users_list() -> QuerySet[User]:
         return User.objects.all()
 
     @staticmethod
@@ -38,7 +40,7 @@ class KubeClusterService:
             raise NotFound('Cluster not found')
 
     @staticmethod
-    def get_clusters_by_user(user: User) -> list:
+    def get_clusters_by_user(user: User) -> QuerySet[KubeCluster]:
         return KubeCluster.objects.filter(owner=user)
             
 
